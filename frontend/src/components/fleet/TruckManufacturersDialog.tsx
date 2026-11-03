@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Factory, Plus, Pencil, Trash2, Loader2, History, Droplets, IndianRupee } from "lucide-react";
+import { RiBuilding3Line as Factory, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiLoader4Line as Loader2, RiHistoryLine as History, RiDropLine as Droplets, RiMoneyRupeeCircleLine as IndianRupee } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { adblueApi, type AdBlueManufacturer, type AdBlueEditEventRow } from "@/lib/api";
-import { confirmDelete, showError, showSuccess } from "@/lib/swal";
+import { confirmDelete, showError, showSuccess } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import type { Truck } from "@/types/truck";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<AdBlueEditEventRow["event"], typeof Plus> = {
   "Manufacturer Created": Plus,
   "Manufacturer Edited": Pencil,
@@ -18,9 +19,9 @@ const EDIT_EVENT_ICON: Record<AdBlueEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<AdBlueEditEventRow["event"], string> = {
-  "Manufacturer Created": "bg-blue-100 text-blue-700",
-  "Manufacturer Edited": "bg-amber-100 text-amber-700",
-  "Manufacturer Deleted": "bg-red-100 text-red-700",
+  "Manufacturer Created": "bg-accent-surface-strong text-accent-text",
+  "Manufacturer Edited": "bg-warning-surface-strong text-warning-text",
+  "Manufacturer Deleted": "bg-danger-surface-strong text-danger-text",
 };
 
 type Props = {
@@ -149,7 +150,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
     <>
     <Dialog open={open} onClose={onClose} title="Manufacturers" className="max-w-3xl">
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-text-secondary">
         The Manufacturer list used when adding or editing a truck, and each one&apos;s AdBlue cost per litre —
         the price an AdBlue fill starts with for its trucks, and the price behind their AdBlue cost per km
         (Running Cost Calculator and Profitability).
@@ -161,7 +162,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
             <button
               type="button"
               onClick={openHistory}
-              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition-colors hover:bg-fill-2"
             >
               <History className="h-4 w-4" />
               Edit History
@@ -170,7 +171,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
           <button
             type="button"
             onClick={openAdd}
-            className="flex h-9 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+            className="flex h-9 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-4 text-body-medium text-on-solid shadow-sm transition-colors hover:bg-accent-solid-hover"
           >
             <Plus className="h-4 w-4" />
             Add Manufacturer
@@ -179,9 +180,9 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-gray-300" /></div>
+        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-text-tertiary" /></div>
       ) : visible.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-10 text-center text-sm text-text-tertiary">
           {manufacturers.length === 0
             ? <>No manufacturers yet. Click &ldquo;Add Manufacturer&rdquo; to create one.</>
             : <>No manufacturers match &ldquo;{search}&rdquo;.</>}
@@ -192,19 +193,19 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
             const count = truckCount.get(m.name.trim().toLowerCase()) ?? 0;
             const rate = manufacturerRate(m);
             return (
-              <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+              <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-separator-border bg-background-primary-default px-4 py-3.5 shadow-sm">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fill-2 text-text-secondary">
                   <Factory className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900">{m.name}</p>
-                  <p className="text-xs text-slate-400">{count} truck{count === 1 ? "" : "s"}</p>
+                  <p className="truncate text-body-semibold text-text-primary">{m.name}</p>
+                  <p className="text-xs text-text-tertiary">{count} truck{count === 1 ? "" : "s"}</p>
                 </div>
                 <span
                   title="AdBlue cost per litre"
                   className={cn(
-                    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                    rate != null ? "bg-blue-50 text-blue-700 ring-1 ring-blue-100" : "bg-slate-100 text-slate-400",
+                    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-caption-2-semibold",
+                    rate != null ? "bg-accent-surface text-accent-text ring-1 ring-accent-border" : "bg-fill-2 text-text-tertiary",
                   )}
                 >
                   <Droplets className="h-3 w-3" />
@@ -215,7 +216,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
                     type="button"
                     onClick={() => openEdit(m)}
                     aria-label={`Edit ${m.name}`}
-                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                    className="rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-accent-surface-strong hover:text-accent-text"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -224,7 +225,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
                     onClick={() => handleDelete(m)}
                     disabled={deletingId === m.id}
                     aria-label={`Delete ${m.name}`}
-                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                    className="rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-danger-surface-strong hover:text-danger-text disabled:opacity-40"
                   >
                     {deletingId === m.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   </button>
@@ -245,19 +246,19 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
           className="flex flex-col gap-4"
         >
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-gray-700">Manufacturer Name <span className="text-red-500">*</span></span>
+            <span className="text-body-medium text-text-primary">Manufacturer Name <span className="text-danger-text">*</span></span>
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. TATA"
-              className="h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-10 rounded-xl border border-separator-border px-3 text-sm text-text-primary outline-none focus:border-accent-border-strong focus:ring-2 focus:ring-accent-border"
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-gray-700">AdBlue Cost per Litre (₹)</span>
+            <span className="text-body-medium text-text-primary">AdBlue Cost per Litre (₹)</span>
             <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-tertiary">
                 <IndianRupee className="h-4 w-4" />
               </span>
               <input
@@ -267,16 +268,16 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="e.g. 92.00"
-                className="h-10 w-full rounded-xl border border-slate-200 pl-8 pr-3 text-sm text-slate-800 outline-none [appearance:textfield] focus:border-blue-400 focus:ring-2 focus:ring-blue-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                className="h-10 w-full rounded-xl border border-separator-border pl-8 pr-3 text-sm text-text-primary outline-none [appearance:textfield] focus:border-accent-border-strong focus:ring-2 focus:ring-accent-border [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
             </div>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-text-tertiary">
               Optional. Pre-fills Cost Per Litre when an AdBlue fill is logged for this manufacturer&apos;s trucks.
               Changing it never changes fills already saved.
             </span>
           </label>
           {editing && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-text-tertiary">
               Trucks already saved with &ldquo;{editing.name}&rdquo; keep that name until they&rsquo;re edited.
             </p>
           )}
@@ -284,14 +285,14 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
             <button
               type="button"
               onClick={() => setDialogOpen(false)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || !name.trim()}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-accent-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-50"
             >
               {saving ? "Saving…" : editing ? "Save Changes" : "Add Manufacturer"}
             </button>
@@ -304,42 +305,40 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by manufacturer or actor…" value={historySearch} onChange={setHistorySearch} />
           {historyLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const hq = historySearch.toLowerCase();
             const filtered = historyEvents.filter((ev) =>
               !hq || ev.label.toLowerCase().includes(hq) || ev.actorName.toLowerCase().includes(hq)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {historyEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={historyEvents.length === 0 ? "no-data" : "not-found"} title={historyEvents.length === 0 ? "No edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
                       {["Manufacturer", "Action", "By", "When"].map((h) => (
-                        <th key={h} className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">{h}</th>
+                        <th key={h} className="px-3 py-2 text-caption-2-semibold text-text-tertiary">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event] ?? Pencil;
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.label}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.label}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

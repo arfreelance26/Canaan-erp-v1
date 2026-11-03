@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { RiCloseLine as X } from "@remixicon/react";
 import { tyreRemarkPresetApi } from "@/lib/api";
 import type { TyreRemarkPreset, TyreRemarkScenario } from "@/types/tyre-inventory";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 
 const SECTIONS: { scenario: TyreRemarkScenario; title: string; hint: string }[] = [
@@ -59,22 +59,22 @@ export function ManageRemarksDialog({ open, onClose }: Props) {
     <Dialog open={open} onClose={onClose} title="Manage Remarks">
       <div className="flex flex-col gap-6 p-1">
         {!canEdit && (
-          <p className="text-xs text-gray-500">Only Maintenance and Admin can add or remove remarks.</p>
+          <p className="text-xs text-text-secondary">Only Maintenance and Admin can add or remove remarks.</p>
         )}
         {SECTIONS.map((section) => {
           const items = presets.filter((p) => p.scenario === section.scenario);
           return (
             <section key={section.scenario} className="flex flex-col gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-gray-900">{section.title}</h3>
-                <p className="text-xs text-gray-500">{section.hint}</p>
+                <h3 className="text-body-semibold text-text-primary">{section.title}</h3>
+                <p className="text-xs text-text-secondary">{section.hint}</p>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {items.length === 0 && <span className="text-xs italic text-gray-400">No remarks yet.</span>}
+                {items.length === 0 && <span className="text-xs text-text-tertiary">No remarks yet.</span>}
                 {items.map((preset) => (
                   <span
                     key={preset.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700"
+                    className="inline-flex items-center gap-1 rounded-full border border-border-button-default bg-background-primary-default px-2.5 py-0.5 text-xs text-text-primary"
                   >
                     {preset.text}
                     {canEdit && (
@@ -82,7 +82,7 @@ export function ManageRemarksDialog({ open, onClose }: Props) {
                         type="button"
                         onClick={() => removeRemark(preset)}
                         aria-label={`Remove ${preset.text}`}
-                        className="rounded-full p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                        className="rounded-full p-0.5 text-text-tertiary hover:bg-danger-surface-strong hover:text-danger-text"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -104,14 +104,14 @@ export function ManageRemarksDialog({ open, onClose }: Props) {
                     }}
                     placeholder="Add a remark…"
                     maxLength={200}
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    className="flex-1 rounded-lg border border-border-button-default px-3 py-2 text-sm"
                   />
                   <button
                     type="button"
                     onClick={() => addRemark(section.scenario)}
                     disabled={!drafts[section.scenario].trim()}
                     className={cn(
-                      "rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors",
+                      "rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid hover:bg-accent-solid-hover transition-colors",
                       "disabled:opacity-50"
                     )}
                   >

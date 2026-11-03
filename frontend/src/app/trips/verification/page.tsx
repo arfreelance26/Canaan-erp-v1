@@ -26,9 +26,9 @@ import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { CheckCircle2, Clock, FileText, AlertTriangle, Download, Eye, X, Trash2, Layers, History, Plus, Pencil, ClipboardList, XCircle, RotateCcw } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiFileTextLine as FileText, RiAlertLine as AlertTriangle, RiDownloadLine as Download, RiEyeLine as Eye, RiCloseLine as X, RiDeleteBinLine as Trash2, RiStackLine as Layers, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiFileList3Line as ClipboardList, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { todayIst, formatDateTime } from "@/lib/format-date";
@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
   "Booking Created": Plus,
   "Booking Edited": Pencil,
@@ -50,15 +51,15 @@ const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<TripEditEventRow["event"], string> = {
-  "Booking Created": "bg-blue-100 text-blue-700",
-  "Booking Edited": "bg-amber-100 text-amber-700",
-  "Trip Sheet Saved": "bg-violet-100 text-violet-700",
-  "Trip Updated": "bg-amber-100 text-amber-700",
-  "Trip Closed": "bg-emerald-100 text-emerald-700",
-  "Verification Confirmed": "bg-emerald-100 text-emerald-700",
-  "Verification Rejected": "bg-red-100 text-red-700",
-  "Trip Deleted": "bg-red-100 text-red-700",
-  "Trip Restored": "bg-emerald-100 text-emerald-700",
+  "Booking Created": "bg-accent-surface-strong text-accent-text",
+  "Booking Edited": "bg-warning-surface-strong text-warning-text",
+  "Trip Sheet Saved": "bg-purple-surface-strong text-purple-text",
+  "Trip Updated": "bg-warning-surface-strong text-warning-text",
+  "Trip Closed": "bg-success-surface-strong text-success-text",
+  "Verification Confirmed": "bg-success-surface-strong text-success-text",
+  "Verification Rejected": "bg-danger-surface-strong text-danger-text",
+  "Trip Deleted": "bg-danger-surface-strong text-danger-text",
+  "Trip Restored": "bg-success-surface-strong text-success-text",
 };
 type SheetDialogMode = "view" | "edit";
 
@@ -78,15 +79,15 @@ type StatusFilter = "All" | "Pending" | "Verified" | "Invoiced" | "Rejected" | "
 
 function StatusBadge({ status }: { status: "pending" | "verified" | "invoiced" | "rejected" | "waived" }) {
   const map = {
-    pending:  "bg-yellow-100 text-yellow-700",
-    verified: "bg-emerald-100 text-emerald-700",
-    invoiced: "bg-blue-100 text-blue-700",
-    rejected: "bg-rose-100 text-rose-700",
-    waived:   "bg-purple-100 text-purple-700",
+    pending:  "bg-warning-surface-strong text-warning-text",
+    verified: "bg-success-surface-strong text-success-text",
+    invoiced: "bg-accent-surface-strong text-accent-text",
+    rejected: "bg-danger-surface-strong text-danger-text",
+    waived:   "bg-purple-surface-strong text-purple-text",
   };
   const labels = { pending: "Pending", verified: "Verified", invoiced: "Invoiced", rejected: "Rejected", waived: "Waived Invoice" };
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${map[status]}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-caption-1-semibold ${map[status]}`}>
       {labels[status]}
     </span>
   );
@@ -754,12 +755,12 @@ export default function TripVerificationPage() {
   const waivedInvoiceCount = allFiltered.filter((t) => waivedIds.has(t.id) && !invoicedIds.has(t.id)).length;
 
   const FILTER_CARDS: { key: StatusFilter; label: string; count: number; color: string }[] = [
-    { key: "All",            label: "All Trips",      count: allFiltered.length,   color: "border-gray-200 bg-white text-gray-900" },
-    { key: "Pending",        label: "Pending",        count: pendingCount,          color: "border-yellow-200 bg-yellow-50 text-yellow-700" },
-    { key: "Rejected",       label: "Rejected",       count: rejectedCount,         color: "border-rose-200 bg-rose-50 text-rose-700" },
-    { key: "Verified",       label: "Verified",       count: verifiedCount,         color: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-    { key: "Invoiced",       label: "Invoiced",       count: invoicedCount,         color: "border-blue-200 bg-blue-50 text-blue-700" },
-    { key: "Waived Invoice", label: "Waived Invoice", count: waivedInvoiceCount,    color: "border-purple-200 bg-purple-50 text-purple-700" },
+    { key: "All",            label: "All Trips",      count: allFiltered.length,   color: "border-separator-border bg-background-primary-default text-text-primary" },
+    { key: "Pending",        label: "Pending",        count: pendingCount,          color: "border-warning-border bg-warning-surface text-warning-text" },
+    { key: "Rejected",       label: "Rejected",       count: rejectedCount,         color: "border-danger-border bg-danger-surface text-danger-text" },
+    { key: "Verified",       label: "Verified",       count: verifiedCount,         color: "border-success-border bg-success-surface text-success-text" },
+    { key: "Invoiced",       label: "Invoiced",       count: invoicedCount,         color: "border-accent-border bg-accent-surface text-accent-text" },
+    { key: "Waived Invoice", label: "Waived Invoice", count: waivedInvoiceCount,    color: "border-purple-border bg-purple-surface text-purple-text" },
   ];
 
   return (
@@ -767,19 +768,19 @@ export default function TripVerificationPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
             <FileText className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Verification & Invoicing</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Verify trip data and generate invoices in one place</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Verification & Invoicing</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Verify trip data and generate invoices in one place</p>
           </div>
         </div>
         {isAdmin && (
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -802,7 +803,7 @@ export default function TripVerificationPage() {
             type="button"
             onClick={() => setShowReportModal(true)}
             title="View and download invoiced trips for selected date range"
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Eye className="h-4 w-4" />
             View
@@ -817,36 +818,36 @@ export default function TripVerificationPage() {
             key={key}
             type="button"
             onClick={() => { setStatusFilter(key); setPage(1); if (key !== "Invoiced") setInvoiceTypeFilter("All"); }}
-            className={`rounded-xl border px-4 py-3 text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${color} ${statusFilter === key ? "ring-2 ring-blue-500 shadow-md" : "hover:shadow-sm"}`}
+            className={`rounded-xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-accent-border-strong ${color} ${statusFilter === key ? "ring-2 ring-accent-solid shadow-md" : "hover:shadow-sm"}`}
           >
-            <p className="text-xs font-semibold uppercase tracking-wider opacity-70">{label}</p>
-            <p className="mt-1 text-2xl font-bold">{count}</p>
+            <p className="text-caption-1-semibold opacity-70">{label}</p>
+            <p className="mt-1 text-title-1-semibold">{count}</p>
           </button>
         ))}
       </div>
 
       {/* Workflow steps legend + invoice type sub-filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="font-semibold text-gray-600">Workflow:</span>
-          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-yellow-500" /> Pending → verify trip data</span>
-          <span className="text-gray-300">›</span>
-          <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Verified → generate invoice</span>
-          <span className="text-gray-300">›</span>
-          <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5 text-blue-500" /> Invoiced</span>
+          <span className="font-semibold text-text-secondary">Workflow:</span>
+          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-warning-text" /> Pending → verify trip data</span>
+          <span className="text-text-tertiary">›</span>
+          <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-success-text" /> Verified → generate invoice</span>
+          <span className="text-text-tertiary">›</span>
+          <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5 text-accent-text" /> Invoiced</span>
         </div>
         {/* Invoice type sub-filter — only visible when Invoiced tab is selected */}
         {statusFilter === "Invoiced" && <div className="flex items-center gap-1">
-          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Invoice Type:</span>
+          <span className="mr-1 text-caption-2-semibold text-text-tertiary">Invoice Type:</span>
           {(["All", "Tax Invoice", "Bill of Supply", "Transport Memo"] as const).map((opt) => (
             <button
               key={opt}
               type="button"
               onClick={() => { setInvoiceTypeFilter(opt); setPage(1); }}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
+              className={`rounded-full px-2.5 py-0.5 text-caption-2-semibold transition-colors ${
                 invoiceTypeFilter === opt
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "border border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600"
+                  ? "bg-accent-solid text-on-solid shadow-sm"
+                  : "border border-separator-border bg-background-primary-default text-text-secondary hover:border-accent-border-strong hover:text-accent-text"
               }`}
             >
               {opt}
@@ -862,23 +863,23 @@ export default function TripVerificationPage() {
         const total = selected.reduce((sum, t) => sum + (sheets.get(t.id) ? n(sheets.get(t.id)!.hireAmount) : 0), 0);
         const canGenerate = selected.length >= 2;
         return (
-          <div className="dk-inset flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-indigo-50/40 to-white px-5 py-3.5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-purple-border bg-purple-surface px-5 py-3.5 shadow-sm">
             <div className="flex items-center gap-3.5">
-              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-100 to-white text-indigo-600 shadow-sm">
+              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-border bg-purple-surface-strong text-purple-text shadow-sm">
                 <Layers className="h-5 w-5" />
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white shadow-sm">
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-solid px-1 text-caption-2-semibold text-on-solid shadow-sm">
                   {selected.length}
                 </span>
               </span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-body-semibold text-text-primary">
                   {selected.length} trip{selected.length !== 1 ? "s" : ""} selected
-                  <span className="mx-1.5 text-gray-300">·</span>
-                  <span className="text-indigo-700">{selectedCustomer?.name ?? "no customer"}</span>
+                  <span className="mx-1.5 text-text-tertiary">·</span>
+                  <span className="text-purple-text">{selectedCustomer?.name ?? "no customer"}</span>
                 </p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Approx total <span className="font-semibold text-gray-700">{fmt(total)}</span>
-                  {!canGenerate && <span className="ml-2 text-amber-600">· select at least 1 more trip to combine</span>}
+                <p className="mt-0.5 text-xs text-text-secondary">
+                  Approx total <span className="font-semibold text-text-primary">{fmt(total)}</span>
+                  {!canGenerate && <span className="ml-2 text-warning-text">· select at least 1 more trip to combine</span>}
                 </p>
               </div>
             </div>
@@ -886,7 +887,7 @@ export default function TripVerificationPage() {
               <button
                 type="button"
                 onClick={() => setCombineSelection(new Set())}
-                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-600 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50"
+                className="rounded-full border border-separator-border bg-background-primary-default px-4 py-2 text-caption-1-semibold text-text-secondary shadow-sm transition-colors hover:border-border-button-default hover:bg-fill-2"
               >
                 Clear
               </button>
@@ -895,7 +896,7 @@ export default function TripVerificationPage() {
                 onClick={openCombineGenerateDialog}
                 disabled={!canGenerate}
                 title={!canGenerate ? "Select at least 2 trips to combine" : undefined}
-                className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-sm"
+                className="flex items-center gap-2 whitespace-nowrap rounded-full bg-purple-solid px-5 py-2 text-caption-1-semibold text-on-solid shadow-sm transition duration-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm"
               >
                 <FileText className="h-3.5 w-3.5" />
                 Generate Combined Invoice
@@ -906,29 +907,29 @@ export default function TripVerificationPage() {
       })()}
 
       {filteredTrips.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-10 text-center text-sm text-text-secondary">
           {allFiltered.length === 0
-            ? <>No trips ready. Add a trip sheet on the{" "}<a href="/trips/reconciliation" className="text-blue-600 underline">Reconciliation</a> page first.</>
+            ? <>No trips ready. Add a trip sheet on the{" "}<a href="/trips/reconciliation" className="text-accent-text underline">Reconciliation</a> page first.</>
             : "No trips match this filter."}
         </div>
       ) : (
         <>
-          <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default">
             <table className="w-full min-w-[1200px] text-left text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
+                <tr className="border-b border-separator-border bg-fill-1">
                   {[
                     ...(statusFilter === "Verified" ? ["Combine"] : []),
                     "Status", "Actions", "Date", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
                     "Hire Amt", "Expense", "Invoice No", "Delete",
                   ].map((col) => (
-                    <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th key={col} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                       {col}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {paginatedTrips.map((trip) => {
                   const closure    = closures.get(trip.id);
                   const sheet      = sheets.get(trip.id);
@@ -944,9 +945,9 @@ export default function TripVerificationPage() {
                   const expenseAmt = sheet ? calcTripExpenses(sheet) : 0;
                   const invNo      = inv?.invoice_no ?? "—";
                   const invType    = (inv?.invoice_type ?? invoiceTypes.get(trip.id) ?? "") as string;
-                  const invTypeBadge = invType === "Bill of Supply" ? "bg-emerald-100 text-emerald-700"
-                    : invType === "Transport Memo" ? "bg-orange-100 text-orange-700"
-                    : invType === "Tax Invoice" ? "bg-blue-100 text-blue-700" : "";
+                  const invTypeBadge = invType === "Bill of Supply" ? "bg-success-surface-strong text-success-text"
+                    : invType === "Transport Memo" ? "bg-orange-surface-strong text-orange-text"
+                    : invType === "Tax Invoice" ? "bg-accent-surface-strong text-accent-text" : "";
 
                   const tripStatus = isInvoiced ? "invoiced" : isWaived ? "waived" : isVerified ? "verified" : isRejected ? "rejected" : "pending";
                   // Row tint matches the filter cards: Invoiced→blue, Waived→purple, Verified→emerald, Rejected→rose, Pending→yellow.
@@ -968,7 +969,7 @@ export default function TripVerificationPage() {
                               title={!combineSelection.has(trip.id) && !canJoinCombineSelection(trip)
                                 ? "Combined invoices must share the same customer and bill-to"
                                 : "Select for combined invoice"}
-                              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-30"
+                              className="h-4 w-4 rounded border-border-button-default text-purple-text focus:ring-purple-solid disabled:cursor-not-allowed disabled:opacity-30"
                             />
                           )}
                         </td>
@@ -980,47 +981,47 @@ export default function TripVerificationPage() {
                         {isInvoiced ? (
                           <div className="flex flex-wrap gap-1.5">
                             <button type="button" onClick={() => handleEditInvoice(trip)}
-                              className="flex items-center gap-1 rounded-lg border border-orange-300 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-50">
+                              className="flex items-center gap-1 rounded-lg border border-orange-border-strong px-2.5 py-1 text-caption-1-semibold text-orange-text hover:bg-orange-surface-strong">
                               Edit Invoice
                             </button>
                             <button type="button" onClick={() => openPreview(trip, false)} disabled={!closure}
-                              className="flex items-center gap-1 rounded-lg border border-indigo-300 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-40">
+                              className="flex items-center gap-1 rounded-lg border border-purple-border-strong px-2.5 py-1 text-caption-1-semibold text-purple-text hover:bg-purple-surface-strong disabled:opacity-40">
                               Preview
                             </button>
                             <button type="button" onClick={() => openPreview(trip, true)} disabled={!closure}
-                              className="flex items-center gap-1 rounded-lg border border-blue-300 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-40">
+                              className="flex items-center gap-1 rounded-lg border border-accent-border-strong px-2.5 py-1 text-caption-1-semibold text-accent-text hover:bg-accent-surface-strong disabled:opacity-40">
                               Download PDF
                             </button>
                             <button type="button" onClick={() => setLrDialogTrip(trip)}
-                              className="flex items-center gap-1 rounded-lg border border-blue-900/30 px-2.5 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-50">
+                              className="flex items-center gap-1 rounded-lg border border-accent-solid/30 px-2.5 py-1 text-caption-1-semibold text-accent-text-strong hover:bg-accent-surface-strong">
                               Generate LR
                             </button>
                             {parseFloat(trip.customerFuelAdvanceAmount || "0") > 0 && (
                               <button type="button" onClick={() => setDabDialogTrip(trip)}
-                                className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100">
+                                className="flex items-center gap-1 rounded-lg border border-warning-border-strong bg-warning-surface px-2.5 py-1 text-caption-1-semibold text-warning-text-strong hover:bg-warning-surface-strong">
                                 Generate DAB
                               </button>
                             )}
                             {parseFloat(trip.customerCashAdvance || "0") > 0 &&
                               (trip.paymentType === "Cash" || trip.paymentType === "Credit") && (
                               <button type="button" onClick={() => setCabDialogTrip(trip)}
-                                className="flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800 hover:bg-green-100">
+                                className="flex items-center gap-1 rounded-lg border border-success-border-strong bg-success-surface px-2.5 py-1 text-caption-1-semibold text-success-text-strong hover:bg-success-surface-strong">
                                 Generate CAB
                               </button>
                             )}
                           </div>
                         ) : isWaived ? (
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-purple-700">Invoice Waived</span>
+                            <span className="text-caption-1-semibold text-purple-text">Invoice Waived</span>
                             <button
                               type="button"
                               onClick={() => setInvoiceDialog({ trip, savedInvoice: null })}
-                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                              className="rounded-lg bg-purple-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-purple-solid-hover"
                             >
                               GENERATE INVOICE
                             </button>
                             <button type="button" onClick={() => { setVerifyTripReadOnly(true); setVerifyTrip(trip); }}
-                              className="w-fit rounded-lg border border-gray-300 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50">
+                              className="w-fit rounded-lg border border-border-button-default px-2.5 py-1 text-caption-2-medium text-text-secondary hover:bg-fill-2">
                               View Details
                             </button>
                           </div>
@@ -1029,35 +1030,35 @@ export default function TripVerificationPage() {
                             <button
                               type="button"
                               onClick={() => setInvoiceDialog({ trip, savedInvoice: null })}
-                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                              className="rounded-lg bg-purple-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-purple-solid-hover"
                             >
                               GENERATE INVOICE
                             </button>
                             <button type="button" onClick={() => setLrDialogTrip(trip)}
-                              className="rounded-lg border border-blue-900/30 bg-white px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-50">
+                              className="rounded-lg border border-accent-solid/30 bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-accent-text-strong hover:bg-accent-surface-strong">
                               GENERATE LR
                             </button>
                             <button type="button" onClick={() => handleWaiveInvoice(trip)}
-                              className="rounded-lg border border-purple-300 bg-white px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-50">
+                              className="rounded-lg border border-purple-border-strong bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-purple-text hover:bg-purple-surface-strong">
                               WAIVE INVOICE
                             </button>
                             <button type="button" onClick={() => { setVerifyTripReadOnly(true); setVerifyTrip(trip); }}
-                              className="w-fit rounded-lg border border-gray-300 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50">
+                              className="w-fit rounded-lg border border-border-button-default px-2.5 py-1 text-caption-2-medium text-text-secondary hover:bg-fill-2">
                               View Details
                             </button>
                           </div>
                         ) : isRejected ? (
                           <div className="flex flex-col gap-1">
-                            <span className="flex items-center gap-1 text-xs text-rose-600 font-semibold">
+                            <span className="flex items-center gap-1 text-caption-1-semibold text-danger-text">
                               <AlertTriangle className="h-3 w-3" /> Rejected by Accounts
                             </span>
                             {trip.verificationRejectionReason && (
-                              <p className="text-[11px] text-gray-500 max-w-[160px] whitespace-normal leading-snug">
+                              <p className="text-[11px] text-text-secondary max-w-[160px] whitespace-normal leading-snug">
                                 {trip.verificationRejectionReason}
                               </p>
                             )}
                             <button type="button" onClick={() => { setVerifyTripReadOnly(false); setVerifyTrip(trip); }}
-                              className="w-fit rounded-lg border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">
+                              className="w-fit rounded-lg border border-danger-border-strong px-3 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong">
                               Review
                             </button>
                           </div>
@@ -1065,46 +1066,46 @@ export default function TripVerificationPage() {
                           <button
                             type="button"
                             onClick={() => { setVerifyTripReadOnly(false); setVerifyTrip(trip); }}
-                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                            className="rounded-lg bg-success-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-success-solid-hover"
                           >
                             VERIFY TRIP DATA
                           </button>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
+                      <td className="px-4 py-3 text-text-secondary text-xs">
                         {trip.bookingCreatedDate
                           ? new Date(trip.bookingCreatedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
                           : "—"}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 font-medium text-text-primary">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
+                      <td className="px-4 py-3 text-text-primary">
                         <span>{trip.driverName ?? driver?.name ?? "—"}</span>
                         {trip.driverChangeRemark && (
-                          <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[120px] whitespace-normal">
+                          <p className="mt-0.5 text-[11px] text-warning-text leading-snug max-w-[120px] whitespace-normal">
                             {trip.driverChangeRemark}
                           </p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                      <td className="px-4 py-3 text-text-secondary font-mono text-xs">{containerRef(trip)}</td>
+                      <td className="px-4 py-3 text-text-secondary">
+                        {trip.origin} <span className="text-text-tertiary">→</span> {trip.destination}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
-                      <td className="px-4 py-3 font-medium text-blue-700">{fmt(hireAmt)}</td>
-                      <td className="px-4 py-3 font-medium text-gray-600">{fmt(expenseAmt)}</td>
+                      <td className="px-4 py-3 font-medium text-text-primary">{trip.tripId}</td>
+                      <td className="px-4 py-3 text-text-secondary text-xs">{trip.bookingReferenceNo}</td>
+                      <td className="px-4 py-3 font-medium text-accent-text">{fmt(hireAmt)}</td>
+                      <td className="px-4 py-3 font-medium text-text-secondary">{fmt(expenseAmt)}</td>
                       <td className="px-4 py-3">
                         {isInvoiced ? (
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-xs font-medium text-gray-900">{invNo}</span>
+                            <span className="text-caption-1-medium text-text-primary">{invNo}</span>
                             {invType && (
-                              <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${invTypeBadge}`}>
+                              <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-caption-2-semibold ${invTypeBadge}`}>
                                 {invType}
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-xs">—</span>
+                          <span className="text-text-tertiary text-xs">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -1113,7 +1114,7 @@ export default function TripVerificationPage() {
                             type="button"
                             onClick={() => setDeleteRequestTrip(trip)}
                             title="Delete this trip and all its data"
-                            className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                            className="flex items-center gap-1 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete
@@ -1123,7 +1124,7 @@ export default function TripVerificationPage() {
                             type="button"
                             onClick={() => setDeleteRequestTrip(trip)}
                             title="Request Admin to delete this trip"
-                            className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                            className="flex items-center gap-1 rounded-lg border border-warning-border bg-warning-surface px-2.5 py-1 text-caption-1-semibold text-warning-text hover:bg-warning-surface-strong transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Request Delete
@@ -1138,28 +1139,28 @@ export default function TripVerificationPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-              <p className="text-sm text-gray-500">
+            <div className="flex items-center justify-between rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+              <p className="text-sm text-text-secondary">
                 Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredTrips.length)} of {filteredTrips.length} trips
               </p>
               <div className="flex items-center gap-1">
                 <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed">
                   Previous
                 </button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter((n) => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
                   .reduce<(number | "...")[]>((acc, n, i, arr) => { if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("..."); acc.push(n); return acc; }, [])
                   .map((item, i) => item === "..." ? (
-                    <span key={`e${i}`} className="px-2 text-xs text-gray-400">…</span>
+                    <span key={`e${i}`} className="px-2 text-xs text-text-tertiary">…</span>
                   ) : (
                     <button key={item} type="button" onClick={() => setPage(item as number)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${safePage === item ? "bg-blue-600 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                      className={`rounded-lg px-3 py-1.5 text-caption-1-medium transition-colors ${safePage === item ? "bg-accent-solid text-on-solid" : "border border-separator-border text-text-secondary hover:bg-fill-2"}`}>
                       {item}
                     </button>
                   ))}
                 <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed">
                   Next
                 </button>
               </div>
@@ -1324,23 +1325,23 @@ export default function TripVerificationPage() {
           : rejectedIds.has(t.id) ? "Rejected"
           : "Pending";
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
-            <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+            <div className="w-full max-w-5xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
                 <div>
-                  <p className="font-semibold text-gray-900">Verification & Invoicing Report</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} trip{pdfTrips.length !== 1 ? "s" : ""}</p>
+                  <p className="font-semibold text-text-primary">Verification & Invoicing Report</p>
+                  <p className="text-xs text-text-secondary mt-0.5">{rangeLabel} · {pdfTrips.length} trip{pdfTrips.length !== 1 ? "s" : ""}</p>
                 </div>
-                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3"><X className="h-4 w-4" /></button>
               </div>
               {/* Modal status filter */}
-              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-gray-50">
+              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-fill-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Status:</span>
+                  <span className="text-caption-1-medium text-text-secondary whitespace-nowrap">Status:</span>
                   <select
                     value={modalStatusFilter}
                     onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
-                    className="rounded-lg border border-gray-200 bg-white py-1.5 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                    className="rounded-lg border border-separator-border bg-background-primary-default py-1.5 px-2 text-sm outline-none focus:border-accent-solid focus:ring-2 focus:ring-accent-solid/10"
                   >
                     <option value="All">All Trips</option>
                     <option value="Pending">Pending</option>
@@ -1351,49 +1352,49 @@ export default function TripVerificationPage() {
                   </select>
                 </div>
                 {modalStatusFilter !== "All" && (
-                  <button type="button" onClick={() => setModalStatusFilter("All")} className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100">Clear</button>
+                  <button type="button" onClick={() => setModalStatusFilter("All")} className="rounded-full border border-border-button-default bg-background-primary-default px-2.5 py-1 text-xs text-text-secondary hover:bg-fill-3">Clear</button>
                 )}
               </div>
               <div className="flex-1 overflow-auto px-5 py-4">
                 {pdfTrips.length === 0 ? (
-                  <p className="text-center text-sm text-gray-400 py-12">No trips found for the selected filters.</p>
+                  <EmptyState size="compact" illustration="not-found" title="No trips found for the selected filters" />
                 ) : (
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 z-10">
-                      <tr className="border-b border-gray-200 bg-gray-50">
+                      <tr className="border-b border-separator-border bg-fill-1">
                         {["#", "Status", "Trip ID", "Booking Ref", "Trip Date", "Vehicle", "Route", "Container No", "Invoice No", "Invoice Type", "Invoice Date"].map((col) => (
-                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                          <th key={col} className="px-3 py-2.5 text-caption-1-semibold text-text-secondary whitespace-nowrap">{col}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-separator-border">
                       {pdfTrips.map((t, i) => {
                         const inv = invoiceData.get(t.id);
                         const customer = customers.find((c) => c.id === t.customerId);
                         const invoiceDateFmt = inv?.invoice_date ? new Date(inv.invoice_date as string).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
                         const status = tripStatus(t);
                         const statusColor: Record<string, string> = {
-                          "Invoiced": "bg-blue-100 text-blue-700",
-                          "Verified": "bg-emerald-100 text-emerald-700",
-                          "Rejected": "bg-rose-100 text-rose-700",
-                          "Waived Invoice": "bg-purple-100 text-purple-700",
-                          "Pending": "bg-yellow-100 text-yellow-700",
+                          "Invoiced": "bg-accent-surface-strong text-accent-text",
+                          "Verified": "bg-success-surface-strong text-success-text",
+                          "Rejected": "bg-danger-surface-strong text-danger-text",
+                          "Waived Invoice": "bg-purple-surface-strong text-purple-text",
+                          "Pending": "bg-warning-surface-strong text-warning-text",
                         };
                         return (
-                          <tr key={t.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
+                          <tr key={t.id} className="hover:bg-fill-2">
+                            <td className="px-3 py-2 text-text-tertiary text-xs">{i + 1}</td>
                             <td className="px-3 py-2 whitespace-nowrap">
-                              <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor[status]}`}>{status}</span>
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-caption-2-semibold ${statusColor[status]}`}>{status}</span>
                             </td>
-                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId ?? t.id}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.scheduledDate ? new Date(t.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>
-                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{inv?.invoice_no ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{inv?.invoice_type ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{invoiceDateFmt}</td>
+                            <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{t.tripId ?? t.id}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{t.scheduledDate ? new Date(t.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.containerNumber ?? "—"}</td>
+                            <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{inv?.invoice_no ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{inv?.invoice_type ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{invoiceDateFmt}</td>
                           </tr>
                         );
                       })}
@@ -1407,9 +1408,9 @@ export default function TripVerificationPage() {
                   filename="invoiced_trips.xlsx"
                   direct
                   params={{ is_invoiced: "true" }}
-                  className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
                 />
-                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}
                 </button>
@@ -1430,7 +1431,7 @@ export default function TripVerificationPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by trip ID, driver, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -1440,39 +1441,37 @@ export default function TripVerificationPage() {
               ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No trip edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "logistics" : "not-found"} title={editHistoryEvents.length === 0 ? "No trip edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Trip</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">
+                          <td className="px-3 py-2 font-semibold text-text-primary">
                             {ev.tripIdStr}
-                            {ev.driverName && <span className="text-[11px] font-normal text-gray-400"> ({ev.driverName})</span>}
+                            {ev.driverName && <span className="text-caption-2-regular text-text-tertiary"> ({ev.driverName})</span>}
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

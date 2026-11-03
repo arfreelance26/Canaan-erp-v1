@@ -2,9 +2,10 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
-import { Settings2, ClipboardList, History } from "lucide-react";
+import { RiSettings3Line as Settings2, RiFileList3Line as ClipboardList, RiHistoryLine as History } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type TyreManagementTableProps = {
   trucks: Truck[];
   onManageTyres: (truck: Truck) => void;
@@ -19,9 +20,7 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onV
   const canViewTruckHistory = isAdmin || authUser?.softwareDesignation === "Maintenance";
   if (trucks.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No trucks yet. Add a truck under &ldquo;Our Fleet&rdquo; to get started.
-      </div>
+      <EmptyState size="compact" illustration="logistics" title="No trucks yet" description="Add a truck under &ldquo;Our Fleet&rdquo; to get started" />
     );
   }
 
@@ -30,13 +29,13 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onV
       {trucks.map((truck) => (
         <div
           key={truck.id}
-          className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/80 bg-white/90 px-5 py-4 shadow-sm backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+          className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-separator-border bg-background-primary-default px-5 py-4 shadow-sm transition duration-300 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
         >
           <div className="flex items-center gap-3.5">
             <Avatar photoUrl={null} label={truck.registrationNumber} size={44} />
             <div>
-              <p className="font-semibold text-gray-900">{truck.registrationNumber}</p>
-              {truck.truckId && <p className="mt-0.5 text-xs text-gray-400">{truck.truckId}</p>}
+              <p className="font-semibold text-text-primary">{truck.registrationNumber}</p>
+              {truck.truckId && <p className="mt-0.5 text-xs text-text-tertiary">{truck.truckId}</p>}
             </div>
           </div>
 
@@ -44,7 +43,7 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onV
             <button
               type="button"
               onClick={() => onManageTyres(truck)}
-              className="flex h-9 items-center gap-1.5 rounded-full bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:scale-105 hover:bg-blue-700"
+              className="flex h-9 items-center gap-1.5 rounded-full bg-accent-solid px-3.5 text-caption-1-semibold text-on-solid shadow-sm transition duration-200 hover:bg-accent-solid-hover"
             >
               <Settings2 className="h-3.5 w-3.5" />
               Manage Tyres
@@ -52,7 +51,7 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onV
             <button
               type="button"
               onClick={() => onViewTyreData(truck)}
-              className="flex h-9 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3.5 text-xs font-semibold text-amber-700 transition-all duration-200 hover:scale-105 hover:bg-amber-100"
+              className="flex h-9 items-center gap-1.5 rounded-full border border-warning-border bg-warning-surface px-3.5 text-caption-1-semibold text-warning-text transition duration-200 hover:bg-warning-surface-strong"
             >
               <ClipboardList className="h-3.5 w-3.5" />
               View Tyre Data
@@ -61,7 +60,7 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onV
               <button
                 type="button"
                 onClick={() => onViewTruckHistory(truck)}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3.5 text-xs font-semibold text-indigo-700 transition-all duration-200 hover:scale-105 hover:bg-indigo-100"
+                className="flex h-9 items-center gap-1.5 rounded-full border border-purple-border bg-purple-surface px-3.5 text-caption-1-semibold text-purple-text transition duration-200 hover:bg-purple-surface-strong"
               >
                 <History className="h-3.5 w-3.5" />
                 View Truck History

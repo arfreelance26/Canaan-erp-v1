@@ -2,11 +2,11 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
-import { Droplets, Plus, Pencil, Trash2, Loader2, Truck as TruckIcon, Gauge, MapPin, History, NotebookPen, Factory } from "lucide-react";
+import { RiDropLine as Droplets, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiLoader4Line as Loader2, RiTruckLine as TruckIcon, RiDashboard3Line as Gauge, RiMapPin2Line as MapPin, RiHistoryLine as History, RiStickyNoteLine as NotebookPen, RiBuilding3Line as Factory } from "@remixicon/react";
 import { adblueApi, adblueLogsApi, trucksApi, type AdBlueManufacturer, type AdBlueLogEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { getTyreLayout } from "@/lib/tyre-layouts";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
 import { AdBlueHistoryViewDialog } from "@/components/fleet/AdBlueHistoryViewDialog";
@@ -19,6 +19,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { cn } from "@/lib/utils";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<AdBlueLogEditEventRow["event"], typeof Plus> = {
   "Log Created": Plus,
   "Log Edited": Pencil,
@@ -26,9 +27,9 @@ const EDIT_EVENT_ICON: Record<AdBlueLogEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<AdBlueLogEditEventRow["event"], string> = {
-  "Log Created": "bg-blue-100 text-blue-700",
-  "Log Edited": "bg-amber-100 text-amber-700",
-  "Log Deleted": "bg-red-100 text-red-700",
+  "Log Created": "bg-accent-surface-strong text-accent-text",
+  "Log Edited": "bg-warning-surface-strong text-warning-text",
+  "Log Deleted": "bg-danger-surface-strong text-danger-text",
 };
 
 /**
@@ -132,12 +133,12 @@ export default function AdblueManagementPage() {
       {/* Page header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <Droplets className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck&apos;s Adblue History</h1>
-            <p className="mt-0.5 text-sm text-gray-500">A record of every AdBlue fill across the fleet</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Truck&apos;s Adblue History</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">A record of every AdBlue fill across the fleet</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -145,7 +146,7 @@ export default function AdblueManagementPage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -154,7 +155,7 @@ export default function AdblueManagementPage() {
           <button
             type="button"
             onClick={() => setManufacturersOpen(true)}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <Factory className="h-4 w-4" />
             Manufacturers
@@ -182,15 +183,12 @@ export default function AdblueManagementPage() {
       <div className="flex min-w-0 flex-col gap-8">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
+            <Loader2 className="h-6 w-6 animate-spin text-text-tertiary" />
           </div>
         ) : trucks.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-200 py-16 text-center">
-            <Droplets className="h-10 w-10 text-gray-200" />
-            <p className="text-sm font-medium text-gray-400">No trucks in the fleet yet.</p>
-          </div>
+          <EmptyState size="compact" illustration="logistics" title="No trucks in the fleet yet" className="rounded-xl border border-separator-border" />
         ) : !trucks.some(matches) ? (
-          <p className="py-10 text-center text-sm text-gray-400">No trucks match these filters.</p>
+          <EmptyState size="compact" illustration="not-found" title="No trucks match these filters" />
         ) : (
           <>
             {manufacturers.map((m) => {
@@ -203,19 +201,19 @@ export default function AdblueManagementPage() {
               return (
                 <section key={m.id}>
                   <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/10">
-                      <TruckIcon className="h-4 w-4 text-blue-600" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-solid/10">
+                      <TruckIcon className="h-4 w-4 text-accent-text" />
                     </div>
                     <div className="flex flex-1 items-baseline gap-2">
-                      <h2 className="text-base font-bold text-gray-900">{m.name}</h2>
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      <h2 className="text-headline-semibold text-text-primary">{m.name}</h2>
+                      <span className="rounded-full bg-accent-surface-strong px-2 py-0.5 text-caption-2-semibold text-accent-text">
                         {mTrucks.length} {mTrucks.length === 1 ? "truck" : "trucks"}
                       </span>
                       <span
                         title="AdBlue cost per litre — set in Manufacturers"
                         className={cn(
-                          "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold",
-                          rate != null ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" : "bg-gray-100 text-gray-400",
+                          "flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold",
+                          rate != null ? "bg-success-surface text-success-text ring-1 ring-success-border" : "bg-fill-2 text-text-tertiary",
                         )}
                       >
                         <Droplets className="h-3 w-3" />
@@ -231,17 +229,17 @@ export default function AdblueManagementPage() {
             {otherTrucks.length > 0 && (
               <section>
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
-                    <TruckIcon className="h-4 w-4 text-amber-700" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning-surface-strong">
+                    <TruckIcon className="h-4 w-4 text-warning-text" />
                   </div>
                   <div className="flex flex-1 items-baseline gap-2">
-                    <h2 className="text-base font-bold text-gray-900">Other Trucks</h2>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                    <h2 className="text-headline-semibold text-text-primary">Other Trucks</h2>
+                    <span className="rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">
                       {otherTrucks.length} {otherTrucks.length === 1 ? "truck" : "trucks"}
                     </span>
                   </div>
                 </div>
-                <p className="mb-3 text-xs text-gray-500">
+                <p className="mb-3 text-xs text-text-secondary">
                   These trucks&apos; manufacturer isn&apos;t in the Manufacturers list, so they have no AdBlue rate.
                 </p>
                 {renderGrid(otherTrucks)}
@@ -290,7 +288,7 @@ export default function AdblueManagementPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by truck or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -298,36 +296,34 @@ export default function AdblueManagementPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[600px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Log</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Log</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.label}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.label}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}
@@ -363,15 +359,15 @@ function TruckCard({
   const totalTyres = layout ? totalTyresFromLayout(layout.id) : null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-blue-100 hover:shadow-md">
+    <div className="flex flex-col gap-3 rounded-xl border border-separator-border bg-background-primary-default p-4 shadow-sm transition hover:border-accent-border hover:shadow-md">
       {/* Top row: reg number + truck ID */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-bold text-gray-900">{truck.registrationNumber || "—"}</p>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-400">{truck.truckId}</p>
+          <p className="text-body-semibold text-text-primary">{truck.registrationNumber || "—"}</p>
+          <p className="mt-0.5 text-caption-2-medium text-text-tertiary">{truck.truckId}</p>
         </div>
         {truck.truckType && (
-          <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-600">
+          <span className="shrink-0 rounded-full bg-accent-surface px-2 py-0.5 text-caption-2-semibold uppercase text-accent-text">
             {truck.truckType}
           </span>
         )}
@@ -379,25 +375,25 @@ function TruckCard({
 
       {/* Model name */}
       {truck.modelName && (
-        <p className="text-[12px] font-semibold text-gray-700">{truck.modelName}</p>
+        <p className="text-[12px] font-semibold text-text-primary">{truck.modelName}</p>
       )}
 
       {/* Details row */}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {truck.odometer && (
-          <div className="flex items-center gap-1 text-[11px] text-gray-500">
-            <Gauge className="h-3 w-3 text-gray-400" />
+          <div className="flex items-center gap-1 text-[11px] text-text-secondary">
+            <Gauge className="h-3 w-3 text-text-tertiary" />
             {parseInt(truck.odometer).toLocaleString()} km
           </div>
         )}
         {truck.branchRegisteredTo && (
-          <div className="flex items-center gap-1 text-[11px] text-gray-500">
-            <MapPin className="h-3 w-3 text-gray-400" />
+          <div className="flex items-center gap-1 text-[11px] text-text-secondary">
+            <MapPin className="h-3 w-3 text-text-tertiary" />
             {truck.branchRegisteredTo}
           </div>
         )}
         {truck.yearOfManufacture && (
-          <div className="text-[11px] text-gray-500">
+          <div className="text-[11px] text-text-secondary">
             {truck.yearOfManufacture}
           </div>
         )}
@@ -406,20 +402,20 @@ function TruckCard({
       {/* Tyre layout */}
       {layout && (
         <div className="flex items-center gap-2">
-          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-bold text-gray-600">
+          <span className="rounded-md bg-fill-2 px-2 py-0.5 text-caption-2-semibold text-text-secondary">
             {layout.id}
           </span>
-          <span className="text-[11px] text-gray-500">{totalTyres} tyres total</span>
+          <span className="text-[11px] text-text-secondary">{totalTyres} tyres total</span>
         </div>
       )}
 
       {/* Actions */}
-      <div className="mt-1 flex gap-2 border-t border-gray-100 pt-3">
+      <div className="mt-1 flex gap-2 border-t border-separator-border pt-3">
         {canViewAdblueHistory && (
 <button
           type="button"
           onClick={onViewHistory}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 py-1.5 text-[11px] font-bold text-gray-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-separator-border py-1.5 text-caption-2-semibold text-text-secondary transition hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text"
         >
           <History className="h-3.5 w-3.5" />
           View History
@@ -428,7 +424,7 @@ function TruckCard({
         <button
           type="button"
           onClick={onEnterLog}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-1.5 text-[11px] font-bold text-white transition hover:bg-blue-700"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent-solid py-1.5 text-caption-2-semibold text-on-solid transition hover:bg-accent-solid-hover"
         >
           <NotebookPen className="h-3.5 w-3.5" />
           Enter Log

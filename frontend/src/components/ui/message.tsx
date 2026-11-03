@@ -39,7 +39,7 @@ function MessageContent({ className, ...props }: React.HTMLAttributes<HTMLDivEle
 
 function MessageHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex items-center gap-2 px-1 text-[10px] text-gray-400", className)} {...props} />
+    <div className={cn("flex items-center gap-2 px-1 text-[10px] text-text-tertiary", className)} {...props} />
   );
 }
 
@@ -47,7 +47,7 @@ function MessageHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElem
 
 function MessageFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex items-center gap-2 px-1 text-[10px] text-gray-400", className)} {...props} />
+    <div className={cn("flex items-center gap-2 px-1 text-[10px] text-text-tertiary", className)} {...props} />
   );
 }
 
@@ -56,9 +56,9 @@ function MessageFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElem
 type BubbleVariant = "user" | "assistant" | "error";
 
 const BUBBLE_VARIANTS: Record<BubbleVariant, string> = {
-  user:      "bg-brand-navy text-white",
-  assistant: "bg-gray-200 text-gray-900",
-  error:     "border border-red-200 bg-red-50 text-red-600",
+  user:      "bg-accent-solid text-on-solid",
+  assistant: "bg-fill-3 text-text-primary",
+  error:     "border border-danger-border bg-danger-surface text-danger-text",
 };
 
 interface BubbleProps extends React.HTMLAttributes<HTMLDivElement> {

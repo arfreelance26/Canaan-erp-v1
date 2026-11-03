@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { AlertTriangle, ArrowRight, Gauge, Loader2 } from "lucide-react";
+import { RiAlertLine as AlertTriangle, RiArrowRightLine as ArrowRight, RiDashboard3Line as Gauge, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { trucksApi, type OdometerInfo } from "@/lib/api";
 import { formatDateTime } from "@/lib/format-date";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 import type { Truck } from "@/types/truck";
 
 const km = (n: number) => `${n.toLocaleString("en-IN")} km`;
@@ -61,21 +61,21 @@ export function OdometerCorrectionDialog({
   return (
     <Dialog open={truck !== null} onClose={onClose} title={truck ? `Correct Odometer — ${truck.registrationNumber}` : "Correct Odometer"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
-          <Gauge className="h-4 w-4 text-blue-600" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">Current Odometer</span>
-          <span className="ml-auto text-sm font-bold tabular-nums text-blue-800">{km(current)}</span>
+        <div className="flex items-center gap-3 rounded-lg border border-accent-border bg-accent-surface px-4 py-2.5">
+          <Gauge className="h-4 w-4 text-accent-text" />
+          <span className="text-caption-1-semibold text-accent-text">Current Odometer</span>
+          <span className="ml-auto text-body-semibold tabular-nums text-accent-text-strong">{km(current)}</span>
         </div>
 
         {info && (info.maxTripSheetEndKm != null || info.maxMaintenanceOdometer != null) && (
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-              <p className="text-gray-400">Highest trip sheet End KM</p>
-              <p className="font-semibold tabular-nums text-gray-700">{info.maxTripSheetEndKm != null ? km(info.maxTripSheetEndKm) : "—"}</p>
+            <div className="rounded-lg border border-separator-border bg-fill-1 px-3 py-2">
+              <p className="text-text-tertiary">Highest trip sheet End KM</p>
+              <p className="font-semibold tabular-nums text-text-primary">{info.maxTripSheetEndKm != null ? km(info.maxTripSheetEndKm) : "—"}</p>
             </div>
-            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-              <p className="text-gray-400">Highest maintenance record</p>
-              <p className="font-semibold tabular-nums text-gray-700">{info.maxMaintenanceOdometer != null ? km(info.maxMaintenanceOdometer) : "—"}</p>
+            <div className="rounded-lg border border-separator-border bg-fill-1 px-3 py-2">
+              <p className="text-text-tertiary">Highest maintenance record</p>
+              <p className="font-semibold tabular-nums text-text-primary">{info.maxMaintenanceOdometer != null ? km(info.maxMaintenanceOdometer) : "—"}</p>
             </div>
           </div>
         )}
@@ -89,11 +89,11 @@ export function OdometerCorrectionDialog({
             className={inputClass}
             placeholder="e.g. 808233"
           />
-          {unchanged && <p className="mt-1 text-xs text-red-600">That is already the current reading.</p>}
+          {unchanged && <p className="mt-1 text-xs text-danger-text">That is already the current reading.</p>}
         </Field>
 
         {below.length > 0 && (
-          <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+          <div className="flex gap-2 rounded-lg border border-warning-border bg-warning-surface px-3 py-2.5 text-xs text-warning-text-strong">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <p>
               This is below {below.join(" and ")}. If one of those is a typo, correct it there too —
@@ -114,21 +114,21 @@ export function OdometerCorrectionDialog({
         </Field>
 
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400">Correction History</p>
+          <p className="mb-1.5 text-caption-1-semibold text-text-tertiary">Correction History</p>
           {!info ? (
-            <div className="flex items-center gap-2 py-3 text-xs text-gray-400"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…</div>
+            <div className="flex items-center gap-2 py-3 text-xs text-text-tertiary"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…</div>
           ) : info.corrections.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-gray-200 px-3 py-3 text-center text-xs text-gray-400">No corrections yet.</p>
+            <p className="rounded-lg border border-dashed border-separator-border px-3 py-3 text-center text-xs text-text-tertiary">No corrections yet.</p>
           ) : (
-            <ul className="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-100">
+            <ul className="max-h-48 divide-y divide-separator-border overflow-y-auto rounded-lg border border-separator-border">
               {info.corrections.map((c) => (
                 <li key={c.id} className="px-3 py-2 text-xs">
-                  <div className="flex items-center gap-1.5 font-semibold tabular-nums text-gray-800">
-                    {km(c.oldOdometer)} <ArrowRight className="h-3 w-3 text-gray-400" /> {km(c.newOdometer)}
-                    <span className="ml-auto font-normal text-gray-400">{formatDateTime(c.createdAt)}</span>
+                  <div className="flex items-center gap-1.5 font-semibold tabular-nums text-text-primary">
+                    {km(c.oldOdometer)} <ArrowRight className="h-3 w-3 text-text-tertiary" /> {km(c.newOdometer)}
+                    <span className="ml-auto font-normal text-text-tertiary">{formatDateTime(c.createdAt)}</span>
                   </div>
-                  <p className="mt-0.5 text-gray-600">{c.reason}</p>
-                  <p className="text-gray-400">by {c.actorName}</p>
+                  <p className="mt-0.5 text-text-secondary">{c.reason}</p>
+                  <p className="text-text-tertiary">by {c.actorName}</p>
                 </li>
               ))}
             </ul>
@@ -137,11 +137,11 @@ export function OdometerCorrectionDialog({
 
         <div className="flex justify-end gap-3">
           <button type="button" onClick={onClose}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95">
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2">
             Cancel
           </button>
           <button type="submit" disabled={!canSave}
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-50">
             {saving ? "Saving…" : "Correct Odometer"}
           </button>
         </div>

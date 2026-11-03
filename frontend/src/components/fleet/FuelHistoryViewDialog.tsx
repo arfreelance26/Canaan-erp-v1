@@ -2,15 +2,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { createPortal } from "react-dom";
 import { Dialog } from "@/components/ui/Dialog";
-import { TrendingUp, Droplets, Route, ArrowRight, ArrowDownRight, ArrowUpRight, IndianRupee, Pencil, X } from "lucide-react";
+import { RiArrowRightUpLine as TrendingUp, RiDropLine as Droplets, RiRouteLine as Route, RiArrowRightLine as ArrowRight, RiArrowRightDownLine as ArrowDownRight, RiArrowRightUpLine as ArrowUpRight, RiMoneyRupeeCircleLine as IndianRupee, RiPencilLine as Pencil, RiCloseLine as X } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import type { FuelLog, FuelStats } from "@/types/fuel-log";
 import { fuelLogsApi, editApprovalsApi } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 
 
+import { EmptyState } from "@/components/ui/EmptyState";
 // ---------------------------------------------------------------------------
 // Edit fuel log dialog
 // Admin  → saves directly via PUT; changes apply immediately
@@ -100,35 +101,35 @@ function EditFuelLogDialog({
     }
   }
 
-  const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100";
+  const inputCls = "w-full rounded-xl border border-separator-border bg-fill-1 px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-accent-border";
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/50 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-background-primary-default shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-blue-50 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-separator-border bg-accent-surface px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-solid text-on-solid">
               <Pencil className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">Edit Fuel Log</p>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-body-semibold text-text-primary">Edit Fuel Log</p>
+              <p className="text-[11px] text-text-secondary">
                 {isAdmin ? "Changes apply immediately" : "Requires Admin approval"}
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+          <button type="button" onClick={onClose} className="rounded-lg border border-separator-border p-1.5 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Log summary chip */}
-        <div className="bg-gray-50 border-b border-gray-100 px-5 py-2.5">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-            <span><span className="text-gray-400">Truck </span>{truck.truckId}</span>
-            <span><span className="text-gray-400">Original date </span>{formatDate(log.date)}</span>
-            <span><span className="text-gray-400">Original odo </span>{Number(log.odometer).toLocaleString()} km</span>
+        <div className="bg-fill-1 border-b border-separator-border px-5 py-2.5">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+            <span><span className="text-text-tertiary">Truck </span>{truck.truckId}</span>
+            <span><span className="text-text-tertiary">Original date </span>{formatDate(log.date)}</span>
+            <span><span className="text-text-tertiary">Original odo </span>{Number(log.odometer).toLocaleString()} km</span>
           </div>
         </div>
 
@@ -136,58 +137,58 @@ function EditFuelLogDialog({
           {/* Fields grid */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-600">Date <span className="text-red-500">*</span></label>
+              <label className="text-caption-1-semibold text-text-secondary">Date <span className="text-danger-text">*</span></label>
               <input ref={firstRef} type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-600">Odometer (km) <span className="text-red-500">*</span></label>
+              <label className="text-caption-1-semibold text-text-secondary">Odometer (km) <span className="text-danger-text">*</span></label>
               <input type="number" value={odometer} onChange={e => setOdometer(e.target.value)} className={inputCls} min={0} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-600">Litres <span className="text-red-500">*</span></label>
+              <label className="text-caption-1-semibold text-text-secondary">Litres <span className="text-danger-text">*</span></label>
               <input type="number" step="0.01" value={litres} onChange={e => setLitres(e.target.value)} className={inputCls} min={0} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-600">Price / Litre (₹) <span className="text-red-500">*</span></label>
+              <label className="text-caption-1-semibold text-text-secondary">Price / Litre (₹) <span className="text-danger-text">*</span></label>
               <input type="number" step="0.01" value={pricePerL} onChange={e => setPricePerL(e.target.value)} className={inputCls} min={0} />
             </div>
             <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-600">Fuel Station</label>
+              <label className="text-caption-1-semibold text-text-secondary">Fuel Station</label>
               <input type="text" value={station} onChange={e => setStation(e.target.value)} placeholder="Optional" className={inputCls} />
             </div>
           </div>
 
           {/* Computed total preview */}
-          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
-            Computed total: <span className="font-bold">₹{computedTotal}</span>
-            <span className="ml-2 text-blue-500 text-xs">(litres × price/L)</span>
+          <div className="rounded-lg border border-accent-border bg-accent-surface px-4 py-2.5 text-sm text-accent-text-strong">
+            Computed total: <span className="font-semibold">₹{computedTotal}</span>
+            <span className="ml-2 text-accent-text text-xs">(litres × price/L)</span>
           </div>
 
           {/* Reason — only required for non-admin */}
           {!isAdmin && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-600">
-                Reason for edit <span className="text-red-500">*</span>
+              <label className="text-caption-1-semibold text-text-secondary">
+                Reason for edit <span className="text-danger-text">*</span>
               </label>
               <textarea
                 rows={2}
                 value={reason}
                 onChange={e => setReason(e.target.value)}
                 placeholder="Explain why this record needs to be changed…"
-                className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 placeholder-gray-400"
+                className="w-full resize-none rounded-xl border border-separator-border bg-fill-1 px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-accent-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-accent-border placeholder-text-placeholder"
               />
             </div>
           )}
 
-          <div className="flex justify-end gap-2 border-t border-gray-100 pt-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          <div className="flex justify-end gap-2 border-t border-separator-border pt-2">
+            <button type="button" onClick={onClose} className="rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary hover:bg-fill-2 transition-colors">
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSave}
               disabled={!date || !odometer || !litres || !pricePerL || (!isAdmin && !reason.trim()) || saving}
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-accent-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-50 transition-colors"
             >
               {saving ? "Saving…" : isAdmin ? "Save Changes" : "Submit Request"}
             </button>
@@ -205,21 +206,21 @@ function EditFuelLogDialog({
 
 function StatCard({ title, value, icon: Icon, trend, subtitle }: any) {
   return (
-    <div className="p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
-        <Icon className="w-4 h-4 text-blue-500" />
+    <div className="p-4 bg-background-primary-default rounded-xl border border-separator-border shadow-sm flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-body-medium text-text-secondary">
+        <Icon className="w-4 h-4 text-accent-text" />
         {title}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-gray-900">{value}</span>
+        <span className="text-title-1-semibold text-text-primary">{value}</span>
         {trend !== undefined && (
-          <span className={`text-xs font-medium flex items-center ${trend >= 0 ? "text-green-600" : "text-red-600"}`}>
+          <span className={`text-caption-1-medium flex items-center ${trend >= 0 ? "text-success-text" : "text-danger-text"}`}>
             {trend >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {Math.abs(trend).toFixed(1)}%
           </span>
         )}
       </div>
-      {subtitle && <span className="text-xs text-gray-400">{subtitle}</span>}
+      {subtitle && <span className="text-xs text-text-tertiary">{subtitle}</span>}
     </div>
   );
 }
@@ -393,14 +394,14 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
   return (
     <Dialog open={open} onClose={onClose} title="Truck&apos;s Fuel History">
       <div className="mb-6">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-text-secondary">
           {truck.registrationNumber} • {truck.modelName} • {truck.manufacturer}
         </p>
       </div>
 
       <div className="overflow-y-auto max-h-[70vh] space-y-6">
         {loading ? (
-          <div className="py-20 text-center text-gray-500">Loading fuel history...</div>
+          <div className="py-20 text-center text-text-secondary">Loading fuel history...</div>
         ) : (
           <>
             {/* Stats Grid */}
@@ -463,14 +464,14 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
               })()}
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                <h3 className="font-semibold text-gray-900">Calculated Mileage History</h3>
+            <div className="bg-background-primary-default rounded-xl border border-separator-border shadow-sm overflow-x-auto">
+              <div className="px-6 py-4 border-b border-separator-border bg-fill-1">
+                <h3 className="font-semibold text-text-primary">Calculated Mileage History</h3>
               </div>
               <div className="overflow-auto max-h-72">
                 <table className="w-full text-left border-collapse whitespace-nowrap">
                   <thead>
-                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-100">
+                    <tr className="bg-fill-1 text-xs uppercase text-text-secondary border-b border-separator-border">
                       <th className="px-6 py-3 font-medium">Refuel Date</th>
                       <th className="px-6 py-3 font-medium text-right">Odometer</th>
                       <th className="px-6 py-3 font-medium text-right">Fuel Filled</th>
@@ -481,53 +482,51 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                       <th className="px-6 py-3 font-medium">Edit</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 text-sm">
+                  <tbody className="divide-y divide-separator-border text-sm">
                     {logs.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                          No fuel logs found for this truck.
-                        </td>
+                        <td colSpan={8} className="p-0"><EmptyState size="compact" illustration="logistics" title="No fuel logs found for this truck" /></td>
                       </tr>
                     ) : (
                       logs.map((log) => {
                         const sourceLabel = log.source ?? (log.loggedBy?.startsWith("trip:") ? "Trip Sheet" : "Manual Log");
                         const isTripSheet = sourceLabel.startsWith("Trip Sheet");
                         return (
-                          <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-6 py-4 text-gray-900">{formatDate(log.date)}</td>
-                            <td className="px-6 py-4 text-right text-gray-600 font-medium">
+                          <tr key={log.id} className="hover:bg-fill-2 transition-colors">
+                            <td className="px-6 py-4 text-text-primary">{formatDate(log.date)}</td>
+                            <td className="px-6 py-4 text-right text-text-secondary font-medium">
                               {Number(log.odometer).toLocaleString()} km
                             </td>
-                            <td className="px-6 py-4 text-right text-gray-600">
+                            <td className="px-6 py-4 text-right text-text-secondary">
                               <span className="inline-flex items-center gap-1">
-                                <Droplets className="w-3 h-3 text-blue-400" />
+                                <Droplets className="w-3 h-3 text-accent-text" />
                                 {Number(log.litres).toFixed(1)} L
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-right text-gray-600">
+                            <td className="px-6 py-4 text-right text-text-secondary">
                               {Number(log.distance) > 0 ? (
                                 <span className="inline-flex items-center gap-1">
-                                  <ArrowRight className="w-3 h-3 text-gray-400" />
+                                  <ArrowRight className="w-3 h-3 text-text-tertiary" />
                                   {Number(log.distance).toLocaleString()} km
                                 </span>
                               ) : (
-                                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Baseline</span>
+                                <span className="text-xs text-text-tertiary bg-fill-2 px-2 py-1 rounded">Baseline</span>
                               )}
                             </td>
                             <td className="px-6 py-4 text-right">
                               {Number(log.mileage) > 0 ? (
-                                <span className="font-semibold text-gray-900">
+                                <span className="font-semibold text-text-primary">
                                   {Number(log.mileage).toFixed(2)} km/L
                                 </span>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-text-tertiary">-</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 text-gray-600">
-                              {log.enteredByName ?? <span className="text-gray-400">—</span>}
+                            <td className="px-6 py-4 text-text-secondary">
+                              {log.enteredByName ?? <span className="text-text-tertiary">—</span>}
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${isTripSheet ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-caption-2-semibold ${isTripSheet ? "bg-accent-surface-strong text-accent-text" : "bg-fill-2 text-text-secondary"}`}>
                                 {sourceLabel}
                               </span>
                             </td>
@@ -536,7 +535,7 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                                 type="button"
                                 title={isAdmin ? "Edit" : "Request edit"}
                                 onClick={() => setEditLog(log)}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary hover:bg-accent-surface-strong hover:text-accent-text transition-colors"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>

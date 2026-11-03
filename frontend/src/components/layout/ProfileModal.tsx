@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  X,
-  Mail,
-  Briefcase,
-  Building2,
-  Hash,
-  GitBranch,
-  CalendarClock,
-  Info,
-  ZoomIn,
-} from "lucide-react";
+import { RiCloseLine as X, RiMailLine as Mail, RiBriefcaseLine as Briefcase, RiBuilding2Line as Building2, RiHashtag as Hash, RiGitBranchLine as GitBranch, RiCalendarScheduleLine as CalendarClock, RiInformationLine as Info, RiZoomInLine as ZoomIn } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { staffApi, attendanceApi, fileUrl } from "@/lib/api";
 import { formatDateLong } from "@/lib/format-date";
@@ -71,11 +61,11 @@ function DetailRow({
   if (!value) return null;
   return (
     <div className="flex items-center justify-between gap-4 py-3">
-      <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-gray-400 dark:text-gray-500">
+      <span className="flex shrink-0 items-center gap-2 text-caption-1-medium text-text-tertiary">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </span>
-      <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">{value}</span>
+      <span className="truncate text-body-semibold text-text-primary">{value}</span>
     </div>
   );
 }
@@ -187,10 +177,10 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const ringColor = good ? "#10b981" : okay ? "#f59e0b" : "#ef4444";
   const standingLabel = good ? "Good standing" : okay ? "Needs improvement" : "Below threshold";
   const standingTint = good
-    ? "bg-emerald-50/70 dark:bg-emerald-500/10"
+    ? "bg-success-surface/70"
     : okay
-      ? "bg-amber-50/70 dark:bg-amber-500/10"
-      : "bg-red-50/70 dark:bg-red-500/10";
+      ? "bg-warning-surface/70"
+      : "bg-danger-surface/70";
 
   const tenure = profile?.date_of_joining ? tenureFrom(profile.date_of_joining) : "";
   const joiningLine = profile?.date_of_joining
@@ -211,7 +201,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       {photoOpen && photoSrc && (
         <div
-          className="fixed inset-0 z-[210] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[210] flex items-center justify-center bg-scrim/85 p-4"
           onClick={() => setPhotoOpen(false)}
           role="dialog"
           aria-label={`${displayName} — profile photo`}
@@ -220,7 +210,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
             type="button"
             onClick={() => setPhotoOpen(false)}
             aria-label="Close photo"
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-on-solid/15 text-on-solid transition hover:bg-on-solid/25"
           >
             <X className="h-5 w-5" />
           </button>
@@ -234,24 +224,24 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
         </div>
       )}
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-scrim/40" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/60 bg-white dark:bg-[#1a2035] dark:border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.15)] animate-[slideUpFade_0.4s_cubic-bezier(0.175,0.885,0.32,1.275)_both]">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-[0_24px_64px_rgba(0,0,0,0.15)] animate-[slideUpFade_0.4s_cubic-bezier(0.175,0.885,0.32,1.275)_both]">
         {/* Banner — the Canaan Global brand banner, with the avatar
             overlapping its lower edge. */}
-        <div className="relative h-32 w-full overflow-hidden bg-[#0b172e]">
+        <div className="relative h-32 w-full overflow-hidden bg-accent-solid">
           <img
             src="/banner.png"
             alt="Canaan Global"
             className="absolute inset-0 h-full w-full object-contain"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
+          <div className="absolute inset-0 bg-scrim/30 " />
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-white/25 text-white/90 backdrop-blur-sm transition-all hover:bg-white/35 hover:text-white"
+            className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-on-solid/25 text-on-solid/90 transition hover:bg-fill-2 hover:text-on-solid"
           >
             <X className="h-4 w-4" />
           </button>
@@ -271,38 +261,38 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                 <img
                   src={photoSrc}
                   alt={displayName}
-                  className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-[0_8px_24px_rgba(0,0,0,0.2)] transition group-hover:brightness-90 dark:border-[#1a2035]"
+                  className="h-24 w-24 rounded-full border-4 border-background-primary-default object-cover shadow-[0_8px_24px_rgba(0,0,0,0.2)] transition group-hover:brightness-90"
                 />
-                <span className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-full bg-black/0 text-white opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100">
+                <span className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-full bg-scrim/0 text-on-solid opacity-0 transition group-hover:bg-scrim/25 group-hover:opacity-100">
                   <ZoomIn className="h-5 w-5" />
                 </span>
               </button>
             ) : (
-              <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-blue-600 to-indigo-700 text-2xl font-bold text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] dark:border-[#1a2035]">
+              <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-background-primary-default bg-accent-solid text-title-1-semibold text-on-solid shadow-[0_8px_24px_rgba(0,0,0,0.2)]">
                 {initials}
               </div>
             )}
             {photoSrc && (
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-700 text-[10px] font-bold text-white dark:border-[#1a2035]">
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-background-primary-default bg-purple-solid text-caption-2-semibold text-on-solid">
                 {initials}
               </span>
             )}
           </div>
 
-          <h2 className="mt-3 text-xl font-bold text-gray-900 dark:text-white">{displayName}</h2>
+          <h2 className="mt-3 text-title-2-semibold text-text-primary">{displayName}</h2>
 
           <div className="mt-2 flex items-center gap-2">
-            <span className="rounded-full bg-indigo-600 px-3 py-0.5 text-xs font-semibold text-white">{roleLabel}</span>
+            <span className="rounded-full bg-purple-solid px-3 py-0.5 text-caption-1-semibold text-on-solid">{roleLabel}</span>
             {profile?.designation && (
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{profile.designation}</span>
+              <span className="text-caption-1-medium text-text-secondary">{profile.designation}</span>
             )}
           </div>
 
           {metaItems.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-medium text-gray-400 dark:text-gray-500">
+            <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-caption-1-medium text-text-tertiary">
               {metaItems.map(({ icon: Icon, text }, i) => (
                 <span key={i} className="flex items-center gap-2">
-                  {i > 0 && <span className="text-gray-200 dark:text-gray-700">&middot;</span>}
+                  {i > 0 && <span className="text-on-solid/80">&middot;</span>}
                   <span className="flex items-center gap-1">
                     <Icon className="h-3 w-3" />
                     {text}
@@ -317,7 +307,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
         <div className="max-h-[52vh] overflow-y-auto px-6 pb-6 pt-5">
           {loading ? (
             <div className="flex justify-center py-8">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent-solid border-t-transparent" />
             </div>
           ) : (
             <div className="flex flex-col gap-5">
@@ -327,22 +317,22 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                 <div className={`flex items-center gap-4 rounded-xl px-4 py-3.5 ${standingTint}`}>
                   <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
                     <svg className="h-full w-full -rotate-90" viewBox="0 0 96 96">
-                      <circle cx="48" cy="48" r={r} fill="none" className="stroke-black/5 dark:stroke-white/10" strokeWidth="8" />
+                      <circle cx="48" cy="48" r={r} fill="none" className="stroke-foreground-icon-secondary" strokeWidth="8" />
                       <circle
                         cx="48" cy="48" r={r} fill="none"
                         stroke={ringColor} strokeWidth="8" strokeLinecap="round"
                         strokeDasharray={circumference}
                         strokeDashoffset={dashOffset}
-                        className="transition-all duration-700"
+                        className="transition duration-700"
                       />
                     </svg>
-                    <span className="absolute text-sm font-bold tabular-nums text-gray-900 dark:text-white">{pct}%</span>
+                    <span className="absolute text-body-semibold tabular-nums text-text-primary">{pct}%</span>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    <p className="text-caption-2-semibold text-text-secondary">
                       Attendance This Month
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold" style={{ color: ringColor }}>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-body-semibold" style={{ color: ringColor }}>
                       {standingLabel}
                       <Info className="h-3.5 w-3.5 opacity-50" aria-label="Based on this calendar month's marked attendance" />
                     </p>
@@ -351,26 +341,26 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
               )}
 
               {/* Details list */}
-              <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/10">
+              <div className="flex flex-col divide-y divide-separator-border">
                 <DetailRow icon={Mail} label="Email" value={profile?.email} />
                 <DetailRow icon={CalendarClock} label="With Canaan" value={joiningLine} />
               </div>
 
               {/* Closing note — same flow, no separate colored panel */}
-              <div className="border-t border-gray-100 pt-4 text-center dark:border-white/10">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-300">
+              <div className="border-t border-separator-border pt-4 text-center">
+                <p className="text-caption-2-semibold text-purple-text">
                   Thank You
                 </p>
-                <p className="mx-auto mt-1.5 max-w-xs text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+                <p className="mx-auto mt-1.5 max-w-xs text-[11px] leading-relaxed text-text-secondary">
                   Thank you for your dedication, commitment, and faithful service. Your contributions are valued, and the work you do makes a difference to our organisation.
                 </p>
-                <p className="mx-auto mt-2.5 max-w-xs text-[11px] italic leading-relaxed text-gray-600 dark:text-gray-300">
+                <p className="mx-auto mt-2.5 max-w-xs text-[11px] leading-relaxed text-text-secondary">
                   &ldquo;Thou hast been faithful over a few things, I will make thee ruler over many things.&rdquo;
                 </p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                <p className="mt-1 text-caption-2-semibold text-text-tertiary">
                   &mdash; Matthew 25:21
                 </p>
-                <p className="mt-1 text-[10px] text-gray-300 dark:text-gray-600">
+                <p className="mt-1 text-[10px] text-text-tertiary">
                   &copy; 2026 Canaan Global. All rights reserved.
                 </p>
               </div>

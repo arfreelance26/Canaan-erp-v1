@@ -48,14 +48,14 @@ export function AutocompleteInput({ value, onChange, storageKey, suggestions, pl
   }
 
   return (
-    <div className="relative w-full rounded-lg border border-gray-200 bg-white/80 backdrop-blur-sm transition-all duration-200 focus-within:border-blue-500 focus-within:bg-white dark:focus-within:bg-gray-100 focus-within:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] hover:border-gray-300 hover:bg-white/90">
+    <div className="relative w-full rounded-lg border border-separator-border bg-background-primary-default transition duration-200 focus-within:border-accent-solid focus-within:bg-background-primary-default shadow-md hover:border-border-button-default hover:bg-fill-2">
       {suggestion && (
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3"
         >
           <span className="invisible whitespace-pre text-sm uppercase">{value}</span>
-          <span className="text-sm uppercase text-gray-400">{suggestion.slice(value.length)}</span>
+          <span className="text-sm uppercase text-text-tertiary">{suggestion.slice(value.length)}</span>
         </div>
       )}
       <input
@@ -65,7 +65,7 @@ export function AutocompleteInput({ value, onChange, storageKey, suggestions, pl
         placeholder={!suggestion ? placeholder : undefined}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="w-full bg-transparent px-3 py-2 text-sm uppercase text-gray-900 outline-none placeholder:normal-case placeholder:text-gray-400"
+        className="w-full bg-transparent px-3 py-2 text-sm uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-placeholder"
       />
     </div>
   );

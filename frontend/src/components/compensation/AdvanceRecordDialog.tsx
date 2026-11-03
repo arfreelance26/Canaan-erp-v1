@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Download, BookOpen } from "lucide-react";
+import { RiDownloadLine as Download, RiBookOpenLine as BookOpen } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tripsApi } from "@/lib/api";
@@ -10,6 +10,7 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Truck } from "@/types/truck";
 import type { CompensationPerson } from "./CompensationTable";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -319,17 +320,17 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
     <button
       type="button"
       onClick={() => setFilterMode(mode)}
-      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+      className={`rounded-full px-3 py-1 text-caption-1-semibold transition-colors ${
         filterMode === mode
-          ? "bg-indigo-600 text-white shadow-sm"
-          : "border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+          ? "bg-purple-solid text-on-solid shadow-sm"
+          : "border border-border-button-default bg-background-primary-default text-text-secondary hover:bg-fill-2"
       }`}
     >
       {label}
     </button>
   );
 
-  const thClass = "px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 whitespace-nowrap text-left";
+  const thClass = "px-3 py-2.5 text-caption-2-semibold text-text-secondary whitespace-nowrap text-left";
   const thRClass = `${thClass} text-right`;
 
   return (
@@ -342,7 +343,7 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
         <button
           type="button"
           onClick={onShowGuide}
-          className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+          className="flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary transition-colors hover:border-border-button-default hover:bg-fill-2 hover:text-text-primary"
         >
           <BookOpen className="h-3.5 w-3.5" />
           Full guide
@@ -361,13 +362,13 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
               <DatePickerInput
                 value={customFrom}
                 onChange={(v) => setCustomFrom(v)}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
+                className="rounded-lg border border-border-button-default px-3 py-1.5 text-sm text-text-primary focus:border-purple-border-strong focus:outline-none"
               />
-              <span className="text-gray-400">→</span>
+              <span className="text-text-tertiary">→</span>
               <DatePickerInput
                 value={customTo}
                 onChange={(v) => setCustomTo(v)}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
+                className="rounded-lg border border-border-button-default px-3 py-1.5 text-sm text-text-primary focus:border-purple-border-strong focus:outline-none"
               />
             </div>
           )}
@@ -377,7 +378,7 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
             type="button"
             disabled={rows.length === 0}
             onClick={downloadPdf}
-            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-full border border-success-border-strong bg-success-surface px-3.5 py-1.5 text-caption-1-semibold text-success-text shadow-sm transition hover:bg-success-surface-strong disabled:opacity-40"
           >
             <Download className="h-3 w-3" />
             Download PDF
@@ -386,7 +387,7 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
             type="button"
             disabled={rows.length === 0}
             onClick={downloadExcel}
-            className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3.5 py-1.5 text-xs font-semibold text-green-700 shadow-sm transition-all hover:bg-green-100 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-full border border-success-border-strong bg-success-surface px-3.5 py-1.5 text-caption-1-semibold text-success-text shadow-sm transition hover:bg-success-surface-strong disabled:opacity-40"
           >
             <Download className="h-3 w-3" />
             Download Excel
@@ -395,21 +396,17 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
       </div>
 
       {loading ? (
-        <div className="py-10 text-center text-sm text-gray-500">Loading advance data…</div>
+        <div className="py-10 text-center text-sm text-text-secondary">Loading advance data…</div>
       ) : allRows.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-500">
-          No completed trips found for this driver.
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No completed trips found for this driver" />
       ) : rows.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-500">
-          No trips match the selected date filter.
-        </div>
+        <EmptyState size="compact" illustration="not-found" title="No trips match the selected date filter" />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="overflow-auto max-h-[calc(90vh-280px)] rounded-lg border border-gray-200">
+          <div className="overflow-auto max-h-[calc(90vh-280px)] rounded-lg border border-separator-border">
             <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
+                <tr className="border-b border-separator-border bg-fill-1">
                   <th className={thClass}>Trip ID</th>
                   <th className={thClass}>Driver</th>
                   <th className={thClass}>Truck Reg</th>
@@ -426,28 +423,28 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
                   <th className={thRClass}>Total Advance</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {rows.map((row, i) => (
-                  <tr key={`${row.tripId}-${i}`} className="hover:bg-gray-50">
-                    <td className="px-3 py-2.5 font-medium text-indigo-700">{row.tripId}</td>
-                    <td className="px-3 py-2.5 text-gray-700">{row.driverName}</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-700">{row.truckReg}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{row.truckBranch}</td>
-                    <td className="px-3 py-2.5 text-gray-600 max-w-[140px] truncate">{row.containerSpec}</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-700">{row.containerNo}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{fmtDate(row.bookingDate)}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{row.tripCategory}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{row.cargoClassification}</td>
-                    <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.origin}</td>
-                    <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.destination}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700">
-                      {row.hasClosure ? fmtCur(row.driverAdvance) : <span className="text-gray-400">—</span>}
+                  <tr key={`${row.tripId}-${i}`} className="hover:bg-fill-2">
+                    <td className="px-3 py-2.5 font-medium text-purple-text">{row.tripId}</td>
+                    <td className="px-3 py-2.5 text-text-primary">{row.driverName}</td>
+                    <td className="px-3 py-2.5 font-mono text-text-primary">{row.truckReg}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{row.truckBranch}</td>
+                    <td className="px-3 py-2.5 text-text-secondary max-w-[140px] truncate">{row.containerSpec}</td>
+                    <td className="px-3 py-2.5 font-mono text-text-primary">{row.containerNo}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{fmtDate(row.bookingDate)}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{row.tripCategory}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{row.cargoClassification}</td>
+                    <td className="px-3 py-2.5 text-text-primary max-w-[130px] truncate">{row.origin}</td>
+                    <td className="px-3 py-2.5 text-text-primary max-w-[130px] truncate">{row.destination}</td>
+                    <td className="px-3 py-2.5 text-right text-text-primary">
+                      {row.hasClosure ? fmtCur(row.driverAdvance) : <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-gray-700">
-                      {row.hasClosure ? fmtCur(row.additionalDriverAdvance) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-right text-text-primary">
+                      {row.hasClosure ? fmtCur(row.additionalDriverAdvance) : <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-bold text-orange-700">
-                      {row.hasClosure ? fmtCur(row.totalAdvance) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-right font-semibold text-orange-text">
+                      {row.hasClosure ? fmtCur(row.totalAdvance) : <span className="text-text-tertiary">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -455,23 +452,23 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
             </table>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-            <span className="text-sm font-semibold text-gray-700">
+          <div className="flex items-center justify-between rounded-lg border border-orange-border bg-orange-surface px-4 py-3">
+            <span className="text-body-semibold text-text-primary">
               Total Advance Paid
               {filterMode !== "all" && (
-                <span className="ml-2 text-xs font-normal text-gray-500">
+                <span className="ml-2 text-caption-1-regular text-text-secondary">
                   ({rows.length} trip{rows.length !== 1 ? "s" : ""})
                 </span>
               )}
             </span>
-            <span className="text-lg font-bold text-orange-700">{fmtCur(grandTotal)}</span>
+            <span className="text-title-3-semibold text-orange-text">{fmtCur(grandTotal)}</span>
           </div>
 
           <div className="flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-border-button-default px-4 py-2 text-body-semibold text-text-primary hover:bg-fill-2"
             >
               Close
             </button>

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Wrench, Plus, Pencil, Trash2, History } from "lucide-react";
+import { RiToolsLine as Wrench, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiHistoryLine as History } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { repairTypesApi, type RepairTypeEditEventRow } from "@/lib/api";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { RepairType } from "@/types/repair-type";
@@ -18,6 +18,7 @@ import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<RepairTypeEditEventRow["event"], typeof Plus> = {
   "Repair Type Created": Plus,
   "Repair Type Edited": Pencil,
@@ -25,9 +26,9 @@ const EDIT_EVENT_ICON: Record<RepairTypeEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<RepairTypeEditEventRow["event"], string> = {
-  "Repair Type Created": "bg-blue-100 text-blue-700",
-  "Repair Type Edited": "bg-amber-100 text-amber-700",
-  "Repair Type Deleted": "bg-red-100 text-red-700",
+  "Repair Type Created": "bg-accent-surface-strong text-accent-text",
+  "Repair Type Edited": "bg-warning-surface-strong text-warning-text",
+  "Repair Type Deleted": "bg-danger-surface-strong text-danger-text",
 };
 
 export default function RepairsManagementPage() {
@@ -119,12 +120,12 @@ export default function RepairsManagementPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white text-orange-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-border bg-orange-surface text-orange-text shadow-sm">
             <Wrench className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Repairs Management</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Repairs Management</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Manage repair types — these appear as quick-select options when logging major repairs on a trip sheet.
             </p>
           </div>
@@ -134,7 +135,7 @@ export default function RepairsManagementPage() {
 <button
               type="button"
               onClick={openEditHistory}
-              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
             >
               <History className="h-4 w-4" />
               Edit History
@@ -143,7 +144,7 @@ export default function RepairsManagementPage() {
             <button
               type="button"
               onClick={openAdd}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               Add Repair Type
@@ -159,44 +160,42 @@ export default function RepairsManagementPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white overflow-auto max-h-[75vh]">
+      <div className="rounded-xl border border-separator-border bg-background-primary-default overflow-auto max-h-[75vh]">
         <table className="w-full text-sm whitespace-nowrap">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-fill-1 border-b border-separator-border">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Repair Name</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Default Cost (₹)</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
+              <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Repair Name</th>
+              <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Default Cost (₹)</th>
+              <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-separator-border">
             {filteredRepairs.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-400">
-                  No repair types configured yet. Add one to get started.
-                </td>
+                <td colSpan={3} className="p-0"><EmptyState size="compact" illustration="no-data" title="No repair types configured yet" description="Add one to get started" /></td>
               </tr>
             )}
             {filteredRepairs.map((rt) => (
-              <tr key={rt.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-800">{rt.name}</td>
-                <td className="px-4 py-3 text-right text-gray-600">
+              <tr key={rt.id} className="hover:bg-fill-2 transition-colors">
+                <td className="px-4 py-3 font-medium text-text-primary">{rt.name}</td>
+                <td className="px-4 py-3 text-right text-text-secondary">
                   {parseFloat(rt.defaultCost) > 0
                     ? `₹${parseFloat(rt.defaultCost).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-                    : <span className="text-gray-400">—</span>}
+                    : <span className="text-text-tertiary">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => openEdit(rt)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-blue-200 hover:text-blue-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-separator-border text-text-secondary transition duration-200 hover:border-accent-border hover:text-accent-text"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(rt)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-red-200 hover:text-red-500"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-separator-border text-text-secondary transition duration-200 hover:border-danger-border hover:text-danger-text"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -234,21 +233,21 @@ export default function RepairsManagementPage() {
               onWheel={(e) => e.currentTarget.blur()}
               placeholder="e.g. 2500 (optional)"
             />
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-text-tertiary">
               Pre-fills the cost field when this repair is selected on a trip sheet.
             </p>
           </Field>
-          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+          <div className="flex justify-end gap-3 border-t border-separator-border pt-4">
             <button
               type="button"
               onClick={() => setDialogOpen(false)}
-              className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md"
+              className="flex h-10 items-center whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-6 text-body-medium text-text-secondary shadow-sm transition duration-300 hover:shadow-md"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex h-10 items-center whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              className="flex h-10 items-center whitespace-nowrap rounded-full bg-accent-solid px-6 text-body-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
             >
               {editing ? "Save Changes" : "Add Repair Type"}
             </button>
@@ -267,7 +266,7 @@ export default function RepairsManagementPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by repair name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -275,36 +274,34 @@ export default function RepairsManagementPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No repair type edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration="not-found" title={editHistoryEvents.length === 0 ? "No repair type edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[480px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Repair</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Repair</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.name}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.name}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

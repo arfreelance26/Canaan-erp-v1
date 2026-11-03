@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Truck as TruckIcon, FileText, ClipboardList, Calculator, Route, Gauge, IndianRupee, ChevronDown } from "lucide-react";
+import { RiTruckLine as TruckIcon, RiFileTextLine as FileText, RiFileList3Line as ClipboardList, RiCalculatorLine as Calculator, RiRouteLine as Route, RiDashboard3Line as Gauge, RiMoneyRupeeCircleLine as IndianRupee, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { driversApi, tripsApi, trucksApi, customersApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 /** Hire for a trip, after commission — the same figure Profitability uses. */
 function hireForTrip(trip: Trip, sheet: TripSheetData | undefined): number {
   if (!sheet) return 0;
@@ -41,7 +42,7 @@ function TruckThumb({ truck }: { truck: Truck }) {
   const [broken, setBroken] = useState(false);
   const src = truck.truckPhotosFileName && !broken ? truckImageUrl(truck, "photo") : null;
   return (
-    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#1b2b5e] to-[#2d4590] text-white/80 shadow-sm">
+    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-accent-solid text-on-solid/80 shadow-sm">
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" onError={() => setBroken(true)} className="h-full w-full object-cover" />
@@ -180,12 +181,12 @@ export default function VehicleRecordPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
           <TruckIcon className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Vehicle Based Record</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Read-only record of every vehicle</p>
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Vehicle Based Record</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Read-only record of every vehicle</p>
         </div>
       </div>
 
@@ -193,7 +194,7 @@ export default function VehicleRecordPage() {
         <PillSearch placeholder="Search by registration or truck ID…" value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex items-center gap-2">
           {!dateFrom && !dateTo && (
-            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-600">
+            <span className="rounded-full bg-accent-surface px-2.5 py-1 text-caption-2-semibold text-accent-text">
               Showing lifetime record
             </span>
           )}
@@ -204,9 +205,7 @@ export default function VehicleRecordPage() {
       </div>
 
       {filteredTrucks.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          {allTrucks.length === 0 ? "No vehicles yet." : "No vehicles match this search."}
-        </div>
+        <EmptyState size="compact" illustration={allTrucks.length === 0 ? "logistics" : "not-found"} title={allTrucks.length === 0 ? "No vehicles yet" : "No vehicles match this search"} />
       ) : (
         <div className="flex flex-col gap-3">
           {filteredTrucks.map((truck) => {
@@ -220,8 +219,8 @@ export default function VehicleRecordPage() {
               <div
                 key={truck.id}
                 className={cn(
-                  "rounded-2xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:border-blue-100 hover:shadow-[0_12px_40px_rgba(0,0,0,0.1)]",
-                  removed && "bg-gray-50/90",
+                  "rounded-2xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:border-accent-border hover:shadow-[0_12px_40px_rgba(0,0,0,0.1)]",
+                  removed && "bg-fill-1",
                 )}
               >
                 <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:gap-6">
@@ -229,47 +228,47 @@ export default function VehicleRecordPage() {
                   <div className="flex min-w-0 shrink-0 items-center gap-3 lg:w-64">
                     <TruckThumb truck={truck} />
                     <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 truncate font-bold text-gray-900">
+                      <p className="flex items-center gap-1.5 truncate font-semibold text-text-primary">
                         {truck.registrationNumber || "—"}
                         {removed && (
                           <span className={cn(
-                            "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                            removed === "Sold" ? "bg-sky-100 text-sky-700" : "bg-gray-200 text-gray-600",
+                            "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+                            removed === "Sold" ? "bg-teal-surface-strong text-teal-text" : "bg-fill-3 text-text-secondary",
                           )}>
                             {removed}
                           </span>
                         )}
                       </p>
-                      <p className="truncate text-xs text-gray-500">{truck.truckId}{model && ` · ${model}`}</p>
+                      <p className="truncate text-xs text-text-secondary">{truck.truckId}{model && ` · ${model}`}</p>
                     </div>
                   </div>
 
-                  <div className="hidden h-12 w-px shrink-0 bg-gray-100 lg:block" />
+                  <div className="hidden h-12 w-px shrink-0 bg-fill-2 lg:block" />
                   <div className="min-w-0 shrink-0 text-xs lg:w-24">
-                    <p className="flex items-center gap-1 font-semibold uppercase tracking-wide text-gray-400">
+                    <p className="flex items-center gap-1 font-semibold text-text-tertiary">
                       <Route className="h-3 w-3" /> Total Trips
                     </p>
-                    <p className="mt-0.5 font-medium text-gray-700">{truckTrips.length}</p>
+                    <p className="mt-0.5 font-medium text-text-primary">{truckTrips.length}</p>
                   </div>
-                  <div className="hidden h-12 w-px shrink-0 bg-gray-100 lg:block" />
+                  <div className="hidden h-12 w-px shrink-0 bg-fill-2 lg:block" />
                   <div className="min-w-0 shrink-0 text-xs lg:w-28">
-                    <p className="flex items-center gap-1 font-semibold uppercase tracking-wide text-gray-400">
+                    <p className="flex items-center gap-1 font-semibold text-text-tertiary">
                       <Gauge className="h-3 w-3" /> Total KM
                     </p>
-                    <p className="mt-0.5 font-medium tabular-nums text-gray-700">{kms(totals.km)}</p>
+                    <p className="mt-0.5 font-medium tabular-nums text-text-primary">{kms(totals.km)}</p>
                   </div>
-                  <div className="hidden h-12 w-px shrink-0 bg-gray-100 lg:block" />
+                  <div className="hidden h-12 w-px shrink-0 bg-fill-2 lg:block" />
                   <div className="min-w-0 flex-1 text-xs">
-                    <p className="flex items-center gap-1 font-semibold uppercase tracking-wide text-gray-400">
+                    <p className="flex items-center gap-1 font-semibold text-text-tertiary">
                       <IndianRupee className="h-3 w-3" /> Hire
                     </p>
-                    <p className="mt-0.5 font-medium tabular-nums text-gray-700">{money(totals.hire)}</p>
+                    <p className="mt-0.5 font-medium tabular-nums text-text-primary">{money(totals.hire)}</p>
                   </div>
 
                   {/* Uploaded documents */}
                   <div className="flex max-w-xs shrink-0 flex-wrap gap-1.5">
                     {docs.map((d) => (
-                      <span key={d.key} className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-medium text-gray-600" title={String(truck[d.fileNameKey])}>
+                      <span key={d.key} className="flex items-center gap-1 rounded-full border border-separator-border bg-fill-1 px-2 py-1 text-caption-2-medium text-text-secondary" title={String(truck[d.fileNameKey])}>
                         <FileText className="h-3 w-3" /> {d.short}
                       </span>
                     ))}
@@ -280,7 +279,7 @@ export default function VehicleRecordPage() {
                     onClick={() => toggleExpanded(truck.id)}
                     aria-label={isExpanded ? "Collapse trip details" : "Expand trip details"}
                     aria-expanded={isExpanded}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center self-end rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 lg:self-auto"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center self-end rounded-full border border-separator-border text-text-secondary transition duration-200 hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text lg:self-auto"
                   >
                     <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-180")} />
                   </button>
@@ -288,46 +287,46 @@ export default function VehicleRecordPage() {
 
                 {/* Every trip in the range, with its km and hire summing to the figures above. */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+                  <div className="border-t border-separator-border px-4 pb-4 pt-3">
                     {truckTrips.length === 0 ? (
-                      <p className="py-3 text-center text-xs text-gray-400">No trips in this date range.</p>
+                      <p className="py-3 text-center text-xs text-text-tertiary">No trips in this date range.</p>
                     ) : (
-                      <div className="overflow-auto rounded-lg border border-gray-100">
+                      <div className="overflow-auto rounded-lg border border-separator-border">
                         <table className="w-full min-w-[760px] text-left text-xs">
                           <thead>
-                            <tr className="border-b border-gray-100 bg-gray-50">
-                              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-gray-400">Trip ID</th>
-                              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-gray-400">Date</th>
-                              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-gray-400">Driver</th>
-                              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-gray-400">Route</th>
-                              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-gray-400">KM</th>
-                              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-gray-400">Hire</th>
-                              <th className="px-3 py-2 font-semibold uppercase tracking-wide text-gray-400">Documents</th>
+                            <tr className="border-b border-separator-border bg-fill-1">
+                              <th className="px-3 py-2 font-semibold text-text-tertiary">Trip ID</th>
+                              <th className="px-3 py-2 font-semibold text-text-tertiary">Date</th>
+                              <th className="px-3 py-2 font-semibold text-text-tertiary">Driver</th>
+                              <th className="px-3 py-2 font-semibold text-text-tertiary">Route</th>
+                              <th className="px-3 py-2 text-right font-semibold text-text-tertiary">KM</th>
+                              <th className="px-3 py-2 text-right font-semibold text-text-tertiary">Hire</th>
+                              <th className="px-3 py-2 font-semibold text-text-tertiary">Documents</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-50">
+                          <tbody className="divide-y divide-separator-border">
                             {truckTrips.map((trip) => {
                               const sheet = sheets.get(trip.id);
                               const driver = driverById.get(trip.driverId);
                               return (
                                 <tr key={trip.id}>
-                                  <td className="px-3 py-2 font-medium text-gray-800">
+                                  <td className="px-3 py-2 font-medium text-text-primary">
                                     {trip.tripId}
                                     <TripAuditBadge trip={trip} />
                                   </td>
-                                  <td className="px-3 py-2 text-gray-600">{formatDate(trip.scheduledDate)}</td>
-                                  <td className="px-3 py-2 text-gray-600">
+                                  <td className="px-3 py-2 text-text-secondary">{formatDate(trip.scheduledDate)}</td>
+                                  <td className="px-3 py-2 text-text-secondary">
                                     {driver?.name || trip.driverName || "—"}
-                                    {trip.driverId && <span className="block text-[10px] text-gray-400">{trip.driverId}</span>}
+                                    {trip.driverId && <span className="block text-[10px] text-text-tertiary">{trip.driverId}</span>}
                                   </td>
-                                  <td className="px-3 py-2 text-gray-600">
-                                    {trip.origin || "—"} <span className="text-gray-300">→</span> {trip.destination || "—"}
+                                  <td className="px-3 py-2 text-text-secondary">
+                                    {trip.origin || "—"} <span className="text-text-tertiary">→</span> {trip.destination || "—"}
                                   </td>
-                                  <td className="px-3 py-2 text-right tabular-nums text-gray-700">
-                                    {sheet ? kms(kmForTrip(sheet)) : <span className="text-gray-400">…</span>}
+                                  <td className="px-3 py-2 text-right tabular-nums text-text-primary">
+                                    {sheet ? kms(kmForTrip(sheet)) : <span className="text-text-tertiary">…</span>}
                                   </td>
-                                  <td className="px-3 py-2 text-right font-medium tabular-nums text-gray-700">
-                                    {sheet ? money(hireForTrip(trip, sheet)) : <span className="text-gray-400">…</span>}
+                                  <td className="px-3 py-2 text-right font-medium tabular-nums text-text-primary">
+                                    {sheet ? money(hireForTrip(trip, sheet)) : <span className="text-text-tertiary">…</span>}
                                   </td>
                                   <td className="px-3 py-2">
                                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -336,7 +335,7 @@ export default function VehicleRecordPage() {
                                           type="button"
                                           onClick={() => setBookingTrip(trip)}
                                           disabled={!trip.hasClosure}
-                                          className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                          className="flex items-center gap-1.5 rounded-lg border border-accent-border-strong bg-accent-surface px-2.5 py-1.5 text-caption-2-semibold text-accent-text transition-colors hover:bg-accent-surface-strong disabled:cursor-not-allowed disabled:opacity-40"
                                           title={trip.hasClosure ? undefined : "No booking sheet recorded for this trip"}
                                         >
                                           <FileText className="h-3.5 w-3.5" />
@@ -345,7 +344,7 @@ export default function VehicleRecordPage() {
                                         <button
                                           type="button"
                                           onClick={() => setSheetTrip(trip)}
-                                          className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+                                          className="flex items-center gap-1.5 rounded-lg border border-purple-border-strong bg-purple-surface px-2.5 py-1.5 text-caption-2-semibold text-purple-text transition-colors hover:bg-purple-surface-strong"
                                         >
                                           <ClipboardList className="h-3.5 w-3.5" />
                                           View Trip Sheet
@@ -353,7 +352,7 @@ export default function VehicleRecordPage() {
                                         <button
                                           type="button"
                                           onClick={() => setBreakdownTrip(trip)}
-                                          className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                                          className="flex items-center gap-1.5 rounded-lg border border-success-border-strong bg-success-surface px-2.5 py-1.5 text-caption-2-semibold text-success-text transition-colors hover:bg-success-surface-strong"
                                         >
                                           <Calculator className="h-3.5 w-3.5" />
                                           Trip Breakdown
@@ -368,10 +367,10 @@ export default function VehicleRecordPage() {
                             })}
                           </tbody>
                           <tfoot>
-                            <tr className="border-t border-gray-100 bg-gray-50">
-                              <td colSpan={4} className="px-3 py-2 text-right font-semibold text-gray-600">Total</td>
-                              <td className="px-3 py-2 text-right font-bold tabular-nums text-gray-900">{kms(totals.km)}</td>
-                              <td className="px-3 py-2 text-right font-bold tabular-nums text-gray-900">{money(totals.hire)}</td>
+                            <tr className="border-t border-separator-border bg-fill-1">
+                              <td colSpan={4} className="px-3 py-2 text-right font-semibold text-text-secondary">Total</td>
+                              <td className="px-3 py-2 text-right font-semibold tabular-nums text-text-primary">{kms(totals.km)}</td>
+                              <td className="px-3 py-2 text-right font-semibold tabular-nums text-text-primary">{money(totals.hire)}</td>
                               <td />
                             </tr>
                           </tfoot>

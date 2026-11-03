@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { History, RefreshCw, Wrench, PlusCircle, User } from "lucide-react";
+import { RiHistoryLine as History, RiRefreshLine as RefreshCw, RiToolsLine as Wrench, RiAddCircleLine as PlusCircle, RiUserLine as User } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 import { formatDate } from "@/lib/format-date";
 import type { Truck } from "@/types/truck";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type TruckHistoryDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -36,9 +37,9 @@ type HistoryEvent = {
 };
 
 const TYPE_STYLES: Record<EventType, string> = {
-  Attachment: "bg-blue-50 text-blue-700",
-  Removal: "bg-red-50 text-red-700",
-  Rotation: "bg-purple-50 text-purple-700",
+  Attachment: "bg-accent-surface text-accent-text",
+  Removal: "bg-danger-surface text-danger-text",
+  Rotation: "bg-purple-surface text-purple-text",
 };
 
 const TYPE_ICONS: Record<EventType, typeof PlusCircle> = {
@@ -117,18 +118,15 @@ export function TruckHistoryDialog({ open, onClose, truck }: TruckHistoryDialogP
       className="sm:max-w-2xl md:max-w-3xl"
     >
       {events.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-10 text-center">
-          <History className="h-7 w-7 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">No tyre changes logged for this truck yet.</p>
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No tyre changes logged for this truck yet" />
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setTypeFilter(null)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                typeFilter === null ? "bg-[#111827] text-white dark:bg-[#26305a]" :"border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+              className={`rounded-full px-3 py-1.5 text-caption-1-semibold transition-colors ${
+                typeFilter === null ? "bg-inverse text-on-solid " :"border border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2"
               }`}
             >
               All ({events.length})
@@ -141,8 +139,8 @@ export function TruckHistoryDialog({ open, onClose, truck }: TruckHistoryDialogP
                   key={t}
                   type="button"
                   onClick={() => setTypeFilter((prev) => (prev === t ? null : t))}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    active ? `${TYPE_STYLES[t]} ring-2 ring-offset-1 ring-current` : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption-1-semibold transition-colors ${
+                    active ? `${TYPE_STYLES[t]} ring-2 ring-offset-1 ring-current` : "border border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2"
                   }`}
                 >
                   <Icon className="h-3 w-3" />
@@ -152,44 +150,44 @@ export function TruckHistoryDialog({ open, onClose, truck }: TruckHistoryDialogP
             })}
           </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-xl border border-separator-border">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Date</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Odometer</th>
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Tyre Number</th>
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Description</th>
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">User</th>
+              <tr className="border-b border-separator-border bg-fill-1">
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Type</th>
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Date</th>
+                <th className="px-4 py-2.5 text-right text-caption-1-semibold text-text-secondary">Odometer</th>
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Tyre Number</th>
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Description</th>
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">User</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {filteredEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-text-tertiary">
                     No {typeFilter} events for this truck.
                   </td>
                 </tr>
               ) : filteredEvents.map((event) => {
                 const Icon = TYPE_ICONS[event.type];
                 return (
-                  <tr key={event.key} className="hover:bg-gray-50">
+                  <tr key={event.key} className="hover:bg-fill-2">
                     <td className="px-4 py-2.5">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${TYPE_STYLES[event.type]}`}>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold ${TYPE_STYLES[event.type]}`}>
                         <Icon className="h-3 w-3" />
                         {event.type}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-gray-600">{formatDate(event.date)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{event.odometer.toLocaleString("en-IN")} km</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{event.tyreNumber}</td>
-                    <td className="max-w-[260px] truncate px-4 py-2.5 text-gray-700" title={event.description || undefined}>
-                      {event.description || <span className="text-gray-300">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">{formatDate(event.date)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-text-primary">{event.odometer.toLocaleString("en-IN")} km</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-text-primary">{event.tyreNumber}</td>
+                    <td className="max-w-[260px] truncate px-4 py-2.5 text-text-primary" title={event.description || undefined}>
+                      {event.description || <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-600">
+                    <td className="px-4 py-2.5 text-text-secondary">
                       <span className="flex items-center gap-1.5">
-                        <User className="h-3 w-3 text-gray-400" />
+                        <User className="h-3 w-3 text-text-tertiary" />
                         {event.userName || "—"}
                       </span>
                     </td>

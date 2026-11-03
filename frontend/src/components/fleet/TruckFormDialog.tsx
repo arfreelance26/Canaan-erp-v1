@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Upload, X, FileText, Image as ImageIcon } from "lucide-react";
-import { showError, validateFileSize } from "@/lib/swal";
+import { RiUploadLine as Upload, RiCloseLine as X, RiFileTextLine as FileText, RiImageLine as ImageIcon } from "@remixicon/react";
+import { showError } from "@/lib/feedback";
+import { validateFileSize } from "@/lib/file-limits";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
@@ -23,7 +24,7 @@ import { VehicleImagesSection, VEHICLE_IMAGES, type VehicleImageField } from "@/
 export const DRAFT_KEY = "erp_truck_form_draft";
 
 const sectionHeadingClass =
-  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+  "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 export type TruckFiles = {
   /** Vehicle Identity Image (shown on the Our Fleet card). */
@@ -51,7 +52,7 @@ type TruckFormDialogProps = {
 };
 
 const fileInputClass =
-  "text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100";
+  "text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-surface file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent-text hover:file:bg-accent-surface-strong";
 
 const emptyForm: Omit<Truck, "id" | "truckId"> = {
   branchRegisteredTo: "",
@@ -186,7 +187,7 @@ export function TruckFormDialog({
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Truck" : "Add Truck"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={`${sectionHeadingClass} mb-4`}>Vehicle Images</p>
           <VehicleImagesSection
             truck={initialData}
@@ -225,7 +226,7 @@ export function TruckFormDialog({
             value={truckId}
             readOnly
             disabled
-            className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+            className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
           />
         </Field>
 
@@ -258,7 +259,7 @@ export function TruckFormDialog({
               options={manufacturerOptions.map((m) => ({ value: m, label: m }))}
               strictSelect
             />
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-text-tertiary">
               Not in the list? Add it in Truck&apos;s AdBlue History → Manufacturers.
             </p>
           </Field>
@@ -318,7 +319,7 @@ export function TruckFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>Choose the Tyre Layout</p>
           <Field label="Tyre Layout">
             <GlassSelect
@@ -348,7 +349,7 @@ export function TruckFormDialog({
           <ComplianceDocsReadOnly truck={initialData} />
         ) : (
           <>
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>RC Details</p>
           <Field label="RC Validity Date">
             <DatePickerInput              value={form.rcValidityDate}
@@ -391,7 +392,7 @@ export function TruckFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>FC Details</p>
           <Field label="FC Validity Date">
             <DatePickerInput              value={form.fcExpiryDate}
@@ -434,7 +435,7 @@ export function TruckFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>Road Tax</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Road Tax Validity Date">
@@ -488,7 +489,7 @@ export function TruckFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>Insurance Details</p>
           <Field label="Insurance Expiry Date">
             <DatePickerInput              value={form.insuranceExpiryDate}
@@ -531,7 +532,7 @@ export function TruckFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>National Permit</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="National Permit Number">
@@ -585,7 +586,7 @@ export function TruckFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>Local Permit</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Local Permit Number">
@@ -639,7 +640,7 @@ export function TruckFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>Pollution Certificate</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Pollution Certificate Validity Date">
@@ -701,14 +702,14 @@ export function TruckFormDialog({
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
             disabled={submitting}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? "Saving..." : initialData ? "Save Changes" : "Add Truck"}
           </button>

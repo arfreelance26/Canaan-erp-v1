@@ -21,7 +21,7 @@ export function Avatar({ photoUrl, label, size = 36 }: AvatarProps) {
 
   return (
     <div
-      className="flex shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-600"
+      className="flex shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text"
       style={{ width: size, height: size }}
     >
       {initials || "?"}

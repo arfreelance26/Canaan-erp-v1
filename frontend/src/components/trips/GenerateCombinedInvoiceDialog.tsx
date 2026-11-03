@@ -238,8 +238,8 @@ function buildSharedFields(trips: Trip[], customer: Customer | undefined, first?
   };
 }
 
-const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
-const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+const roClass = "w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm text-text-primary cursor-not-allowed";
+const sh = "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 type Props = {
   open: boolean;
@@ -504,7 +504,7 @@ export function GenerateCombinedInvoiceDialog({
     <Dialog open={open} onClose={onClose} title={`${mode === "edit" ? "Edit" : "Generate"} Combined Invoice — ${trips.length} Trips`} className="max-w-6xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-xs text-indigo-700">
+        <div className="rounded-lg border border-purple-border bg-purple-surface px-4 py-2.5 text-xs text-purple-text">
           This single invoice covers <strong>{trips.length} trips</strong> for <strong>{customer?.name ?? "this customer"}</strong>:
           {" "}{trips.map((t) => t.tripId).join(", ")}. Header details (invoice type, tax, bank, contact) apply to the whole
           document — each trip keeps its own route, container and service lines below.
@@ -524,12 +524,12 @@ export function GenerateCombinedInvoiceDialog({
                     key={type} type="button" disabled={disabled}
                     onClick={() => !disabled && handleInvoiceTypeChange(type)}
                     className={[
-                      "rounded-xl border-2 px-4 py-3 text-sm font-semibold transition-all",
+                      "rounded-xl border-2 px-4 py-3 text-body-semibold transition",
                       shared.invoiceType === type
-                        ? "border-blue-600 bg-blue-50 text-blue-700 shadow-sm"
+                        ? "border-accent-solid bg-accent-surface text-accent-text shadow-sm"
                         : disabled
-                        ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",
+                        ? "border-separator-border bg-fill-1 text-text-tertiary cursor-not-allowed"
+                        : "border-separator-border bg-background-primary-default text-text-secondary hover:border-border-button-default hover:bg-fill-2",
                     ].join(" ")}
                   >
                     {type}
@@ -538,7 +538,7 @@ export function GenerateCombinedInvoiceDialog({
               })}
             </div>
             {!isSelf && !isBillOfSupplyLocked && taxWarning && (
-              <p className="text-xs font-medium text-amber-600">Please select GST or IGST in Tax Details before choosing Tax Invoice.</p>
+              <p className="text-caption-1-medium text-warning-text">Please select GST or IGST in Tax Details before choosing Tax Invoice.</p>
             )}
           </section>
 
@@ -547,7 +547,7 @@ export function GenerateCombinedInvoiceDialog({
             <div className="flex flex-col gap-3">
               {(["gstApplicable", "igstApplicable"] as const).map((key) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-gray-600">
+                  <span className="text-caption-1-medium text-text-secondary">
                     {key === "gstApplicable" ? "GST Applicable? (CGST 9% + SGST 9%)" : "IGST Applicable? (18%)"}
                   </span>
                   <div className="flex gap-2">
@@ -558,12 +558,12 @@ export function GenerateCombinedInvoiceDialog({
                           key={opt} type="button" disabled={lockedByself}
                           onClick={() => !lockedByself && handleTaxToggle(key, opt)}
                           className={[
-                            "flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all",
+                            "flex-1 rounded-lg border-2 py-2 text-body-semibold transition",
                             lockedByself
-                              ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
+                              ? "border-separator-border bg-fill-1 text-text-tertiary cursor-not-allowed"
                               : shared[key] === opt
-                              ? "border-blue-600 bg-blue-50 text-blue-700"
-                              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300",
+                              ? "border-accent-solid bg-accent-surface text-accent-text"
+                              : "border-separator-border bg-background-primary-default text-text-secondary hover:border-border-button-default",
                           ].join(" ")}
                         >
                           {opt}
@@ -600,7 +600,7 @@ export function GenerateCombinedInvoiceDialog({
         {lines.map((line, li) => {
           const calc = lineCalcs[li];
           return (
-            <section key={line.tripDbId} className="flex flex-col gap-4 rounded-xl border-2 border-gray-200 bg-gray-50/60 p-4">
+            <section key={line.tripDbId} className="flex flex-col gap-4 rounded-xl border-2 border-separator-border bg-fill-1 p-4">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className={sh}>
                   {isConsolidated
@@ -609,14 +609,14 @@ export function GenerateCombinedInvoiceDialog({
                 </p>
                 <div className="flex items-center gap-2">
                   {hireFor(line) > 0 && (
-                    <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    <span className="flex items-center gap-1.5 rounded-full border border-accent-border bg-accent-surface px-3 py-1 text-caption-1-semibold text-accent-text">
                       {isConsolidated ? "Total Hire Amount" : "Trip Hire Amount"} &nbsp;·&nbsp; ₹{hireFor(line).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </span>
                   )}
                   <button
                     type="button"
                     onClick={() => setShowSacTableFor(li)}
-                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    className="flex items-center gap-1.5 rounded-lg border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary shadow-sm hover:border-accent-border-strong hover:bg-accent-surface-strong hover:text-accent-text transition-colors"
                   >
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -639,13 +639,13 @@ export function GenerateCombinedInvoiceDialog({
                 {line.services.map((svc, si) => {
                   const svcCalc = calc.svcCalcs[si];
                   return (
-                    <div key={si} className="relative flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3">
+                    <div key={si} className="relative flex flex-col gap-3 rounded-lg border border-separator-border bg-background-primary-default p-3">
                       {line.services.length > 1 && (
-                        <button type="button" onClick={() => removeService(li, si)} className="absolute right-3 top-3 text-xs font-semibold text-red-500 hover:text-red-700">
+                        <button type="button" onClick={() => removeService(li, si)} className="absolute right-3 top-3 text-caption-1-semibold text-danger-text hover:text-danger-text">
                           Remove
                         </button>
                       )}
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Service {si + 1}</span>
+                      <span className="text-caption-1-semibold text-text-tertiary">Service {si + 1}</span>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <Field label="Description of Service" className="sm:col-span-2">
                           <input value={svc.descriptionOfService} onChange={(e) => updateService(li, si, "descriptionOfService", e.target.value)} className={inputClass} placeholder="e.g. Transportation of cargo" />
@@ -663,7 +663,7 @@ export function GenerateCombinedInvoiceDialog({
                             <input type="number" min="0" max="100" step="0.01" value={svc.gstRate}
                               onChange={(e) => updateService(li, si, "gstRate", e.target.value)}
                               onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} pr-8`} placeholder="e.g. 18" />
-                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
+                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-tertiary">%</span>
                           </div>
                         </Field>
                         <Field label="Quantity">
@@ -678,22 +678,22 @@ export function GenerateCombinedInvoiceDialog({
                         </Field>
                       </div>
                       {svcCalc.subtotal > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-3 border-t border-gray-100 pt-2 text-xs text-gray-500">
-                          <span>Subtotal: <strong className="text-gray-700">₹{fmt(svcCalc.subtotal)}</strong></span>
-                          {svcCalc.gstAmount > 0 && <span>{isIgst ? "IGST" : "GST"}: <strong className="text-amber-700">+₹{fmt(svcCalc.gstAmount)}</strong></span>}
+                        <div className="mt-1 flex flex-wrap gap-3 border-t border-separator-border pt-2 text-xs text-text-secondary">
+                          <span>Subtotal: <strong className="text-text-primary">₹{fmt(svcCalc.subtotal)}</strong></span>
+                          {svcCalc.gstAmount > 0 && <span>{isIgst ? "IGST" : "GST"}: <strong className="text-warning-text">+₹{fmt(svcCalc.gstAmount)}</strong></span>}
                         </div>
                       )}
                     </div>
                   );
                 })}
-                <button type="button" onClick={() => addService(li)} className="self-start rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50">
+                <button type="button" onClick={() => addService(li)} className="self-start rounded-lg border border-accent-border-strong px-3 py-1.5 text-caption-1-semibold text-accent-text hover:bg-accent-surface-strong">
                   + Add Service
                 </button>
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-                <span className="text-xs font-semibold text-emerald-700">Trip Sub Total</span>
-                <span className="text-sm font-bold text-emerald-700">₹{fmt(calc.lineTotal)}</span>
+              <div className="flex items-center justify-between rounded-lg border border-success-border bg-success-surface px-3 py-2">
+                <span className="text-caption-1-semibold text-success-text">Trip Sub Total</span>
+                <span className="text-body-semibold text-success-text">₹{fmt(calc.lineTotal)}</span>
               </div>
 
               <Field label="Narration">
@@ -707,31 +707,31 @@ export function GenerateCombinedInvoiceDialog({
         <section className="flex flex-col gap-5">
           <p className={sh}>Amount Details</p>
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
-              <span className="text-sm text-gray-600">Subtotal — all {lines.length} trips (before GST)</span>
-              <span className="text-sm font-semibold text-gray-800">₹{fmt(grandSubtotal)}</span>
+            <div className="flex items-center justify-between rounded-lg border border-separator-border bg-fill-1 px-4 py-2.5">
+              <span className="text-sm text-text-secondary">Subtotal — all {lines.length} trips (before GST)</span>
+              <span className="text-body-semibold text-text-primary">₹{fmt(grandSubtotal)}</span>
             </div>
             {isGst && grandGst > 0 && (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5">
-                  <span className="text-sm text-amber-700">CGST (9%)</span>
-                  <span className="text-sm font-semibold text-amber-700">+ ₹{fmt(grandGst / 2)}</span>
+                <div className="flex items-center justify-between rounded-lg border border-warning-border bg-warning-surface px-4 py-2.5">
+                  <span className="text-sm text-warning-text">CGST (9%)</span>
+                  <span className="text-body-semibold text-warning-text">+ ₹{fmt(grandGst / 2)}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5">
-                  <span className="text-sm text-amber-700">SGST (9%)</span>
-                  <span className="text-sm font-semibold text-amber-700">+ ₹{fmt(grandGst / 2)}</span>
+                <div className="flex items-center justify-between rounded-lg border border-warning-border bg-warning-surface px-4 py-2.5">
+                  <span className="text-sm text-warning-text">SGST (9%)</span>
+                  <span className="text-body-semibold text-warning-text">+ ₹{fmt(grandGst / 2)}</span>
                 </div>
               </>
             )}
             {isIgst && grandGst > 0 && (
-              <div className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5">
-                <span className="text-sm text-amber-700">IGST (18%)</span>
-                <span className="text-sm font-semibold text-amber-700">+ ₹{fmt(grandGst)}</span>
+              <div className="flex items-center justify-between rounded-lg border border-warning-border bg-warning-surface px-4 py-2.5">
+                <span className="text-sm text-warning-text">IGST (18%)</span>
+                <span className="text-body-semibold text-warning-text">+ ₹{fmt(grandGst)}</span>
               </div>
             )}
-            <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <span className="text-sm font-semibold text-gray-700">Grand Total ({lines.length} trips)</span>
-              <span className="text-lg font-bold text-emerald-700">₹{grandTotalRounded > 0 ? fmtWhole(grandTotalRounded) : "0"}</span>
+            <div className="flex items-center justify-between rounded-lg border border-success-border bg-success-surface px-4 py-3">
+              <span className="text-body-semibold text-text-primary">Grand Total ({lines.length} trips)</span>
+              <span className="text-title-3-semibold text-success-text">₹{grandTotalRounded > 0 ? fmtWhole(grandTotalRounded) : "0"}</span>
             </div>
             <Field label="Amount in Words">
               <input readOnly disabled value={amountInWords} className={roClass} />
@@ -762,7 +762,7 @@ export function GenerateCombinedInvoiceDialog({
 
         {/* Party halt not on the invoice — the customer owes it, and the driver is paid it. */}
         {partyHaltOwed > 0 && haltOnInvoice <= 0 && (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="rounded-xl border border-warning-border-strong bg-warning-surface px-4 py-3 text-sm text-warning-text-strong">
             <span className="font-semibold">₹{partyHaltOwed.toLocaleString("en-IN")} party halt</span> on{" "}
             {partyHaltTrips.map((t) => t.tripId).join(", ")}, but the invoice has no halting charges. Add a halting
             charges line so the customer is billed.
@@ -770,17 +770,17 @@ export function GenerateCombinedInvoiceDialog({
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-          <div className="text-sm text-gray-500">
-            {lines.length} trips &nbsp;·&nbsp; Grand Total: <span className="font-semibold text-emerald-700">₹{grandTotalRounded > 0 ? fmtWhole(grandTotalRounded) : "0"}</span>
+        <div className="flex items-center justify-between border-t border-separator-border pt-4">
+          <div className="text-sm text-text-secondary">
+            {lines.length} trips &nbsp;·&nbsp; Grand Total: <span className="font-semibold text-success-text">₹{grandTotalRounded > 0 ? fmtWhole(grandTotalRounded) : "0"}</span>
           </div>
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2 disabled:opacity-50">
               Cancel
             </button>
             <button type="submit" disabled={saving || (mode === "create" && !fetchedInvoiceNo) || (mode === "create" && grandTotal === 0)}
               title={mode === "create" && grandTotal === 0 ? "Grand Total is ₹0 — enter at least one service amount before generating" : undefined}
-              className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              className="rounded-lg bg-purple-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-purple-solid-hover disabled:opacity-50 disabled:cursor-not-allowed">
               {saving ? (mode === "edit" ? "Saving…" : "Generating…") : (mode === "create" && !fetchedInvoiceNo) ? "Fetching No…" : (mode === "create" && grandTotal === 0) ? "Enter Amounts First" : (mode === "edit" ? "Save Changes" : "Generate Combined Invoice")}
             </button>
           </div>
@@ -791,25 +791,25 @@ export function GenerateCombinedInvoiceDialog({
     {/* SAC Code Table Modal — scoped to whichever trip section opened it */}
     <Dialog open={showSacTableFor !== null} onClose={() => setShowSacTableFor(null)} title="SAC Code Reference Table" className="max-w-3xl">
       <div className="flex flex-col gap-3">
-        <p className="text-xs text-gray-500">
-          {sacCodes.length} codes available · Click <span className="font-semibold text-blue-600">+ Add</span> to insert a service line
+        <p className="text-xs text-text-secondary">
+          {sacCodes.length} codes available · Click <span className="font-semibold text-accent-text">+ Add</span> to insert a service line
           {showSacTableFor !== null && lines[showSacTableFor] ? <> into <strong>{lines[showSacTableFor].trip.tripId}</strong></> : null} pre-filled with that code.
         </p>
-        <div className="overflow-auto rounded-xl border border-gray-200 shadow-sm">
+        <div className="overflow-auto rounded-xl border border-separator-border shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-                <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Description of Service</th>
-                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-28">SAC Code</th>
-                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20">GST (%)</th>
-                <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-48">Retrieves From</th>
-                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20"></th>
+              <tr className="bg-accent-solid text-on-solid">
+                <th className="px-4 py-2.5 text-left text-caption-1-semibold">Description of Service</th>
+                <th className="px-4 py-2.5 text-center text-caption-1-semibold w-28">SAC Code</th>
+                <th className="px-4 py-2.5 text-center text-caption-1-semibold w-20">GST (%)</th>
+                <th className="px-4 py-2.5 text-left text-caption-1-semibold w-48">Retrieves From</th>
+                <th className="px-4 py-2.5 text-center text-caption-1-semibold w-20"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {sacCodes.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Loading SAC codes…</td>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-text-tertiary">Loading SAC codes…</td>
                 </tr>
               ) : (
                 sacCodes.map((sc, i) => {
@@ -819,39 +819,39 @@ export function GenerateCombinedInvoiceDialog({
                   const scHasGst = parseFloat(sc.gstRate) > 0;
                   const blockedForTm = shared.invoiceType === "Transport Memo" && scHasGst;
                   return (
-                    <tr key={sc.id} className={`transition-colors ${blockedForTm ? "opacity-50" : i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
-                      <td className="px-4 py-2.5 text-gray-700 whitespace-normal break-words">{sc.description}</td>
-                      <td className="px-4 py-2.5 text-center font-mono text-xs font-semibold text-blue-700 tracking-wider">{sc.code}</td>
+                    <tr key={sc.id} className={`transition-colors ${blockedForTm ? "opacity-50" : i % 2 === 0 ? "bg-background-primary-default hover:bg-accent-surface-strong/50" : "bg-fill-1 hover:bg-accent-surface-strong/50"}`}>
+                      <td className="px-4 py-2.5 text-text-primary whitespace-normal break-words">{sc.description}</td>
+                      <td className="px-4 py-2.5 text-center font-mono text-caption-1-semibold text-accent-text">{sc.code}</td>
                       <td className="px-4 py-2.5 text-center">
                         {scHasGst ? (
-                          <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">
+                          <span className="inline-flex items-center rounded-full bg-warning-surface border border-warning-border px-2 py-0.5 text-caption-1-semibold text-warning-text">
                             {sc.gstRate}%
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-400">—</span>
+                          <span className="text-xs text-text-tertiary">—</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5">
                         {sc.linkedExpense ? (
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-xs font-medium text-indigo-700 leading-tight">{sc.linkedExpense}</span>
+                            <span className="text-caption-1-medium text-purple-text leading-tight">{sc.linkedExpense}</span>
                             {hasValue ? (
-                              <span className="text-xs font-semibold text-emerald-700">
+                              <span className="text-caption-1-semibold text-success-text">
                                 ₹{parseFloat(linkedVal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400">No data on sheet</span>
+                              <span className="text-xs text-text-tertiary">No data on sheet</span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">—</span>
+                          <span className="text-xs text-text-tertiary">—</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-center">
                         {blockedForTm ? (
                           <span
                             title="Transport Memo is strictly no-GST — this SAC code carries a GST rate"
-                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-400 cursor-not-allowed"
+                            className="inline-flex items-center gap-1 rounded-lg border border-separator-border bg-fill-1 px-2.5 py-1 text-caption-1-semibold text-text-tertiary cursor-not-allowed"
                           >
                             No GST
                           </span>
@@ -871,7 +871,7 @@ export function GenerateCombinedInvoiceDialog({
                               });
                               setShowSacTableFor(null);
                             }}
-                            className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"
+                            className="flex items-center gap-1 rounded-lg border border-accent-border bg-accent-surface px-2.5 py-1 text-caption-1-semibold text-accent-text hover:bg-accent-solid-hover hover:text-on-solid hover:border-accent-solid transition duration-150"
                           >
                             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -891,7 +891,7 @@ export function GenerateCombinedInvoiceDialog({
           <button
             type="button"
             onClick={() => setShowSacTableFor(null)}
-            className="rounded-lg border border-gray-200 bg-white px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            className="rounded-lg border border-separator-border bg-background-primary-default px-5 py-2 text-body-semibold text-text-secondary hover:bg-fill-2 transition-colors"
           >
             Close
           </button>

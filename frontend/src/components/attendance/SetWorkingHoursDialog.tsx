@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { securityApi } from "@/lib/api";
 import { Dialog } from "@/components/ui/Dialog";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 
 type Props = {
   open: boolean;
@@ -67,17 +67,17 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
   return (
     <Dialog open={open} onClose={() => !saving && onClose()} title="Auto-Close Settings">
       <form onSubmit={save} className="flex flex-col gap-4 p-1">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-text-secondary">
           A shift that hasn&apos;t been closed by the staff member is closed automatically once this many
           hours pass with no real activity from them — not just elapsed time since check-in, so someone
           working a split schedule (morning, then evening, then late night) is never cut off mid-shift.
           The check-out time recorded is their real last activity, and the shift is marked &ldquo;Auto-closed.&rdquo;
         </p>
 
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-separator-border px-3 py-2.5">
           <div>
-            <p className="text-sm font-medium text-gray-700">Auto-Close Shifts</p>
-            <p className="text-xs text-gray-500">Manual &ldquo;Close Shift&rdquo; always works either way.</p>
+            <p className="text-body-medium text-text-primary">Auto-Close Shifts</p>
+            <p className="text-xs text-text-secondary">Manual &ldquo;Close Shift&rdquo; always works either way.</p>
           </div>
           <button
             type="button"
@@ -86,11 +86,11 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
             disabled={loading}
             onClick={() => setEnabled((v) => !v)}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-              enabled ? "bg-emerald-500" : "bg-gray-300"
+              enabled ? "bg-success-solid" : "bg-fill-4"
             }`}
           >
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+              className={`inline-block h-5 w-5 transform rounded-full bg-background-primary-default shadow transition-transform ${
                 enabled ? "translate-x-5" : "translate-x-0.5"
               }`}
             />
@@ -98,7 +98,7 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
         </div>
 
         <label className="flex flex-col gap-1 text-sm">
-          <span className={`font-medium ${enabled ? "text-gray-700" : "text-gray-400"}`}>
+          <span className={`font-medium ${enabled ? "text-text-primary" : "text-text-tertiary"}`}>
             Auto-close after this many hours of inactivity
           </span>
           <input
@@ -110,24 +110,24 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
             disabled={loading || !enabled}
             value={hours}
             onChange={(e) => setHours(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-50 disabled:text-gray-400"
+            className="rounded-lg border border-border-button-default px-3 py-2 disabled:bg-fill-1 disabled:text-text-tertiary"
           />
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger-text">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-border-button-default px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving || loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid hover:bg-accent-solid-hover disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>

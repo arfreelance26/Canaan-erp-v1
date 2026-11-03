@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu, Wrench, RotateCcw, Sunrise } from "lucide-react";
+import { RiHome5Line as Home, RiArrowRightSLine as ChevronRight, RiNotification3Line as Bell, RiArrowDownSLine as ChevronDown, RiCalendarScheduleLine as CalendarClock, RiUserLine as User, RiAlertLine as AlertTriangle, RiMessage3Line as MessageSquare, RiMenuLine as Menu, RiToolsLine as Wrench, RiArrowGoBackLine as RotateCcw, RiSunFoggyLine as Sunrise } from "@remixicon/react";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -13,7 +13,6 @@ import { NetworkStatus } from "./NetworkStatus";
 import { CalculatorButton } from "./CalculatorButton";
 import { AlertsButton } from "./AlertsButton";
 import { EventsButton } from "./EventsButton";
-import { GreetingPill } from "./GreetingPill";
 import { NotesButton } from "./NotesButton";
 import { TodoButton } from "./TodoButton";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
@@ -22,18 +21,13 @@ import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate } from "@/lib/format-date";
 import { useNotifications, maintenanceAlertHref, reverificationAlertHref } from "@/context/NotificationContext";
-import { useBirthday } from "@/context/BirthdayContext";
-import { useSeason } from "@/context/SeasonContext";
-import { useFounding } from "@/context/FoundingContext";
-import { GoldWave, EstMark, FitMark } from "./FoundingDecor";
-import { PineGarland, Snowfall, Streamers, NewYearMark, SantaOnDashboard } from "./SeasonDecor";
-import { Bunting, BirthdayBadge, Balloons } from "./BirthdayDecor";
 import { useOpenShift } from "@/hooks/useOpenShift";
 import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
 // import { useChat } from "@/context/ChatContext"; // Next phase
-import { showToast } from "@/lib/swal";
+import { showToast } from "@/lib/feedback";
 
 
+import { EmptyState } from "@/components/ui/EmptyState";
 // Trip pages whose local search is driven by the Topbar global search
 const SEARCHABLE_TRIP_PATHS = new Set([
   "/trips/assign",
@@ -197,9 +191,6 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const isFinanceManager = user?.softwareDesignation === "Accounts";
   const isStaff          = user?.softwareDesignation === "Trip Sheet Register";
   const isMaintenance    = user?.softwareDesignation === "Maintenance";
-  const birthday         = useBirthday();
-  const season           = useSeason();
-  const founding         = useFounding();
 
   // Compliance Alerts and Renewals & Payments no longer come through here —
   // see the comment where their bell sections used to render, further down.
@@ -579,101 +570,68 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
 
   return (
     <>
-    <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-white/50 bg-white/60 backdrop-blur-xl px-3 sm:px-6 shadow-sm">
-      {birthday.decorated ? (
-        <>
-          {/* behind the pill / buttons, like the December snow */}
-          <Balloons count={9} className="-z-10" />
-          <Bunting className="-z-10" />
-        </>
-      ) : founding.decorated ? (
-        <GoldWave />
-      ) : season.decorated ? (
-        <>
-          {/* Negative z inside the header's stacking context: painted over the
-              header background but under the pill, buttons and profile. */}
-          <Snowfall className="-z-10" glitter={season.day === "newyearday"} />
-          {season.day === "newyearday" ? (
-            <Streamers className="-z-10" />
-          ) : (
-            <PineGarland className="-z-10" />
-          )}
-          {season.day === "christmas" && <SantaOnDashboard uid={String(user?.id ?? user?.name ?? "")} className="-z-10" />}
-        </>
-      ) : null}
-
+    <header className="relative z-50 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-separator-border bg-background-primary-default px-4 md:px-6">
       {/* Hamburger — mobile only */}
       <button
         type="button"
         aria-label="Open menu"
         onClick={onMenuOpen}
-        className="mr-2 flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors md:hidden"
+        className="flex size-9 items-center justify-center rounded-lg text-foreground-icon-secondary outline-none transition-colors hover:bg-fill-2 hover:text-foreground-icon-primary focus-visible:ring-2 focus-visible:ring-border-focus-ring md:hidden"
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="size-5" />
       </button>
 
-      <GreetingPill userKey={String(user?.id ?? user?.email ?? "")} name={user?.name ?? ""}>
+      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1">
         {attendanceLocked ? (
-          // Every other way out of this page (sidebar links, direct URLs) is
-          // already blocked by the gate in AppShell — this breadcrumb Home
-          // icon was the one spot that still linked straight to "/" with no
-          // awareness of the lock, letting someone dodge mandatory attendance
-          // by clicking it before the redirect-back effect caught up.
+          // Every other way out of this page is blocked by the gate in AppShell;
+          // the Home crumb must not link straight to "/" while it's on.
           <button
             type="button"
             aria-label="Home"
             onClick={() => showToast("Mark today's attendance first.", "info")}
-            className="flex h-7 w-7 shrink-0 cursor-not-allowed items-center justify-center rounded-full text-gray-300"
+            className="flex size-7 shrink-0 cursor-not-allowed items-center justify-center rounded-md text-foreground-icon-quaternary"
           >
-            <Home className="h-3.5 w-3.5" />
+            <Home className="size-4" />
           </button>
         ) : (
           <Link
             href="/"
             aria-label="Home"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-all duration-300 hover:bg-blue-50 hover:text-blue-600"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-icon-tertiary outline-none transition-colors hover:bg-fill-2 hover:text-foreground-icon-primary focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
-            <Home className="h-3.5 w-3.5" />
+            <Home className="size-4" />
           </Link>
         )}
         {breadcrumbs.slice(1).map((crumb, index, arr) => {
           const isLast = index === arr.length - 1;
           return (
-            <span key={crumb.label} className={`flex min-w-0 items-center gap-1 ${isLast ? "hidden sm:flex" : ""}`}>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-300" />
+            <span key={crumb.label} className="flex min-w-0 items-center gap-1">
+              <ChevronRight className="size-4 shrink-0 text-foreground-icon-quaternary" />
               {crumb.href && !isLast ? (
-                <Link href={crumb.href} className="truncate text-sm font-medium tracking-[-0.006em] text-gray-500 transition-colors duration-300 hover:text-gray-900">
+                <Link href={crumb.href} className="truncate text-body-medium text-text-secondary transition-colors hover:text-text-primary">
                   {crumb.label}
                 </Link>
               ) : (
-                <span className={`truncate text-sm tracking-[-0.006em] ${isLast ? "font-semibold text-gray-900" : "font-medium text-gray-500"}`}>
+                <span aria-current={isLast ? "page" : undefined} className={isLast ? "truncate text-body-medium text-text-primary" : "truncate text-body-regular text-text-secondary"}>
                   {crumb.label}
                 </span>
               )}
             </span>
           );
         })}
-      </GreetingPill>
-
-      {/* Founding Day / New Year mark — in the free space between the
-          breadcrumb and the buttons (hidden when it wouldn't fit). */}
-      {!birthday.decorated && founding.decorated ? (
-        <FitMark><EstMark years={founding.years} /></FitMark>
-      ) : !birthday.decorated && season.decorated && season.day === "newyearday" ? (
-        <FitMark><NewYearMark year={season.newYear} /></FitMark>
-      ) : null}
+      </nav>
 
       <div className="flex items-center gap-4">
 
         {/* {backendOnline === false && (
-          <span className="hidden items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 ring-1 ring-red-200 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+          <span className="hidden items-center gap-1.5 rounded-full bg-danger-surface px-2.5 py-1 text-caption-1-medium text-danger-text ring-1 ring-danger-border sm:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-danger-solid" />
             Backend offline
           </span>
         )}
         {backendOnline === true && (
-          <span className="hidden items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 ring-1 ring-green-200 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+          <span className="hidden items-center gap-1.5 rounded-full bg-success-surface px-2.5 py-1 text-caption-1-medium text-success-text ring-1 ring-success-border sm:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-success-solid" />
             Connected
           </span>
         )} */}
@@ -710,14 +668,14 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
             onClick={toggleChat}
             title="AI Assistant"
             className={[
-              "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300",
-              "hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
+              "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300",
+              "hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
               isChatOpen
-                ? "border-brand-gold/60 bg-brand-navy text-brand-gold focus:ring-brand-gold/20"
-                : "border-gray-200 bg-white text-gray-500 hover:border-brand-navy/30 hover:bg-brand-navy/5 hover:text-brand-navy focus:ring-brand-navy/10",
+                ? "border-gold-solid/60 bg-accent-solid text-gold-text focus:ring-gold-solid/20"
+                : "border-separator-border bg-background-primary-default text-text-secondary hover:border-accent-solid/30 hover:bg-accent-solid-hover/5 hover:text-accent-text-strong focus:ring-accent-solid/10",
             ].join(" ")}
           >
-            <MessageSquare className="h-5 w-5 transition-transform duration-300 group-hover:scale-110" />
+            <MessageSquare className="h-5 w-5 transition-transform duration-300" />
           </button>
         )}
         */}
@@ -740,11 +698,11 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                 type="button"
                 aria-label="Notifications"
                 onClick={() => setIsNotifOpen((v) => !v)}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-separator-border bg-background-primary-default text-text-secondary shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300 hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-accent-solid/10"
               >
-                <Bell className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                <Bell className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
                 {totalBadge > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
+                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger-solid text-caption-2-semibold text-on-solid ring-2 ring-background-primary-default">
                     {totalBadge > 99 ? "99+" : totalBadge}
                   </span>
                 )}
@@ -753,12 +711,12 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
           })()}
 
           {isNotifOpen && (
-            <div className="absolute right-0 z-[100] mt-3 w-[calc(100vw-24px)] sm:w-[380px] origin-top-right rounded-2xl border border-white/60 bg-white/95 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
+            <div className="absolute right-0 z-[100] mt-3 w-[calc(100vw-24px)] sm:w-[380px] origin-top-right rounded-2xl border border-separator-border bg-background-primary-default shadow-[0_10px_40px_rgba(0,0,0,0.12)]">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+              <div className="flex items-center justify-between border-b border-separator-border px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-gray-400" />
-                  <span className="text-[13px] font-semibold text-gray-900">Notifications</span>
+                  <Bell className="h-4 w-4 text-text-tertiary" />
+                  <span className="text-body-2-semibold text-text-primary">Notifications</span>
                 </div>
                 {(() => {
                   const count =
@@ -771,7 +729,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     (isAdmin ? recentLeaveRequests.length + recentEditRequestNotifs.length + recentDeletionRequestNotifs.length : 0) +
                     recentMyDecidedRequests.length;
                   return count > 0 ? (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                    <span className="rounded-full bg-danger-surface-strong px-2 py-0.5 text-caption-2-semibold text-danger-text">
                       {count} unread
                     </span>
                   ) : null;
@@ -780,11 +738,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
 
               {/* Body */}
               {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 && reverificationAlerts.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                  <Bell className="h-8 w-8 text-gray-200" />
-                  <p className="text-sm font-medium text-gray-500">No notifications yet</p>
-                  <p className="text-xs text-gray-400">Role-specific alerts coming soon</p>
-                </div>
+                <EmptyState size="compact" illustration="inbox-empty" title="No notifications yet" description="Role-specific alerts coming soon" />
               ) : (
                 <div className="max-h-[420px] overflow-y-auto">
 
@@ -802,10 +756,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     const hiddenCount = recentEditRequestNotifs.length - shown.reduce((sum, g) => sum + g.items.length, 0);
                     return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-purple-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-purple-text">
                         Edit Requests
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {shown.map((g) => {
                           const first = g.items[0];
                           return (
@@ -813,39 +767,39 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                             <button
                               type="button"
                               onClick={() => { setIsNotifOpen(false); router.push("/attendance/edit-approvals"); }}
-                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-purple-50/60"
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-purple-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100">
-                                <CalendarClock className="h-3.5 w-3.5 text-purple-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-surface-strong">
+                                <CalendarClock className="h-3.5 w-3.5 text-purple-text" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 {g.items.length > 1 ? (
-                                  <p className="text-[12px] font-semibold text-gray-900">
-                                    {g.key} — <span className="text-purple-700">{g.items.length} requests</span> pending
+                                  <p className="text-[12px] font-semibold text-text-primary">
+                                    {g.key} — <span className="text-purple-text">{g.items.length} requests</span> pending
                                   </p>
                                 ) : (
                                   <>
-                                    <p className="text-[12px] font-semibold text-gray-900">
+                                    <p className="text-[12px] font-semibold text-text-primary">
                                       {g.key} is requesting{" "}
-                                      <span className="text-purple-700">{first.action.toLowerCase()}</span> access
+                                      <span className="text-purple-text">{first.action.toLowerCase()}</span> access
                                     </p>
-                                    <p className="truncate text-[11px] text-gray-600">
+                                    <p className="truncate text-[11px] text-text-secondary">
                                       {first.resourceType}: <span className="font-semibold">{first.resourceName}</span>
                                     </p>
                                   </>
                                 )}
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(first.createdAt)}</span>
+                              <span className="shrink-0 text-[10px] text-text-tertiary">{timeAgo(first.createdAt)}</span>
                             </button>
                           </li>
                           );
                         })}
                       </ul>
-                      <div className="border-t border-gray-100 px-4 py-2.5">
+                      <div className="border-t border-separator-border px-4 py-2.5">
                         <button
                           type="button"
                           onClick={() => { setIsNotifOpen(false); router.push("/attendance/edit-approvals"); }}
-                          className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
+                          className="text-caption-1-medium text-purple-text hover:text-purple-text-strong transition-colors"
                         >
                           {hiddenCount > 0 ? `+${hiddenCount} more — view all in Edit Approvals →` : "View all in Edit Approvals →"}
                         </button>
@@ -857,39 +811,39 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   {/* ── Maintenance Approvals (Admin + Accounts) — new records waiting. ── */}
                   {maintRequestNotifs.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-blue-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-accent-text">
                         Maintenance Approvals
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {maintRequestNotifs.slice(0, NOTIF_ROW_CAP).map((n) => (
                           <li key={`maint-req-${n.id}`}>
                             <button
                               type="button"
                               onClick={() => { setIsNotifOpen(false); router.push("/attendance/maintenance-approvals"); }}
-                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-blue-50/60"
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                                <Wrench className="h-3.5 w-3.5 text-blue-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong">
+                                <Wrench className="h-3.5 w-3.5 text-accent-text" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">
-                                  {n.submittedByName} added <span className="text-blue-700">{n.maintenanceType}</span>
+                                <p className="text-[12px] font-semibold text-text-primary">
+                                  {n.submittedByName} added <span className="text-accent-text">{n.maintenanceType}</span>
                                 </p>
-                                <p className="truncate text-[11px] text-gray-600">
+                                <p className="truncate text-[11px] text-text-secondary">
                                   <span className="font-semibold">{n.registration}</span> · ₹{n.cost.toLocaleString("en-IN")}
                                   {n.source === "Trip Sheet" ? " · from a trip sheet" : ""}
                                 </p>
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(n.createdAt)}</span>
+                              <span className="shrink-0 text-[10px] text-text-tertiary">{timeAgo(n.createdAt)}</span>
                             </button>
                           </li>
                         ))}
                       </ul>
-                      <div className="border-t border-gray-100 px-4 py-2.5">
+                      <div className="border-t border-separator-border px-4 py-2.5">
                         <button
                           type="button"
                           onClick={() => { setIsNotifOpen(false); router.push("/attendance/maintenance-approvals"); }}
-                          className="text-xs font-medium text-blue-600 transition-colors hover:text-blue-800"
+                          className="text-caption-1-medium text-accent-text transition-colors hover:text-accent-text-strong"
                         >
                           {maintRequestNotifs.length > NOTIF_ROW_CAP
                             ? `+${maintRequestNotifs.length - NOTIF_ROW_CAP} more — view all in Maintenance Approvals →`
@@ -907,10 +861,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     const hiddenCount = recentDeletionRequestNotifs.length - shown.reduce((sum, g) => sum + g.items.length, 0);
                     return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-red-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-danger-text">
                         Deletion Requests
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {shown.map((g) => {
                           const first = g.items[0];
                           return (
@@ -918,38 +872,38 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                             <button
                               type="button"
                               onClick={() => { setIsNotifOpen(false); router.push("/attendance/deletion-approvals"); }}
-                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-red-50/60"
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-danger-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
-                                <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-danger-surface-strong">
+                                <AlertTriangle className="h-3.5 w-3.5 text-danger-text" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 {g.items.length > 1 ? (
-                                  <p className="text-[12px] font-semibold text-gray-900">
-                                    {g.key} — <span className="text-red-700">{g.items.length} deletions</span> requested
+                                  <p className="text-[12px] font-semibold text-text-primary">
+                                    {g.key} — <span className="text-danger-text">{g.items.length} deletions</span> requested
                                   </p>
                                 ) : (
                                   <>
-                                    <p className="text-[12px] font-semibold text-gray-900">
-                                      {g.key} is requesting <span className="text-red-700">deletion</span>
+                                    <p className="text-[12px] font-semibold text-text-primary">
+                                      {g.key} is requesting <span className="text-danger-text">deletion</span>
                                     </p>
-                                    <p className="truncate text-[11px] text-gray-600">
+                                    <p className="truncate text-[11px] text-text-secondary">
                                       {first.resourceType}: <span className="font-semibold">{first.resourceName}</span>
                                     </p>
                                   </>
                                 )}
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(first.createdAt)}</span>
+                              <span className="shrink-0 text-[10px] text-text-tertiary">{timeAgo(first.createdAt)}</span>
                             </button>
                           </li>
                           );
                         })}
                       </ul>
-                      <div className="border-t border-gray-100 px-4 py-2.5">
+                      <div className="border-t border-separator-border px-4 py-2.5">
                         <button
                           type="button"
                           onClick={() => { setIsNotifOpen(false); router.push("/attendance/deletion-approvals"); }}
-                          className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors"
+                          className="text-caption-1-medium text-danger-text hover:text-danger-text-strong transition-colors"
                         >
                           {hiddenCount > 0 ? `+${hiddenCount} more — view all in Deletion Approvals →` : "View all in Deletion Approvals →"}
                         </button>
@@ -961,10 +915,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   {/* ── Morning summary (Admin) — stays until it's opened. ── */}
                   {summaryAlerts.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-warning-text">
                         Your Daily Summary
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {summaryAlerts.slice(0, NOTIF_ROW_CAP).map((alert) => (
                           <li key={`summary-${alert.serverId}`}>
                             <button
@@ -974,19 +928,19 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                 setIsNotifOpen(false);
                                 router.push("/");
                               }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/60"
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-warning-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
-                                <Sunrise className="h-3.5 w-3.5 text-amber-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning-surface-strong">
+                                <Sunrise className="h-3.5 w-3.5 text-warning-text" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">{alert.title}</p>
-                                <p className="text-[11px] text-gray-600">{alert.headline}</p>
+                                <p className="text-[12px] font-semibold text-text-primary">{alert.title}</p>
+                                <p className="text-[11px] text-text-secondary">{alert.headline}</p>
                                 {alert.attention > 0 && (
-                                  <p className="text-[11px] font-medium text-amber-700">{alert.attention} thing{alert.attention === 1 ? "" : "s"} need{alert.attention === 1 ? "s" : ""} your attention</p>
+                                  <p className="text-caption-2-medium text-warning-text">{alert.attention} thing{alert.attention === 1 ? "" : "s"} need{alert.attention === 1 ? "s" : ""} your attention</p>
                                 )}
                               </div>
-                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                              <span className="shrink-0 text-right text-[10px] text-text-tertiary">
                                 {timeAgo(alert.alertedAt)}
                                 <br />
                                 {fmtIST(alert.alertedAt)}
@@ -1001,10 +955,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   {/* ── Re-Verification (Auditor) — stays until it's opened. ── */}
                   {reverificationAlerts.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-violet-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-purple-text">
                         Sent for Re-Verification
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {reverificationAlerts.slice(0, NOTIF_ROW_CAP).map((alert) => (
                           <li key={`reverify-${alert.serverId}`}>
                             <button
@@ -1014,17 +968,17 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                 setIsNotifOpen(false);
                                 router.push(reverificationAlertHref(alert.driverId));
                               }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-violet-50/60"
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-purple-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100">
-                                <RotateCcw className="h-3.5 w-3.5 text-violet-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-surface-strong">
+                                <RotateCcw className="h-3.5 w-3.5 text-purple-text" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">{alert.tripIdStr} came for Re-Verification</p>
-                                <p className="text-[11px] text-gray-600">{alert.remark}</p>
-                                <p className="text-[11px] text-gray-500">By {alert.by}{alert.role ? ` (${alert.role})` : ""}</p>
+                                <p className="text-[12px] font-semibold text-text-primary">{alert.tripIdStr} came for Re-Verification</p>
+                                <p className="text-[11px] text-text-secondary">{alert.remark}</p>
+                                <p className="text-[11px] text-text-secondary">By {alert.by}{alert.role ? ` (${alert.role})` : ""}</p>
                               </div>
-                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                              <span className="shrink-0 text-right text-[10px] text-text-tertiary">
                                 {timeAgo(alert.alertedAt)}
                                 <br />
                                 {fmtIST(alert.alertedAt)}
@@ -1043,10 +997,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     const hiddenCount = maintenanceAlerts.length - shown.length;
                     return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-rose-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-danger-text">
                         Maintenance Alerts
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {shown.map((alert) => {
                           const due = alert.kind === "due";
                           return (
@@ -1058,24 +1012,24 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                 setIsNotifOpen(false);
                                 router.push(maintenanceAlertHref(user?.softwareDesignation, alert.registration));
                               }}
-                              className={cn("flex w-full items-start gap-3 px-4 py-3 text-left transition-colors", due ? "hover:bg-rose-50/60" : "hover:bg-amber-50/60")}
+                              className={cn("flex w-full items-start gap-3 px-4 py-3 text-left transition-colors", due ? "hover:bg-danger-surface-strong/60" : "hover:bg-warning-surface-strong/60")}
                             >
-                              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full", due ? "bg-rose-100" : "bg-amber-100")}>
-                                <Wrench className={cn("h-3.5 w-3.5", due ? "text-rose-600" : "text-amber-600")} />
+                              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full", due ? "bg-danger-surface-strong" : "bg-warning-surface-strong")}>
+                                <Wrench className={cn("h-3.5 w-3.5", due ? "text-danger-text" : "text-warning-text")} />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">
+                                <p className="text-[12px] font-semibold text-text-primary">
                                   {alert.maintenanceType} {due ? "is due" : "due soon"}
                                 </p>
-                                <p className="text-[11px] text-gray-600">
+                                <p className="text-[11px] text-text-secondary">
                                   Truck: <span className="font-semibold">{alert.registration}</span>
                                 </p>
-                                <p className="text-[11px] text-gray-500">
+                                <p className="text-[11px] text-text-secondary">
                                   Reminder at <span className="font-semibold">{alert.remindAt.toLocaleString("en-IN")} km</span>
-                                  <span className="ml-1 text-gray-400">· now {alert.odometer.toLocaleString("en-IN")} km</span>
+                                  <span className="ml-1 text-text-tertiary">· now {alert.odometer.toLocaleString("en-IN")} km</span>
                                 </p>
                               </div>
-                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                              <span className="shrink-0 text-right text-[10px] text-text-tertiary">
                                 {timeAgo(alert.alertedAt)}
                                 <br />
                                 {fmtIST(alert.alertedAt)}
@@ -1086,11 +1040,11 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                         })}
                       </ul>
                       {hiddenCount > 0 && (
-                        <div className="border-t border-gray-100 px-4 py-2.5">
+                        <div className="border-t border-separator-border px-4 py-2.5">
                           <button
                             type="button"
                             onClick={() => { setIsNotifOpen(false); router.push("/personal/notifications"); }}
-                            className="text-xs font-medium text-rose-600 hover:text-rose-800 transition-colors"
+                            className="text-caption-1-medium text-danger-text hover:text-danger-text-strong transition-colors"
                           >
                             +{hiddenCount} more maintenance alert{hiddenCount === 1 ? "" : "s"} →
                           </button>
@@ -1109,10 +1063,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     const target = isAdmin ? "/trips/sheet-collection" : "/trips/current";
                     return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-orange-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-orange-text">
                         Trip Sheet Alerts
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {shown.map((alert, i) => (
                           <li key={`${alert.tripDbId}-${i}`}>
                             <button
@@ -1122,22 +1076,22 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                 setIsNotifOpen(false);
                                 router.push(target);
                               }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-orange-50/60"
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-orange-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100">
-                                <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-surface-strong">
+                                <AlertTriangle className="h-3.5 w-3.5 text-orange-text" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">Trip sheet not yet received</p>
-                                <p className="text-[11px] text-gray-600">
+                                <p className="text-[12px] font-semibold text-text-primary">Trip sheet not yet received</p>
+                                <p className="text-[11px] text-text-secondary">
                                   Booking ref: <span className="font-semibold">{alert.bookingRef}</span>
-                                  {alert.tripIdStr && <span className="ml-1 text-gray-400">({alert.tripIdStr})</span>}
+                                  {alert.tripIdStr && <span className="ml-1 text-text-tertiary">({alert.tripIdStr})</span>}
                                 </p>
                                 {alert.reportedBy && (
-                                  <p className="text-[11px] text-gray-500">Reported by: <span className="font-medium">{alert.reportedBy}</span></p>
+                                  <p className="text-[11px] text-text-secondary">Reported by: <span className="font-medium">{alert.reportedBy}</span></p>
                                 )}
                               </div>
-                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                              <span className="shrink-0 text-right text-[10px] text-text-tertiary">
                                 {timeAgo(alert.alertedAt)}
                                 <br />
                                 {fmtIST(alert.alertedAt)}
@@ -1147,11 +1101,11 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                         ))}
                       </ul>
                       {hiddenCount > 0 && (
-                        <div className="border-t border-gray-100 px-4 py-2.5">
+                        <div className="border-t border-separator-border px-4 py-2.5">
                           <button
                             type="button"
                             onClick={() => { setIsNotifOpen(false); router.push(target); }}
-                            className="text-xs font-medium text-orange-600 hover:text-orange-800 transition-colors"
+                            className="text-caption-1-medium text-orange-text hover:text-orange-text-strong transition-colors"
                           >
                             +{hiddenCount} more trip sheet alert{hiddenCount === 1 ? "" : "s"} →
                           </button>
@@ -1168,10 +1122,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     const target = isAdmin ? "/trips/reconciliation" : "/trips/current";
                     return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-warning-text">
                         KM Variance Alerts
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {shown.map((alert, i) => (
                           <li key={`km-${alert.tripDbId}-${i}`}>
                             <button
@@ -1181,25 +1135,25 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                 setIsNotifOpen(false);
                                 router.push(target);
                               }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/60"
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-warning-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
-                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning-surface-strong">
+                                <AlertTriangle className="h-3.5 w-3.5 text-warning-text" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">KM distance variance recorded</p>
-                                <p className="text-[11px] text-gray-600">
+                                <p className="text-[12px] font-semibold text-text-primary">KM distance variance recorded</p>
+                                <p className="text-[11px] text-text-secondary">
                                   Booking: <span className="font-semibold">{alert.bookingRef}</span>
-                                  {alert.tripIdStr && <span className="ml-1 text-gray-400">({alert.tripIdStr})</span>}
+                                  {alert.tripIdStr && <span className="ml-1 text-text-tertiary">({alert.tripIdStr})</span>}
                                 </p>
                                 {(alert.actualKm || alert.approxKm) && (
-                                  <p className="text-[11px] text-gray-500">
+                                  <p className="text-[11px] text-text-secondary">
                                     Actual: <span className="font-semibold">{alert.actualKm} km</span>
-                                    {alert.approxKm && <span className="ml-1 text-gray-400">vs approx {alert.approxKm} km</span>}
+                                    {alert.approxKm && <span className="ml-1 text-text-tertiary">vs approx {alert.approxKm} km</span>}
                                   </p>
                                 )}
                               </div>
-                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                              <span className="shrink-0 text-right text-[10px] text-text-tertiary">
                                 {timeAgo(alert.alertedAt)}
                                 <br />
                                 {fmtIST(alert.alertedAt)}
@@ -1209,11 +1163,11 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                         ))}
                       </ul>
                       {hiddenCount > 0 && (
-                        <div className="border-t border-gray-100 px-4 py-2.5">
+                        <div className="border-t border-separator-border px-4 py-2.5">
                           <button
                             type="button"
                             onClick={() => { setIsNotifOpen(false); router.push(target); }}
-                            className="text-xs font-medium text-amber-600 hover:text-amber-800 transition-colors"
+                            className="text-caption-1-medium text-warning-text hover:text-warning-text-strong transition-colors"
                           >
                             +{hiddenCount} more KM variance alert{hiddenCount === 1 ? "" : "s"} →
                           </button>
@@ -1235,42 +1189,42 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   {/* ── Leave Requests (Admin only) — capped. ── */}
                   {isAdmin && recentLeaveRequests.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-blue-600">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-accent-text">
                         Leave Requests
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {recentLeaveRequests.slice(0, NOTIF_ROW_CAP).map((req) => (
                           <li key={req.id}>
                             <button
                               type="button"
                               onClick={() => { setIsNotifOpen(false); router.push("/attendance/leave-approvals"); }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-blue-50/60"
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent-surface-strong/60"
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                                <User className="h-3.5 w-3.5 text-blue-600" />
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong">
+                                <User className="h-3.5 w-3.5 text-accent-text" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-[12px] font-semibold text-gray-900">
+                                <p className="truncate text-[12px] font-semibold text-text-primary">
                                   {req.applicantName}
-                                  <span className="ml-1.5 font-normal text-gray-400">({req.category})</span>
+                                  <span className="ml-1.5 font-normal text-text-tertiary">({req.category})</span>
                                 </p>
-                                <p className="text-[11px] text-gray-500">
+                                <p className="text-[11px] text-text-secondary">
                                   Leave: {formatDate(req.fromDate)} → {formatDate(req.toDate)}
                                 </p>
                                 {req.reason && (
-                                  <p className="truncate text-[11px] text-gray-400">{req.reason}</p>
+                                  <p className="truncate text-[11px] text-text-tertiary">{req.reason}</p>
                                 )}
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(req.appliedAt)}</span>
+                              <span className="shrink-0 text-[10px] text-text-tertiary">{timeAgo(req.appliedAt)}</span>
                             </button>
                           </li>
                         ))}
                       </ul>
-                      <div className="border-t border-gray-100 px-4 py-2.5">
+                      <div className="border-t border-separator-border px-4 py-2.5">
                         <Link
                           href="/attendance/leave-approvals"
                           onClick={() => setIsNotifOpen(false)}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                          className="text-caption-1-medium text-accent-text hover:text-accent-text-strong transition-colors"
                         >
                           {recentLeaveRequests.length > NOTIF_ROW_CAP
                             ? `+${recentLeaveRequests.length - NOTIF_ROW_CAP} more — view all in Leave Approvals →`
@@ -1284,10 +1238,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   {/* ── Your request updates (edit + deletion, whoever raised them) ── */}
                   {recentMyDecidedRequests.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500">
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-text-secondary">
                         Your Request Updates
                       </p>
-                      <ul className="divide-y divide-gray-50">
+                      <ul className="divide-y divide-separator-border">
                         {recentMyDecidedRequests.slice(0, NOTIF_ROW_CAP).map((notif) => {
                           const approved = notif.status === "Approved";
                           const isEdit = notif.kind === "edit";
@@ -1302,17 +1256,17 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                               }}
                               className={cn(
                                 "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors",
-                                approved ? "hover:bg-green-50/60" : "hover:bg-red-50/60"
+                                approved ? "hover:bg-success-surface-strong/60" : "hover:bg-danger-surface-strong/60"
                               )}
                             >
                               <div className={cn(
                                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                                approved ? "bg-green-100" : "bg-red-100"
+                                approved ? "bg-success-surface-strong" : "bg-danger-surface-strong"
                               )}>
-                                <User className={cn("h-3.5 w-3.5", approved ? "text-green-600" : "text-red-600")} />
+                                <User className={cn("h-3.5 w-3.5", approved ? "text-success-text" : "text-danger-text")} />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">
+                                <p className="text-[12px] font-semibold text-text-primary">
                                   {isMaint
                                     ? (approved
                                         ? "Your maintenance record was approved"
@@ -1325,13 +1279,13 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                         ? "Your deletion request has been approved by the Admin"
                                         : "Your deletion request was rejected by the Admin")}
                                 </p>
-                                <p className="text-[11px] text-gray-600">
+                                <p className="text-[11px] text-text-secondary">
                                   {isMaint ? "" : isEdit ? `${notif.action} access for: ` : "Delete: "}
                                   <span className="font-semibold">{notif.resourceName}</span>
                                 </p>
                                 <p className={cn(
-                                  "text-[11px] font-medium",
-                                  approved ? "text-green-700" : "text-red-700"
+                                  "text-caption-2-medium",
+                                  approved ? "text-success-text" : "text-danger-text"
                                 )}>
                                   {isMaint
                                     ? (approved
@@ -1342,18 +1296,18 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                     : "Contact the Admin if you have questions."}
                                 </p>
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.approvedAt ?? "")}</span>
+                              <span className="shrink-0 text-[10px] text-text-tertiary">{timeAgo(notif.approvedAt ?? "")}</span>
                             </button>
                           </li>
                           );
                         })}
                       </ul>
                       {recentMyDecidedRequests.length > NOTIF_ROW_CAP && (
-                        <div className="border-t border-gray-100 px-4 py-2.5">
+                        <div className="border-t border-separator-border px-4 py-2.5">
                           <button
                             type="button"
                             onClick={() => { setIsNotifOpen(false); router.push("/personal/edit-delete-requests"); }}
-                            className="text-xs font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                            className="text-caption-1-medium text-text-secondary hover:text-text-primary transition-colors"
                           >
                             +{recentMyDecidedRequests.length - NOTIF_ROW_CAP} more — view all in Edit & Delete Requests →
                           </button>
@@ -1371,10 +1325,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                    recentMyDecidedRequests.length === 0 &&
                    maintRequestNotifs.length === 0 &&
                    (isStaff || isFinanceManager || isMaintenance || (isFleetManager && recentEditRequestNotifs.length === 0) || (isAdmin && recentLeaveRequests.length === 0 && recentEditRequestNotifs.length === 0 && recentDeletionRequestNotifs.length === 0)) && (
-                    <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                      <Bell className="h-8 w-8 text-gray-200" />
-                      <p className="text-sm font-medium text-gray-500">No notifications</p>
-                    </div>
+                    <EmptyState size="compact" illustration="inbox-empty" title="No notifications" />
                   )}
                 </div>
               )}
@@ -1382,77 +1333,53 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
           )}
         </div>}
 
-        <div className="h-8 w-px bg-gray-200" />
+        <div className="h-6 w-px bg-separator-border" />
 
         <div className="relative" ref={profileRef}>
           <button
             type="button"
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="group relative flex items-center gap-2.5 rounded-full border border-white/60 bg-white/60 p-1 pr-4 shadow-[0_2px_10px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 after:absolute after:-inset-2"
+            aria-expanded={isProfileOpen}
+            className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 outline-none transition-colors hover:bg-fill-2 focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
             {user?.photoUrl ? (
-              <img
-                src={user.photoUrl}
-                alt={user.name}
-                className="h-8 w-8 rounded-full object-cover ring-2 ring-white"
-              />
+              <img src={user.photoUrl} alt={user.name} className="size-8 rounded-full object-cover" />
             ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-navy text-xs font-bold text-white ring-2 ring-white">
+              <div className="flex size-8 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text-strong">
                 {getInitials(user?.name ?? "U")}
               </div>
             )}
-            {birthday.decorated && birthday.mine && <BirthdayBadge className="left-5 right-auto -top-1" />}
-            <span className="text-[14px] font-semibold tracking-[-0.01em] text-gray-900">{user?.name ?? "—"}</span>
-            <ChevronDown className={cn("h-4 w-4 text-gray-900 transition-transform duration-200", isProfileOpen ? "rotate-180" : "")} />
+            <span className="hidden text-body-medium text-text-primary sm:inline">{user?.name ?? "—"}</span>
+            <ChevronDown className={cn("size-4 text-foreground-icon-tertiary transition-transform duration-150", isProfileOpen && "rotate-180")} />
           </button>
 
           {isProfileOpen && (
-            <div className="absolute right-0 z-[100] mt-3 w-52 origin-top-right rounded-2xl border border-white/60 bg-white/95 p-2 shadow-[0_10px_40px_rgba(0,0,0,0.1)] backdrop-blur-2xl focus:outline-none">
-              <div className="mb-2 flex items-center gap-2.5 px-3 pt-1.5 pb-2.5 border-b border-gray-100">
+            <div className="absolute right-0 z-[100] mt-2 w-56 origin-top-right rounded-xl border border-separator-border bg-background-primary-default p-1 shadow-lg">
+              <div className="flex items-center gap-2.5 border-b border-separator-border px-2.5 pb-2.5 pt-1.5">
                 {user?.photoUrl ? (
-                  <img
-                    src={user.photoUrl}
-                    alt={user.name}
-                    className="h-9 w-9 rounded-full object-cover shrink-0"
-                  />
+                  <img src={user.photoUrl} alt={user.name} className="size-9 shrink-0 rounded-full object-cover" />
                 ) : (
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-navy text-xs font-bold text-white">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text-strong">
                     {getInitials(user?.name ?? "U")}
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] font-semibold tracking-[-0.01em] text-gray-900">{user?.name}</p>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-blue-600">{user?.softwareDesignation}</p>
+                  <p className="truncate text-body-medium text-text-primary">{user?.name}</p>
+                  <p className="truncate text-caption-1-regular text-text-tertiary">{user?.softwareDesignation}</p>
                 </div>
               </div>
-              <div className="flex flex-col gap-1 animate-stagger">
+              <div className="flex flex-col gap-0.5 pt-1">
                 <button
-                  className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-gray-700 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-white/80 hover:text-gray-900 hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] border border-transparent hover:border-white/50 after:absolute after:-inset-2"
+                  className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-body-regular text-text-primary outline-none transition-colors hover:bg-fill-2 focus-visible:bg-fill-2"
                   onClick={() => { setIsProfileOpen(false); setIsProfileModalOpen(true); }}
                 >
                   Profile
                 </button>
-                {(birthday.festive || season.festive || founding.festive) && (
-                  <button
-                    className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-gray-700 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-white/80 hover:text-gray-900 hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] border border-transparent hover:border-white/50 after:absolute after:-inset-2"
-                    onClick={() => { setIsProfileOpen(false); birthday.hideForToday(); season.hideForToday(); founding.hideForToday(); }}
-                  >
-                    Hide decorations today
-                  </button>
-                )}
-                {season.festive && (
-                  <button
-                    className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-gray-700 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-white/80 hover:text-gray-900 hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] border border-transparent hover:border-white/50 after:absolute after:-inset-2"
-                    onClick={() => { setIsProfileOpen(false); season.hideForSeason(); }}
-                  >
-                    Hide for the season
-                  </button>
-                )}
                 <button
-                  className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-red-600 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-red-50/80 hover:shadow-[0_4px_15px_rgba(239,68,68,0.1)] border border-transparent hover:border-red-100/50 after:absolute after:-inset-2"
+                  className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-body-regular text-danger-text outline-none transition-colors hover:bg-danger-surface focus-visible:bg-danger-surface"
                   onClick={handleLogoutClick}
                 >
-                  Log Out
+                  Log out
                 </button>
               </div>
             </div>

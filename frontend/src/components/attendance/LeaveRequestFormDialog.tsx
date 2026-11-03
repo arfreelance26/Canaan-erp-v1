@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { Save, Search, CheckCircle2 } from "lucide-react";
+import { RiSave3Line as Save, RiSearchLine as Search, RiCheckboxCircleLine as CheckCircle2 } from "@remixicon/react";
 import { attendanceApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -18,13 +18,13 @@ type LeaveRequestFormDialogProps = {
 };
 
 const inputClass =
-  "mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors disabled:bg-gray-50 disabled:text-gray-500 uppercase placeholder:normal-case";
+  "mt-1 block w-full rounded-lg border border-border-button-default bg-background-primary-default px-3 py-2 text-sm text-text-primary placeholder-text-placeholder focus:border-accent-solid focus:outline-none focus:ring-1 focus:ring-accent-solid transition-colors disabled:bg-fill-1 disabled:text-text-secondary uppercase placeholder:normal-case";
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
+      <label className="block text-body-medium text-text-primary">
+        {label} {required && <span className="text-danger-text">*</span>}
       </label>
       {children}
     </div>
@@ -139,7 +139,7 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
         {isAdmin ? (
           <>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Applicant ID (Driver/Staff) <span className="text-red-500">*</span></label>
+            <label className="block text-body-medium text-text-primary">Applicant ID (Driver/Staff) <span className="text-danger-text">*</span></label>
             <div className="mt-1 flex gap-2">
               <input
                 type="text"
@@ -156,7 +156,7 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
                 type="button"
                 onClick={handleVerify}
                 disabled={isVerifying || !form.applicantCode}
-                className="flex h-10 items-center justify-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-5 text-sm font-medium text-blue-700 transition-all duration-300 hover:scale-105 hover:bg-blue-100 disabled:pointer-events-none disabled:opacity-50"
+                className="flex h-10 items-center justify-center whitespace-nowrap rounded-full border border-accent-border bg-accent-surface px-5 text-body-medium text-accent-text transition duration-300 hover:bg-accent-surface-strong disabled:pointer-events-none disabled:opacity-50"
               >
                 {isVerifying ? "Verifying..." : <><Search className="w-4 h-4 mr-1.5" /> Verify</>}
               </button>
@@ -164,24 +164,24 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
           </div>
 
           {verifiedApplicant && (
-            <div className="flex items-center gap-3 bg-green-50 text-green-800 p-3 rounded-lg border border-green-200">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
+            <div className="flex items-center gap-3 bg-success-surface text-success-text-strong p-3 rounded-lg border border-success-border">
+              <CheckCircle2 className="w-5 h-5 text-success-text" />
               <div>
-                <p className="text-sm font-semibold">{verifiedApplicant.name}</p>
-                <p className="text-xs text-green-700 uppercase tracking-wider">{verifiedApplicant.category}</p>
+                <p className="text-body-semibold">{verifiedApplicant.name}</p>
+                <p className="text-xs text-success-text">{verifiedApplicant.category}</p>
               </div>
             </div>
           )}
           </>
         ) : (
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-medium text-blue-700">
+          <div className="flex items-center gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-body-medium text-accent-text">
               {(user?.name ?? "?").trim().charAt(0).toUpperCase()}
             </span>
             <div className="min-w-0">
-              <p className="text-xs text-gray-500">Applying as</p>
-              <p className="truncate text-sm font-medium text-gray-900">{user?.name}</p>
-              <p className="truncate text-xs text-gray-500">{user?.softwareDesignation}{user?.staffId ? ` · ${user.staffId}` : ""}</p>
+              <p className="text-xs text-text-secondary">Applying as</p>
+              <p className="truncate text-body-medium text-text-primary">{user?.name}</p>
+              <p className="truncate text-xs text-text-secondary">{user?.softwareDesignation}{user?.staffId ? ` · ${user.staffId}` : ""}</p>
             </div>
           </div>
         )}
@@ -215,18 +215,18 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
           />
         </Field>
 
-        <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+        <div className="pt-4 flex justify-end gap-3 border-t border-separator-border">
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md"
+            className="flex h-10 items-center whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-6 text-body-medium text-text-secondary shadow-sm transition duration-300 hover:shadow-md"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={(isAdmin ? !verifiedApplicant : !self) || isSaving}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-6 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             {isSaving ? "Saving..." : "Submit Request"}

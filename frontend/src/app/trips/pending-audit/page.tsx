@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Hourglass } from "lucide-react";
+import { RiHourglassLine as Hourglass } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { tripsApi, type PendingAuditTrip } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -10,10 +10,11 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate } from "@/lib/format-date";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const COLUMNS = ["Trip ID", "Driver", "Truck", "Route", "Date"];
 const ALLOWED_ROLES = ["Admin", "Accounts", "Yard Supervisor", "Trip Sheet Register"];
 
@@ -60,12 +61,12 @@ export default function PendingAuditPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
           <Hourglass className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Pending Audit</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Verified trips still waiting for the Auditor to verify or flag</p>
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Pending Audit</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Verified trips still waiting for the Auditor to verify or flag</p>
         </div>
       </div>
 
@@ -85,13 +86,13 @@ export default function PendingAuditPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 text-sm text-gray-500">
+      <div className="flex items-center gap-3 text-sm text-text-secondary">
         <span>Showing {filtered.length} of {trips.length} trip{trips.length !== 1 ? "s" : ""}</span>
         {(dateFrom || dateTo) && (
           <button
             type="button"
             onClick={() => { setDateFrom(""); setDateTo(""); }}
-            className="font-medium text-blue-600 hover:text-blue-700"
+            className="font-medium text-accent-text hover:text-accent-text"
           >
             Clear dates
           </button>
@@ -99,29 +100,27 @@ export default function PendingAuditPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          {trips.length === 0 ? "No trips are waiting for the Auditor." : "No pending trips match these filters."}
-        </div>
+        <EmptyState size="compact" illustration={trips.length === 0 ? "security" : "not-found"} title={trips.length === 0 ? "No trips are waiting for the Auditor" : "No pending trips match these filters"} />
       ) : (
-        <div className="overflow-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-auto rounded-xl border border-separator-border bg-background-primary-default">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
+              <tr className="border-b border-separator-border bg-fill-1">
                 {COLUMNS.map((c) => (
-                  <th key={c} className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">{c}</th>
+                  <th key={c} className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">{c}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-separator-border">
               {filtered.map((trip) => (
-                <tr key={trip.tripDbId} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-semibold text-gray-900">{trip.tripId}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{trip.driverName ?? "—"}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{trip.truckRegistration ?? trip.vehicleId ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-gray-500">
-                    {trip.origin || "—"} <span className="text-gray-300">→</span> {trip.destination || "—"}
+                <tr key={trip.tripDbId} className="hover:bg-fill-2">
+                  <td className="px-4 py-2.5 font-semibold text-text-primary">{trip.tripId}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">{trip.driverName ?? "—"}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-text-secondary">{trip.truckRegistration ?? trip.vehicleId ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">
+                    {trip.origin || "—"} <span className="text-text-tertiary">→</span> {trip.destination || "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500">{formatDate(trip.scheduledDate)}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">{formatDate(trip.scheduledDate)}</td>
                 </tr>
               ))}
             </tbody>

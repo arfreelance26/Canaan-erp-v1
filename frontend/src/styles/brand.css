@@ -1,0 +1,167 @@
+/* ---------------------------------------------------------------------------
+ * Canaan Global brand layer — imported after BoardUI's theme.css.
+ *
+ * Accent: the old brand blue scale; solid buttons use 600 (#1b2b5e), the stop BoardUI uses for
+ * primary buttons (500 → 600 gradient) and focus rings. Literal OKLCH values,
+ * not var() references, so the ramp is independent of the legacy blue remap
+ * in app/globals.css and survives Tailwind's tree-shaking.
+ *
+ * Dark mode lifts the interactive stops so buttons, selection and focus rings
+ * still read on the near-black surfaces (white text on 500/600 stays ≥ 4.5:1).
+ *
+ * Gold (#c9a227) is a highlight, not a second accent: reserve it for the one
+ * figure that matters on a screen.
+ * --------------------------------------------------------------------------- */
+
+@theme {
+  /* Light accent = the pre-redesign brand blue scale, exactly (commit 9440742,
+     app/globals.css). Buttons and active states use 600 #1b2b5e (logo navy). */
+  --color-accent-50:  #eef0f8;
+  --color-accent-100: #d2d7ef;
+  --color-accent-200: #a5afdf;
+  --color-accent-300: #7887cf;
+  --color-accent-400: #4b5fbf;
+  --color-accent-500: #2b3f9f;
+  --color-accent-600: #1b2b5e;
+  --color-accent-700: #152248;
+  --color-accent-800: #0f1a38;
+  --color-accent-900: #0a1128;
+  --color-accent-950: #050918;
+
+  --color-gold-300: oklch(0.86 0.1 90);
+  --color-gold-400: oklch(0.78 0.13 88);
+  --color-gold-500: oklch(0.71 0.135 86); /* #c9a227 */
+  --color-gold-600: oklch(0.6 0.12 84);
+  --color-gold-700: oklch(0.5 0.1 82);
+
+  /* Fixed brand surfaces — the same in both themes (the login S panel). */
+  --color-brand-navy: #1b2b5e;      /* old logo navy */
+  --color-brand-navy-deep: #0b1a3a; /* old login hero */
+}
+
+/* ----- Dark palette ---------------------------------------------------------
+ * Exactly the pre-redesign dark theme (commit 9440742, app/globals.css), now
+ * expressed as tokens: page #090c14, cards #141929, the navy-tinted grey
+ * scale for text/borders, the bright blue scale for the accent and #2563eb
+ * solid buttons. BoardUI's dark tokens read the neutral ramp (page = 925,
+ * card = 800, secondary = 900, text = 50), so the old greys map onto it.
+ * --------------------------------------------------------------------------*/
+.dark {
+  --color-neutral-950: #05070d;
+  --color-neutral-925: #090c14; /* page (old body) */
+  --color-neutral-900: #0e111d; /* old gray-50: secondary surfaces */
+  --color-neutral-800: #141929; /* card (old bg-white) */
+  --color-neutral-700: #1c2340; /* old gray-200 */
+  --color-neutral-600: #2d3660; /* old gray-300 */
+  --color-neutral-500: #6a7d9c; /* old gray-400 */
+  --color-neutral-400: #7d92b0; /* old gray-500 */
+  --color-neutral-300: #a2b5cc; /* old gray-600 */
+  --color-neutral-200: #c4d4e8; /* old gray-700 */
+  --color-neutral-100: #dde8f4; /* old gray-800 */
+  --color-neutral-50:  #edf3fb; /* old gray-900: primary text */
+
+  /* Old brand blue scale (dark). */
+  --color-accent-50:  #0e1e4a;
+  --color-accent-100: #162758;
+  --color-accent-200: #1f3675;
+  --color-accent-300: #2e4f9e;
+  --color-accent-400: #4a6fd4;
+  --color-accent-500: #6089f0;
+  --color-accent-600: #5080f2;
+  --color-accent-700: #7aa4f8;
+  --color-accent-800: #a8c5fb;
+  --color-accent-900: #cce0fd;
+  --color-accent-950: #e8f1fe;
+
+  /* Old solid buttons: #2563eb, hover #1d4ed8. */
+  --gradient-button-primary-default: linear-gradient(180deg, #2563eb 0%, #2563eb 100%);
+  --gradient-button-primary-hover:   linear-gradient(180deg, #1d4ed8 0%, #1d4ed8 100%);
+  --gradient-button-primary-active:  linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%);
+  --color-border-focus-ring: #4a6fd4;
+}
+
+/* ----- Neutrals ------------------------------------------------------------
+ * BoardUI's neutral ramp, re-tinted a hair toward the logo navy (hue 265) so
+ * surfaces read as cool graphite rather than flat grey. Every BoardUI surface,
+ * text and border token is built from these, so the tint applies everywhere.
+ * --------------------------------------------------------------------------*/
+@theme {
+  --color-neutral-50:  oklch(0.985 0.002 265);
+  --color-neutral-100: oklch(0.967 0.004 265);
+  --color-neutral-200: oklch(0.925 0.006 265);
+  --color-neutral-300: oklch(0.87 0.008 265);
+  --color-neutral-400: oklch(0.71 0.012 265);
+  --color-neutral-500: oklch(0.555 0.014 265);
+  --color-neutral-600: oklch(0.44 0.014 265);
+  --color-neutral-700: oklch(0.37 0.014 265);
+  --color-neutral-800: oklch(0.27 0.013 265);
+  --color-neutral-900: oklch(0.205 0.012 265);
+  --color-neutral-925: oklch(0.18 0.011 265);
+  --color-neutral-950: oklch(0.145 0.01 265);
+}
+
+/* Page ground a step below the cards (BoardUI defaults both to white), so
+ * panels separate from the page in light mode the way they do in dark.
+ * `:root:not(.dark)` — a plain :root here would also beat BoardUI's .dark
+ * values (same specificity, later in the cascade). */
+:root:not(.dark) {
+  /* Old solid buttons: bg-blue-600 #1b2b5e, hover blue-700 #152248. */
+  --gradient-button-primary-default: linear-gradient(180deg, #1b2b5e 0%, #1b2b5e 100%);
+  --gradient-button-primary-hover:   linear-gradient(180deg, #152248 0%, #152248 100%);
+  --gradient-button-primary-active:  linear-gradient(180deg, #0f1a38 0%, #0f1a38 100%);
+  --color-background-full: var(--color-neutral-100);
+  --color-separator-border: var(--color-neutral-200);
+  /* Text roles readable on white for a work-all-day app: secondary ≈ 7:1,
+     tertiary ≈ 4.5:1 (BoardUI's tertiary neutral-400 is ~2.3:1). */
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-tertiary: var(--color-neutral-500);
+}
+
+/* BoardUI's dark hairline equals the card surface (both neutral-800), which
+ * makes table rows and dividers vanish. Hairlines are the text color at ~10%. */
+.dark {
+  /* Old dark hairlines: blue-tinted. */
+  --color-separator-border: rgba(79, 126, 240, 0.16);
+  --color-separator-border-strong: rgba(79, 126, 240, 0.24);
+  --color-border-button-default: rgba(79, 126, 240, 0.2);
+  /* Same readability on the dark card (neutral-800): secondary ≈ 7:1,
+     tertiary ≈ 4.5:1 (BoardUI's dark tertiary neutral-600 is ~2.2:1). */
+  /* Old text greys: secondary = gray-600, tertiary = gray-500, placeholder = gray-400. */
+  --color-text-secondary: var(--color-neutral-300);
+  --color-text-tertiary: var(--color-neutral-400);
+  --color-text-placeholder: var(--color-neutral-500);
+  --color-foreground-icon-secondary: var(--color-neutral-300);
+  --color-foreground-icon-tertiary: var(--color-neutral-400);
+  --color-foreground-icon-quaternary: var(--color-neutral-500);
+}
+
+/* ----- Illustrations (components/illustrations) ----------------------------
+ * unDraw art is recoloured to these, so it sits on the page in both themes:
+ * accent = brand, ink = outlines and figures, surface/line = props, paper =
+ * the card behind them. Skin tones in the art stay as drawn.
+ * --------------------------------------------------------------------------*/
+:root {
+  --illo-accent: var(--color-accent-500);
+  --illo-ink: var(--color-neutral-800);
+  --illo-ink-soft: var(--color-neutral-600);
+  --illo-surface: var(--color-neutral-200);
+  --illo-line: var(--color-neutral-300);
+  --illo-paper: var(--color-background-primary-default);
+}
+.dark {
+  --illo-accent: var(--color-accent-400);
+  --illo-ink: var(--color-neutral-300);
+  --illo-ink-soft: var(--color-neutral-400);
+  --illo-surface: var(--color-neutral-700);
+  --illo-line: var(--color-neutral-600);
+}
+
+/* Illustrations placed on the fixed navy brand panel. */
+.illo-on-brand {
+  --illo-accent: var(--color-gold-500);
+  --illo-ink: oklch(0.93 0.01 265);
+  --illo-ink-soft: oklch(0.78 0.03 265);
+  --illo-surface: oklch(0.34 0.07 268);
+  --illo-line: oklch(0.42 0.07 268);
+  --illo-paper: var(--color-brand-navy);
+}

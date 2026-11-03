@@ -11,14 +11,15 @@ import { onRevalidated, COST_INPUT_RESOURCES } from "@/lib/api-cache";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { usePollWhenOffline } from "@/hooks/usePollWhenOffline";
 import type { EmiRecord } from "@/types/finance";
-import { CircleDot, ChevronDown, Droplets, Fuel, Gauge, Truck as TruckIcon, Info, X, Plus, BookOpen, CheckCircle2, ArrowRight, Eye, Loader2 } from "lucide-react";
+import { RiResetLeftLine as ReplayIcon, RiRecordCircleLine as CircleDot, RiArrowDownSLine as ChevronDown, RiDropLine as Droplets, RiGasStationLine as Fuel, RiDashboard3Line as Gauge, RiTruckLine as TruckIcon, RiInformationLine as Info, RiCloseLine as X, RiAddLine as Plus, RiBookOpenLine as BookOpen, RiCheckboxCircleLine as CheckCircle2, RiArrowRightLine as ArrowRight, RiEyeLine as Eye, RiLoader4Line as Loader2 } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
 import { isEmiCompleted } from "@/lib/emi-schedule";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const MODES = ["Manual", "Basic", "Advanced"] as const;
 type Mode = (typeof MODES)[number];
 
@@ -74,15 +75,15 @@ function persistState(mode: string, allData: Record<string, ModeData>) {
 }
 
 const MODE_STYLE: Record<Mode, { banner: string; dot: string; text: string }> = {
-  Manual:   { banner: "border-amber-200 bg-amber-50",   dot: "bg-amber-400",  text: "text-amber-700" },
-  Basic:    { banner: "border-teal-200 bg-teal-50",     dot: "bg-teal-500",   text: "text-teal-700"  },
-  Advanced: { banner: "border-violet-200 bg-violet-50", dot: "bg-violet-500", text: "text-violet-700" },
+  Manual:   { banner: "border-warning-border bg-warning-surface",   dot: "bg-warning-solid",  text: "text-warning-text" },
+  Basic:    { banner: "border-teal-border bg-teal-surface",     dot: "bg-teal-solid",   text: "text-teal-text"  },
+  Advanced: { banner: "border-purple-border bg-purple-surface", dot: "bg-purple-solid", text: "text-purple-text" },
 };
 
 type TyreEntry = { cost: string; range: string };
 
 const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition";
+  "w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-body-semibold text-text-primary outline-none focus:border-accent-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-accent-border transition";
 
 const TRUCK_METRICS = [
   { label: "EMI Amount",               key: "emiAmount",          calculated: false },
@@ -110,9 +111,9 @@ const TRUCK_METRICS = [
 function DistanceTile({ label, children, sub }: { label: string; children: React.ReactNode; sub?: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5 px-4 py-2.5">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className="truncate text-sm font-bold tabular-nums text-gray-800">{children}</span>
-      {sub && <span className="truncate text-[10px] text-gray-400">{sub}</span>}
+      <span className="text-[9px] font-semibold text-text-tertiary">{label}</span>
+      <span className="truncate text-body-semibold tabular-nums text-text-primary">{children}</span>
+      {sub && <span className="truncate text-[10px] text-text-tertiary">{sub}</span>}
     </div>
   );
 }
@@ -123,17 +124,17 @@ function DistanceBand({ stats, configuredKmPerDay }: { stats?: TruckRunStats; co
   const missingBadge = missing > 0 && (
     <span
       title={`${missing} completed trip${missing === 1 ? "" : "s"} without a trip sheet — not counted in these averages until the sheet is entered.`}
-      className="inline-flex cursor-help items-center gap-1 rounded-full bg-amber-50 px-1.5 py-px text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200"
+      className="inline-flex cursor-help items-center gap-1 rounded-full bg-warning-surface px-1.5 py-px text-caption-2-semibold text-warning-text ring-1 ring-warning-border"
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+      <span className="h-1.5 w-1.5 rounded-full bg-warning-solid" />
       {missing} sheet{missing === 1 ? "" : "s"} missing
     </span>
   );
 
   if (!stats || stats.tripsWithDistance === 0) {
     return (
-      <div className="flex items-center justify-between gap-2 border-b border-gray-100 bg-white px-5 py-2.5">
-        <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+      <div className="flex items-center justify-between gap-2 border-b border-separator-border bg-background-primary-default px-5 py-2.5">
+        <span className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
           <Gauge className="h-3.5 w-3.5" /> No trip history yet
         </span>
         {missingBadge}
@@ -148,26 +149,26 @@ function DistanceBand({ stats, configuredKmPerDay }: { stats?: TruckRunStats; co
     `÷ ${stats.months.toFixed(1)} months (${formatDate(stats.firstTripDate)} → ${formatDate(stats.dataUntil)}). Daily = Monthly ÷ 26 working days.`;
 
   return (
-    <div title={howWorkedOut} className="grid cursor-help grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 bg-white">
+    <div title={howWorkedOut} className="grid cursor-help grid-cols-3 divide-x divide-separator-border border-b border-separator-border bg-background-primary-default">
       <DistanceTile label="Monthly Distance" sub="avg per month">
-        {km(stats.monthlyAvg)} <span className="text-[11px] font-medium text-gray-400">km</span>
+        {km(stats.monthlyAvg)} <span className="text-caption-2-medium text-text-tertiary">km</span>
       </DistanceTile>
       <DistanceTile
         label="Daily Distance"
         sub={gap == null ? "avg per working day" : (
-          <span className={Math.abs(gap) > 0.25 ? "font-semibold text-amber-600" : ""}>
+          <span className={Math.abs(gap) > 0.25 ? "font-semibold text-warning-text" : ""}>
             Configured {km(configured)} km/day
           </span>
         )}
       >
-        {km(stats.dailyAvg)} <span className="text-[11px] font-medium text-gray-400">km</span>
+        {km(stats.dailyAvg)} <span className="text-caption-2-medium text-text-tertiary">km</span>
       </DistanceTile>
       <div className="flex min-w-0 flex-col gap-0.5 px-4 py-2.5">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">Based on</span>
-        <span className="truncate text-sm font-bold tabular-nums text-gray-800">
-          {stats.tripsWithDistance} <span className="text-[11px] font-medium text-gray-400">trip{stats.tripsWithDistance === 1 ? "" : "s"}</span>
+        <span className="text-[9px] font-semibold text-text-tertiary">Based on</span>
+        <span className="truncate text-body-semibold tabular-nums text-text-primary">
+          {stats.tripsWithDistance} <span className="text-caption-2-medium text-text-tertiary">trip{stats.tripsWithDistance === 1 ? "" : "s"}</span>
         </span>
-        {missingBadge || <span className="truncate text-[10px] text-gray-400">since {formatDate(stats.firstTripDate)}</span>}
+        {missingBadge || <span className="truncate text-[10px] text-text-tertiary">since {formatDate(stats.firstTripDate)}</span>}
       </div>
     </div>
   );
@@ -476,20 +477,20 @@ function TruckCostCard({
   ].filter((c): c is { label: string; value: number; color: string } => typeof c.value === "number" && c.value > 0);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm overflow-hidden">
       {/* Card header */}
-      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+      <div className="flex items-center gap-4 border-b border-separator-border bg-fill-1 px-5 py-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-surface-strong text-accent-text">
           <TruckIcon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-base font-bold text-gray-900 truncate">{truck.registrationNumber}</p>
+          <p className="text-headline-semibold text-text-primary truncate">{truck.registrationNumber}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-gray-200 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+            <span className="rounded-full bg-fill-3 px-2.5 py-0.5 text-caption-2-semibold text-text-secondary">
               {truck.manufacturer}
             </span>
             {truck.tyreLayout && (
-              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
+              <span className="rounded-full bg-accent-surface-strong px-2.5 py-0.5 text-caption-2-semibold text-accent-text">
                 {truck.tyreLayout}
               </span>
             )}
@@ -501,7 +502,7 @@ function TruckCostCard({
       <DistanceBand stats={runStats} configuredKmPerDay={isBasicMode ? kmPerDay : undefined} />
 
       {/* Metrics grid — 4 columns, wraps across rows */}
-      <div className="grid grid-cols-4 border-t border-l border-gray-100 bg-gray-50">
+      <div className="grid grid-cols-4 border-t border-l border-separator-border bg-fill-1">
         {TRUCK_METRICS.map(({ label, key, calculated }) => {
           // Base Fuel Cost is Advanced-mode only — skip rendering in other modes
           if (key === "baseFuelCost" && !isAdvancedMode) return null;
@@ -524,9 +525,9 @@ function TruckCostCard({
           return (
             <div
               key={key}
-              className="flex flex-col px-3 py-3 border-b border-r border-gray-100"
+              className="flex flex-col px-3 py-3 border-b border-r border-separator-border"
             >
-              <span className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 leading-tight">
+              <span className="mb-2 text-caption-2-semibold text-text-tertiary leading-tight">
                 {displayLabel}
               </span>
               {isAdvancedMode && isEmiField ? (
@@ -541,10 +542,10 @@ function TruckCostCard({
                     ? (key === "emiAmount" ? computed.toFixed(2) : key === "emiPerDay" ? computed.toFixed(2) : computed.toFixed(4))
                     : null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -560,10 +561,10 @@ function TruckCostCard({
                     ? (key === "emiAmount" ? computed.toFixed(2) : key === "emiPerDay" ? computed.toFixed(2) : computed.toFixed(4))
                     : null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -575,10 +576,10 @@ function TruckCostCard({
                   const val = parseFloat(costPerLitre);
                   const display = !isNaN(val) && val > 0 ? `₹${val.toFixed(2)}` : null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -590,10 +591,10 @@ function TruckCostCard({
                   const val = parseFloat((isAdvancedMode ? advancedMileage : basicMileage) ?? "");
                   const display = !isNaN(val) && val > 0 ? val.toFixed(2) : null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -603,8 +604,8 @@ function TruckCostCard({
                 fromServer ? (() => {
                   // Lifetime average from Truck's AdBlue History (needs 2+ fills)
                   const display = fetchedAdblueLPerKm ? fetchedAdblueLPerKm.toFixed(5) : null;
-                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                    display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
+                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
+                    display ? "border-teal-border bg-teal-surface text-teal-text" : "border-separator-border bg-fill-1 text-text-tertiary"
                   }`}>{display ?? "NIL"}</div>;
                 })() : (
                 <input
@@ -616,17 +617,17 @@ function TruckCostCard({
                     onMetricChange("adblueConsumeLKm", v);
                     onMetricChange("adblueConsumeL1000", v ? String(+(parseFloat(v) * 1000).toFixed(4)) : "");
                   }}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
+                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
                     metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-gray-300 focus:border-blue-400 focus:ring-blue-100"
+                      ? "border-warning-border-strong bg-warning-surface text-warning-text placeholder:text-text-placeholder focus:border-warning-border-strong focus:ring-warning-border"
+                      : "border-separator-border bg-background-primary-default text-text-primary placeholder:text-text-placeholder focus:border-accent-border-strong focus:ring-accent-border"
                   }`}
                 />)
               ) : key === "adblueConsumeL1000" ? (
                 fromServer ? (() => {
                   const display = fetchedAdblueLPerKm ? (fetchedAdblueLPerKm * 1000).toFixed(3) : null;
-                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                    display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
+                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
+                    display ? "border-teal-border bg-teal-surface text-teal-text" : "border-separator-border bg-fill-1 text-text-tertiary"
                   }`}>{display ?? "NIL"}</div>;
                 })() : (
                 <input
@@ -638,27 +639,27 @@ function TruckCostCard({
                     onMetricChange("adblueConsumeL1000", v);
                     onMetricChange("adblueConsumeLKm", v ? String(+(parseFloat(v) / 1000).toFixed(6)) : "");
                   }}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
+                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
                     metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-gray-300 focus:border-blue-400 focus:ring-blue-100"
+                      ? "border-warning-border-strong bg-warning-surface text-warning-text placeholder:text-text-placeholder focus:border-warning-border-strong focus:ring-warning-border"
+                      : "border-separator-border bg-background-primary-default text-text-primary placeholder:text-text-placeholder focus:border-accent-border-strong focus:ring-accent-border"
                   }`}
                 />)
               ) : key === "adblueManufacturer" ? (
                 fromServer ? (() => {
                   // The truck's manufacturer, matched by name on Our Fleet → Manufacturers
                   const display = matchedAdblueMfr?.name ?? null;
-                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                    display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
+                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
+                    display ? "border-teal-border bg-teal-surface text-teal-text" : "border-separator-border bg-fill-1 text-text-tertiary"
                   }`}>{display ?? "NIL"}</div>;
                 })() : (
                 <select
                   value={metrics[key] ?? ""}
                   onChange={(e) => onMetricChange(key, e.target.value)}
-                  className={`w-full rounded-lg border px-1 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition cursor-pointer ${
+                  className={`w-full rounded-lg border px-1 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition cursor-pointer ${
                     metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 focus:border-blue-400 focus:ring-blue-100"
+                      ? "border-warning-border-strong bg-warning-surface text-warning-text focus:border-warning-border-strong focus:ring-warning-border"
+                      : "border-separator-border bg-background-primary-default text-text-primary focus:border-accent-border-strong focus:ring-accent-border"
                   }`}
                 >
                   <option value="">—</option>
@@ -669,8 +670,8 @@ function TruckCostCard({
               ) : key === "adbluePerKm" ? (
                 fromServer ? (() => {
                   const display = adblueChargesCalc !== null ? adblueChargesCalc.toFixed(4) : null;
-                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                    display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
+                  return <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
+                    display ? "border-teal-border bg-teal-surface text-teal-text" : "border-separator-border bg-fill-1 text-text-tertiary"
                   }`}>{display ?? "NIL"}</div>;
                 })() : (
                 <input
@@ -678,10 +679,10 @@ function TruckCostCard({
                   placeholder={adblueChargesCalc !== null ? adblueChargesCalc.toFixed(4) : "0"}
                   value={metrics[key] ?? ""}
                   onChange={(e) => onMetricChange("adbluePerKm", e.target.value)}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
+                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
                     hasAdblueOverride
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-blue-300 focus:border-blue-400 focus:ring-blue-100"
+                      ? "border-warning-border-strong bg-warning-surface text-warning-text placeholder:text-text-placeholder focus:border-warning-border-strong focus:ring-warning-border"
+                      : "border-separator-border bg-background-primary-default text-text-primary placeholder:text-text-placeholder focus:border-accent-border-strong focus:ring-accent-border"
                   }`}
                 />)
               ) : isAdvancedMode && key === "mileagePerKm" ? (
@@ -690,10 +691,10 @@ function TruckCostCard({
                 (() => {
                   const display = cvStr ?? null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -702,32 +703,32 @@ function TruckCostCard({
               ) : isAdvancedMode && key === "compliancePerKm" ? (() => {
                 const display = compliancePerKm !== null ? compliancePerKm.toFixed(6) : null;
                 return (
-                  <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                  <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                     display
-                      ? "border-teal-200 bg-teal-50 text-teal-600"
-                      : "border-gray-200 bg-gray-50 text-gray-400"
+                      ? "border-teal-border bg-teal-surface text-teal-text"
+                      : "border-separator-border bg-fill-1 text-text-tertiary"
                   }`}>
                     {display ?? "NIL"}
                   </div>
                 );
               })() : calculated ? (
-                <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                   cvStr
-                    ? "border-blue-200 bg-blue-50 text-blue-700"
-                    : "border-gray-200 bg-white text-gray-300 shadow-sm"
+                    ? "border-accent-border bg-accent-surface text-accent-text"
+                    : "border-separator-border bg-background-primary-default text-text-tertiary shadow-sm"
                 }`}>
                   {cvStr ?? "—"}
                 </div>
               ) : (key as string) === "tyreType" ? (
                 isBasicMode ? (
-                  <div className="flex w-full items-center justify-center rounded-lg border border-gray-100 bg-gray-50 px-1.5 py-1.5 text-center text-xs font-bold text-gray-300">
+                  <div className="flex w-full items-center justify-center rounded-lg border border-separator-border bg-fill-1 px-1.5 py-1.5 text-center text-caption-1-semibold text-text-tertiary">
                     —
                   </div>
                 ) : (
                   <select
                     value={metrics[key] ?? ""}
                     onChange={(e) => onMetricChange(key, e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-1 py-1.5 text-center text-xs font-bold text-gray-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition cursor-pointer"
+                    className="w-full rounded-lg border border-separator-border bg-background-primary-default px-1 py-1.5 text-center text-caption-1-semibold text-text-primary shadow-sm outline-none focus:border-accent-border-strong focus:ring-2 focus:ring-accent-border transition cursor-pointer"
                   >
                     <option value="">—</option>
                     {tyreTypes.map((t) => (
@@ -740,10 +741,10 @@ function TruckCostCard({
                   const val = parseFloat((isAdvancedMode ? advancedTyrePerKm : basicTyrePerKm) ?? "");
                   const display = !isNaN(val) && val > 0 ? val.toFixed(4) : null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -756,12 +757,12 @@ function TruckCostCard({
                   placeholder={parseFloat(manualTyrePerKm ?? "") > 0 ? parseFloat(manualTyrePerKm!).toFixed(4) : "0"}
                   value={metrics[key] ?? ""}
                   onChange={(e) => onMetricChange("tyrePerKm", e.target.value)}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
+                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
                     hasTyreOverride
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
+                      ? "border-warning-border-strong bg-warning-surface text-warning-text placeholder:text-text-placeholder focus:border-warning-border-strong focus:ring-warning-border"
                       : parseFloat(manualTyrePerKm ?? "") > 0
-                        ? "border-teal-200 bg-teal-50 text-teal-600 placeholder:text-teal-400 focus:border-teal-400 focus:ring-teal-100"
-                        : "border-gray-200 bg-white text-gray-800 placeholder:text-blue-300 focus:border-blue-400 focus:ring-blue-100"
+                        ? "border-teal-border bg-teal-surface text-teal-text placeholder:text-teal-text focus:border-teal-border-strong focus:ring-teal-border"
+                        : "border-separator-border bg-background-primary-default text-text-primary placeholder:text-text-placeholder focus:border-accent-border-strong focus:ring-accent-border"
                   }`}
                 />)
               ) : key === "complianceCostPerYear" ? (
@@ -769,10 +770,10 @@ function TruckCostCard({
                   const val = parseFloat((isAdvancedMode ? advancedComplianceCost : basicCompliance?.totalCost) ?? "");
                   const display = !isNaN(val) && val > 0 ? `₹${val.toFixed(2)}` : null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -785,10 +786,10 @@ function TruckCostCard({
                   placeholder="0"
                   value={metrics[key] ?? ""}
                   onChange={(e) => onMetricChange(key, e.target.value)}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
+                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
                     metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-gray-300 focus:border-blue-400 focus:ring-blue-100"
+                      ? "border-warning-border-strong bg-warning-surface text-warning-text placeholder:text-text-placeholder focus:border-warning-border-strong focus:ring-warning-border"
+                      : "border-separator-border bg-background-primary-default text-text-primary placeholder:text-text-placeholder focus:border-accent-border-strong focus:ring-accent-border"
                   }`}
                 />)
               ) : key === "maintenancePerKm" ? (
@@ -797,10 +798,10 @@ function TruckCostCard({
                     ? maintenanceVal.toFixed(isAdvancedMode ? 6 : 4)
                     : null;
                   return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
+                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold tabular-nums ${
                       display
-                        ? "border-teal-200 bg-teal-50 text-teal-600"
-                        : "border-gray-200 bg-gray-50 text-gray-400"
+                        ? "border-teal-border bg-teal-surface text-teal-text"
+                        : "border-separator-border bg-fill-1 text-text-tertiary"
                     }`}>
                       {display ?? "NIL"}
                     </div>
@@ -813,10 +814,10 @@ function TruckCostCard({
                   placeholder="0"
                   value={metrics[key] ?? ""}
                   onChange={(e) => onMetricChange(key, e.target.value)}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
+                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
                     metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-gray-300 focus:border-blue-400 focus:ring-blue-100"
+                      ? "border-warning-border-strong bg-warning-surface text-warning-text placeholder:text-text-placeholder focus:border-warning-border-strong focus:ring-warning-border"
+                      : "border-separator-border bg-background-primary-default text-text-primary placeholder:text-text-placeholder focus:border-accent-border-strong focus:ring-accent-border"
                   }`}
                 />)
               ) : (
@@ -827,7 +828,7 @@ function TruckCostCard({
                   placeholder="0"
                   value={metrics[key] ?? ""}
                   onChange={(e) => onMetricChange(key, e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-1.5 py-1.5 text-center text-xs font-bold text-gray-800 shadow-sm outline-none placeholder:text-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition tabular-nums"
+                  className="w-full rounded-lg border border-separator-border bg-background-primary-default px-1.5 py-1.5 text-center text-caption-1-semibold text-text-primary shadow-sm outline-none placeholder:text-text-placeholder focus:border-accent-border-strong focus:ring-2 focus:ring-accent-border transition tabular-nums"
                 />
               )}
             </div>
@@ -836,16 +837,16 @@ function TruckCostCard({
       </div>
 
       {/* Total Cost Per Km footer */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-separator-border bg-fill-1 px-5 py-3">
         <div className="min-w-[260px] flex-1">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Total running cost per km</p>
-            <span className="text-[10px] tabular-nums text-gray-400">{costParts.length} of 6 components</span>
+            <p className="text-caption-2-semibold text-text-secondary">Total running cost per km</p>
+            <span className="text-[10px] tabular-nums text-text-tertiary">{costParts.length} of 6 components</span>
           </div>
 
           {/* How the total splits across the six components */}
           <div
-            className="mt-2 flex h-2 overflow-hidden rounded-full bg-gray-200/70"
+            className="mt-2 flex h-2 overflow-hidden rounded-full bg-fill-3"
             role="img"
             aria-label={costParts.map((c) => `${c.label} ₹${fmtPart(c.value)}`).join(", ") || "No components filled in yet"}
           >
@@ -853,7 +854,7 @@ function TruckCostCard({
               costParts.map((c) => (
                 <div
                   key={c.label}
-                  className="h-full transition-all duration-500"
+                  className="h-full transition duration-500"
                   style={{ width: `${(c.value / totalCostPerKm) * 100}%`, backgroundColor: c.color }}
                   title={`${c.label}: ₹ ${c.value.toFixed(4)}`}
                 />
@@ -863,38 +864,38 @@ function TruckCostCard({
           {costParts.length > 0 ? (
             <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
               {costParts.map((c) => (
-                <span key={c.label} className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                <span key={c.label} className="flex items-center gap-1.5 text-[11px] text-text-secondary">
                   <i className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
                   {c.label}
-                  <span className="font-semibold tabular-nums text-gray-800">₹ {fmtPart(c.value)}</span>
+                  <span className="font-semibold tabular-nums text-text-primary">₹ {fmtPart(c.value)}</span>
                 </span>
               ))}
             </div>
           ) : (
-            <p className="mt-2.5 text-[11px] text-gray-400">Fill in the values above to see the total.</p>
+            <p className="mt-2.5 text-[11px] text-text-tertiary">Fill in the values above to see the total.</p>
           )}
         </div>
 
         {/* Total — plain figure, separated from the breakdown by a hairline */}
-        <div className="border-l border-gray-200 pl-6 text-right">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Total</p>
+        <div className="border-l border-separator-border pl-6 text-right">
+          <p className="text-caption-2-semibold text-text-secondary">Total</p>
           {totalCostPerKm !== null ? (
             <>
               <p className="mt-0.5 flex items-baseline justify-end gap-1 tabular-nums">
-                <span className="text-2xl font-bold text-gray-900">₹ {totalCostPerKm.toFixed(4)}</span>
-                <span className="text-xs font-medium text-gray-500">/ km</span>
+                <span className="text-title-1-semibold text-text-primary">₹ {totalCostPerKm.toFixed(4)}</span>
+                <span className="text-caption-1-medium text-text-secondary">/ km</span>
               </p>
-              <p className="mt-0.5 text-[11px] tabular-nums text-gray-500">
+              <p className="mt-0.5 text-[11px] tabular-nums text-text-secondary">
                 ₹ {(totalCostPerKm * 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })} per 100 km
               </p>
             </>
           ) : (
-            <p className="mt-0.5 text-2xl font-bold text-gray-300">—</p>
+            <p className="mt-0.5 text-title-1-semibold text-text-tertiary">—</p>
           )}
           <button
             type="button"
             onClick={() => setExplainOpen(true)}
-            className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100"
+            className="mt-2 inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-surface px-2.5 py-1 text-caption-2-semibold text-accent-text transition hover:bg-accent-surface-strong"
           >
             <Info className="h-3 w-3" /> How is this calculated?
           </button>
@@ -1173,20 +1174,20 @@ const GUIDE_STEPS_BY_MODE: Record<Mode, GuideStep[]> = {
 };
 
 const GUIDE_MODE_STYLE: Record<Mode, { sidebar: string; sidebarHeader: string; dot: string; progressBar: string }> = {
-  Manual:   { sidebar: "bg-amber-50",   sidebarHeader: "bg-amber-100 text-amber-700",  dot: "bg-amber-500",   progressBar: "bg-amber-500" },
-  Basic:    { sidebar: "bg-teal-50",    sidebarHeader: "bg-teal-100 text-teal-700",    dot: "bg-teal-500",    progressBar: "bg-teal-500" },
-  Advanced: { sidebar: "bg-violet-50",  sidebarHeader: "bg-violet-100 text-violet-700",dot: "bg-violet-500",  progressBar: "bg-violet-500" },
+  Manual:   { sidebar: "bg-warning-surface",   sidebarHeader: "bg-warning-surface-strong text-warning-text",  dot: "bg-warning-solid",   progressBar: "bg-warning-solid" },
+  Basic:    { sidebar: "bg-teal-surface",    sidebarHeader: "bg-teal-surface-strong text-teal-text",    dot: "bg-teal-solid",    progressBar: "bg-teal-solid" },
+  Advanced: { sidebar: "bg-purple-surface",  sidebarHeader: "bg-purple-surface-strong text-purple-text",dot: "bg-purple-solid",  progressBar: "bg-purple-solid" },
 };
 
 const GUIDE_COLOR_MAP: Record<string, { bg: string; border: string; icon: string; badge: string; dot: string; tip: string }> = {
-  amber:  { bg: "bg-amber-50",   border: "border-amber-200",  icon: "text-amber-600 bg-amber-100",   badge: "bg-amber-100 text-amber-700",   dot: "bg-amber-400",   tip: "bg-amber-50 border-amber-200 text-amber-700" },
-  blue:   { bg: "bg-blue-50",    border: "border-blue-200",   icon: "text-blue-600 bg-blue-100",     badge: "bg-blue-100 text-blue-700",     dot: "bg-blue-400",    tip: "bg-blue-50 border-blue-200 text-blue-700" },
-  emerald:{ bg: "bg-emerald-50", border: "border-emerald-200",icon: "text-emerald-600 bg-emerald-100",badge: "bg-emerald-100 text-emerald-700",dot: "bg-emerald-400", tip: "bg-emerald-50 border-emerald-200 text-emerald-700" },
-  teal:   { bg: "bg-teal-50",    border: "border-teal-200",   icon: "text-teal-600 bg-teal-100",     badge: "bg-teal-100 text-teal-700",     dot: "bg-teal-400",    tip: "bg-teal-50 border-teal-200 text-teal-700" },
-  cyan:   { bg: "bg-cyan-50",    border: "border-cyan-200",   icon: "text-cyan-600 bg-cyan-100",     badge: "bg-cyan-100 text-cyan-700",     dot: "bg-cyan-400",    tip: "bg-cyan-50 border-cyan-200 text-cyan-700" },
-  slate:  { bg: "bg-slate-50",   border: "border-slate-200",  icon: "text-slate-600 bg-slate-100",   badge: "bg-slate-100 text-slate-700",   dot: "bg-slate-400",   tip: "bg-slate-50 border-slate-200 text-slate-700" },
-  indigo: { bg: "bg-indigo-50",  border: "border-indigo-200", icon: "text-indigo-600 bg-indigo-100", badge: "bg-indigo-100 text-indigo-700", dot: "bg-indigo-400",  tip: "bg-indigo-50 border-indigo-200 text-indigo-700" },
-  violet: { bg: "bg-violet-50",  border: "border-violet-200", icon: "text-violet-600 bg-violet-100", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-400",  tip: "bg-violet-50 border-violet-200 text-violet-700" },
+  amber:  { bg: "bg-warning-surface",   border: "border-warning-border",  icon: "text-warning-text bg-warning-surface-strong",   badge: "bg-warning-surface-strong text-warning-text",   dot: "bg-warning-solid",   tip: "bg-warning-surface border-warning-border text-warning-text" },
+  blue:   { bg: "bg-accent-surface",    border: "border-accent-border",   icon: "text-accent-text bg-accent-surface-strong",     badge: "bg-accent-surface-strong text-accent-text",     dot: "bg-accent-solid",    tip: "bg-accent-surface border-accent-border text-accent-text" },
+  emerald:{ bg: "bg-success-surface", border: "border-success-border",icon: "text-success-text bg-success-surface-strong",badge: "bg-success-surface-strong text-success-text",dot: "bg-success-solid", tip: "bg-success-surface border-success-border text-success-text" },
+  teal:   { bg: "bg-teal-surface",    border: "border-teal-border",   icon: "text-teal-text bg-teal-surface-strong",     badge: "bg-teal-surface-strong text-teal-text",     dot: "bg-teal-solid",    tip: "bg-teal-surface border-teal-border text-teal-text" },
+  cyan:   { bg: "bg-teal-surface",    border: "border-teal-border",   icon: "text-teal-text bg-teal-surface-strong",     badge: "bg-teal-surface-strong text-teal-text",     dot: "bg-teal-solid",    tip: "bg-teal-surface border-teal-border text-teal-text" },
+  slate:  { bg: "bg-fill-1",   border: "border-separator-border",  icon: "text-text-secondary bg-fill-2",   badge: "bg-fill-2 text-text-primary",   dot: "bg-fill-4",   tip: "bg-fill-1 border-separator-border text-text-primary" },
+  indigo: { bg: "bg-purple-surface",  border: "border-purple-border", icon: "text-purple-text bg-purple-surface-strong", badge: "bg-purple-surface-strong text-purple-text", dot: "bg-purple-solid",  tip: "bg-purple-surface border-purple-border text-purple-text" },
+  violet: { bg: "bg-purple-surface",  border: "border-purple-border", icon: "text-purple-text bg-purple-surface-strong", badge: "bg-purple-surface-strong text-purple-text", dot: "bg-purple-solid",  tip: "bg-purple-surface border-purple-border text-purple-text" },
 };
 
 function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void }) {
@@ -1225,19 +1226,19 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
       onClick={onClose}
     >
       <div
-        className="relative flex w-full max-w-3xl max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative flex w-full max-w-3xl max-h-[90vh] rounded-2xl bg-background-primary-default shadow-2xl overflow-hidden"
         style={{ minHeight: 480 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left sidebar — step navigator */}
-        <div className={`flex w-56 shrink-0 flex-col border-r border-white/60 py-6 transition-colors duration-300 ${modeStyle.sidebar}`}>
+        <div className={`flex w-56 shrink-0 flex-col border-r border-separator-border py-6 transition-colors duration-300 ${modeStyle.sidebar}`}>
           <div className="flex items-center gap-2.5 px-5 pb-5">
             <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${modeStyle.sidebarHeader}`}>
               <BookOpen className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-800">Quick Start</p>
-              <p className="text-[10px] text-gray-500">{mode} Mode</p>
+              <p className="text-caption-1-semibold text-text-primary">Quick Start</p>
+              <p className="text-[10px] text-text-secondary">{mode} Mode</p>
             </div>
           </div>
 
@@ -1251,24 +1252,24 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
                   key={i}
                   type="button"
                   onClick={() => goTo(i)}
-                  className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
-                    isActive ? "bg-white shadow-sm" : "hover:bg-white/60"
+                  className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition duration-200 ${
+                    isActive ? "bg-background-primary-default shadow-sm" : "hover:bg-fill-2"
                   }`}
                 >
-                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-all duration-300 ${
+                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption-2-semibold transition duration-300 ${
                     isDone
-                      ? "bg-emerald-100 text-emerald-600"
+                      ? "bg-success-surface-strong text-success-text"
                       : isActive
-                        ? `${sc.dot} text-white`
-                        : "bg-white/70 text-gray-400"
+                        ? `${sc.dot} text-on-solid`
+                        : "bg-background-primary-default text-text-tertiary"
                   }`}>
                     {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={`truncate text-[11px] font-semibold leading-tight ${isActive ? "text-gray-900" : "text-gray-500"}`}>
+                    <p className={`truncate text-caption-2-semibold leading-tight ${isActive ? "text-text-primary" : "text-text-secondary"}`}>
                       {s.title}
                     </p>
-                    <p className={`truncate text-[10px] leading-tight ${isActive ? "text-gray-400" : "text-gray-300"}`}>
+                    <p className={`truncate text-[10px] leading-tight ${isActive ? "text-text-tertiary" : "text-text-tertiary"}`}>
                       {s.panel.split("—")[0].trim()}
                     </p>
                   </div>
@@ -1280,12 +1281,12 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
           {/* Progress bar */}
           <div className="mt-auto px-5 pt-4">
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-gray-400">Progress</span>
-              <span className="text-[10px] font-bold text-gray-500">{activeStep + 1} / {steps.length}</span>
+              <span className="text-caption-2-semibold text-text-tertiary">Progress</span>
+              <span className="text-caption-2-semibold text-text-secondary">{activeStep + 1} / {steps.length}</span>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/60">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-background-primary-default">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${modeStyle.progressBar}`}
+                className={`h-full rounded-full transition duration-500 ${modeStyle.progressBar}`}
                 style={{ width: `${((activeStep + 1) / steps.length) * 100}%` }}
               />
             </div>
@@ -1295,18 +1296,18 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
         {/* Right content panel */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Modal top bar */}
-          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-separator-border px-6 py-4">
             <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${c.badge}`}>
+              <span className={`rounded-full px-2.5 py-0.5 text-caption-2-semibold ${c.badge}`}>
                 {isAdvanced ? "Preview" : `Step ${activeStep + 1}`}
               </span>
-              <span className="text-[11px] text-gray-400">{step.panel}</span>
+              <span className="text-[11px] text-text-tertiary">{step.panel}</span>
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1321,19 +1322,19 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
                   <IconComponent className="h-6 w-6" />
                 </div>
               ) : (
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${c.icon || "bg-indigo-100 text-indigo-600"}`}>
-                  <span className="text-xl font-extrabold">Σ</span>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${c.icon || "bg-purple-surface-strong text-purple-text"}`}>
+                  <span className="text-title-2-semibold">Σ</span>
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-bold text-gray-900">{step.title}</h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-gray-500">{step.description}</p>
+                <h2 className="text-title-3-semibold text-text-primary">{step.title}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">{step.description}</p>
               </div>
             </div>
 
             {/* Fields list */}
             <div className={`mt-5 rounded-2xl border p-5 ${c.border} ${c.bg}`}>
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              <p className="mb-3 text-caption-2-semibold text-text-tertiary">
                 {isAdvanced ? "Planned capabilities" : step.isTotal ? "Formula" : "What to enter"}
               </p>
               <div className="flex flex-col gap-2.5">
@@ -1344,7 +1345,7 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
                     style={{ animation: `guideSlideIn ${0.15 + fi * 0.08}s ease both` }}
                   >
                     <ArrowRight className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${c.dot.replace("bg-", "text-")}`} />
-                    <span className="text-[12px] font-semibold leading-snug text-gray-700">{field}</span>
+                    <span className="text-[12px] font-semibold leading-snug text-text-primary">{field}</span>
                   </div>
                 ))}
               </div>
@@ -1360,29 +1361,29 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
             {step.isTotal && (
               <div className={`mt-5 rounded-2xl px-6 py-5 ${
                 mode === "Basic"
-                  ? "border border-teal-200 bg-teal-600"
-                  : "border border-blue-200 bg-blue-600"
+                  ? "border border-teal-border bg-teal-solid"
+                  : "border border-accent-border bg-accent-solid"
               }`}>
-                <p className={`text-[10px] font-bold uppercase tracking-widest ${mode === "Basic" ? "text-teal-200" : "text-blue-200"}`}>Result</p>
-                <p className="mt-1 text-base font-extrabold text-white">Total Running Cost Per Km</p>
-                <p className={`mt-1 font-mono text-[11px] ${mode === "Basic" ? "text-teal-300" : "text-blue-300"}`}>
+                <p className={`text-caption-2-semibold ${mode === "Basic" ? "text-on-solid/80" : "text-on-solid/80"}`}>Result</p>
+                <p className="mt-1 text-headline-semibold text-on-solid">Total Running Cost Per Km</p>
+                <p className={`mt-1 font-mono text-[11px] ${mode === "Basic" ? "text-on-solid/80" : "text-on-solid/80"}`}>
                   {"= EMI + Mileage + AdBlue + Tyre + Maintenance + Compliance"}
                 </p>
                 <div className="mt-4 flex items-center gap-2">
-                  <span className="rounded-xl bg-white/20 px-4 py-2 text-xl font-extrabold tabular-nums text-white">₹ —.——</span>
-                  <span className={`text-xs font-semibold ${mode === "Basic" ? "text-teal-300" : "text-blue-300"}`}>per km</span>
+                  <span className="rounded-xl bg-on-solid/20 px-4 py-2 text-title-2-semibold tabular-nums text-on-solid">₹ —.——</span>
+                  <span className={`text-caption-1-semibold ${mode === "Basic" ? "text-on-solid/80" : "text-on-solid/80"}`}>per km</span>
                 </div>
               </div>
             )}
           </div>
 
           {/* Nav footer */}
-          <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
+          <div className="flex items-center justify-between border-t border-separator-border px-6 py-4">
             <button
               type="button"
               onClick={goPrev}
               disabled={activeStep === 0}
-              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-xs font-semibold text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-30"
+              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-caption-1-semibold text-text-secondary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md disabled:pointer-events-none disabled:opacity-30"
             >
               ← Previous
             </button>
@@ -1391,7 +1392,7 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-blue-600 px-5 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-accent-solid px-5 text-caption-1-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {isAdvanced ? "Close" : "Got it, let's go!"}
@@ -1400,7 +1401,7 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
               <button
                 type="button"
                 onClick={goNext}
-                className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-blue-600 px-5 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-accent-solid px-5 text-caption-1-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
               >
                 Next Step
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -1670,14 +1671,14 @@ const ADVANCED_MODE_SECTIONS: Section[] = [
 ];
 
 const COLOR_MAP: Record<string, { badge: string; dot: string; section: string }> = {
-  blue:    { badge: "bg-blue-100 text-blue-700",       dot: "bg-blue-400",    section: "border-blue-100 bg-blue-50/40" },
-  emerald: { badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-400", section: "border-emerald-100 bg-emerald-50/40" },
-  amber:   { badge: "bg-amber-100 text-amber-700",     dot: "bg-amber-400",   section: "border-amber-100 bg-amber-50/40" },
-  cyan:    { badge: "bg-cyan-100 text-cyan-700",       dot: "bg-cyan-400",    section: "border-cyan-100 bg-cyan-50/40" },
-  teal:    { badge: "bg-teal-100 text-teal-700",       dot: "bg-teal-400",    section: "border-teal-100 bg-teal-50/40" },
-  slate:   { badge: "bg-slate-100 text-slate-700",     dot: "bg-slate-400",   section: "border-slate-100 bg-slate-50/40" },
-  indigo:  { badge: "bg-indigo-100 text-indigo-700",   dot: "bg-indigo-400",  section: "border-indigo-200 bg-indigo-50/60" },
-  violet:  { badge: "bg-violet-100 text-violet-700",   dot: "bg-violet-400",  section: "border-violet-100 bg-violet-50/40" },
+  blue:    { badge: "bg-accent-surface-strong text-accent-text",       dot: "bg-accent-solid",    section: "border-accent-border bg-accent-surface/40" },
+  emerald: { badge: "bg-success-surface-strong text-success-text", dot: "bg-success-solid", section: "border-success-border bg-success-surface/40" },
+  amber:   { badge: "bg-warning-surface-strong text-warning-text",     dot: "bg-warning-solid",   section: "border-warning-border bg-warning-surface/40" },
+  cyan:    { badge: "bg-teal-surface-strong text-teal-text",       dot: "bg-teal-solid",    section: "border-teal-border bg-teal-surface/40" },
+  teal:    { badge: "bg-teal-surface-strong text-teal-text",       dot: "bg-teal-solid",    section: "border-teal-border bg-teal-surface/40" },
+  slate:   { badge: "bg-fill-2 text-text-primary",     dot: "bg-fill-4",   section: "border-separator-border bg-fill-1" },
+  indigo:  { badge: "bg-purple-surface-strong text-purple-text",   dot: "bg-purple-solid",  section: "border-purple-border bg-purple-surface/60" },
+  violet:  { badge: "bg-purple-surface-strong text-purple-text",   dot: "bg-purple-solid",  section: "border-purple-border bg-purple-surface/40" },
 };
 
 // ---------------------------------------------------------------------------
@@ -1706,43 +1707,43 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
       inputs: ["EMI Amount", "Km / Day"],
       formula: "EMI ÷ 26 ÷ Km/Day",
       output: "EMI Per Km",
-      inputCls: "bg-slate-100 text-slate-600 border-slate-200",
-      outputCls: "bg-slate-50 text-slate-700 border-slate-300",
+      inputCls: "bg-fill-2 text-text-secondary border-separator-border",
+      outputCls: "bg-fill-1 text-text-primary border-border-button-default",
     },
     {
       inputs: ["Cost / Litre", "Mileage (L/km)"],
       formula: "Cost ÷ Mileage",
       output: "Mileage Cost / km",
-      inputCls: "bg-amber-100 text-amber-700 border-amber-200",
-      outputCls: "bg-amber-50 text-amber-700 border-amber-300",
+      inputCls: "bg-warning-surface-strong text-warning-text border-warning-border",
+      outputCls: "bg-warning-surface text-warning-text border-warning-border-strong",
     },
     {
       inputs: ["AdBlue (L/km)", "AdBlue Price"],
       formula: "L/km × Price / Litre",
       output: "AdBlue Charges / km",
-      inputCls: "bg-cyan-100 text-cyan-700 border-cyan-200",
-      outputCls: "bg-cyan-50 text-cyan-700 border-cyan-300",
+      inputCls: "bg-teal-surface-strong text-teal-text border-teal-border",
+      outputCls: "bg-teal-surface text-teal-text border-teal-border-strong",
     },
     {
       inputs: ["Tyre Cost", "Range", "Layout"],
       formula: "(Cost ÷ Range) × Tyres",
       output: "Tyre Charges / km",
-      inputCls: "bg-blue-100 text-blue-700 border-blue-200",
-      outputCls: "bg-blue-50 text-blue-700 border-blue-300",
+      inputCls: "bg-accent-surface-strong text-accent-text border-accent-border",
+      outputCls: "bg-accent-surface text-accent-text border-accent-border-strong",
     },
     {
       inputs: ["Maintenance / km"],
       formula: "Direct entry",
       output: "Maintenance / km",
-      inputCls: "bg-gray-100 text-gray-600 border-gray-200",
-      outputCls: "bg-gray-50 text-gray-700 border-gray-200",
+      inputCls: "bg-fill-2 text-text-secondary border-separator-border",
+      outputCls: "bg-fill-1 text-text-primary border-separator-border",
     },
     {
       inputs: ["Compliance Cost / Year", "Km / Day"],
       formula: "Cost ÷ 12 ÷ 26 ÷ Km/Day",
       output: "Compliance / km",
-      inputCls: "bg-violet-100 text-violet-700 border-violet-200",
-      outputCls: "bg-violet-50 text-violet-700 border-violet-300",
+      inputCls: "bg-purple-surface-strong text-purple-text border-purple-border",
+      outputCls: "bg-purple-surface text-purple-text border-purple-border-strong",
     },
   ];
 
@@ -1762,7 +1763,7 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
             {/* Input badges */}
             <div className="flex w-[160px] shrink-0 flex-col gap-1.5">
               {row.inputs.map((inp) => (
-                <span key={inp} className={`rounded-lg border px-3 py-1 text-[11px] font-bold leading-snug ${row.inputCls}`}>
+                <span key={inp} className={`rounded-lg border px-3 py-1 text-caption-2-semibold leading-snug ${row.inputCls}`}>
                   {inp}
                 </span>
               ))}
@@ -1770,18 +1771,18 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
 
             {/* Arrow + formula */}
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <div className="h-px flex-1 bg-gray-200" />
-              <span className="shrink-0 whitespace-nowrap rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 font-mono text-[11px] text-gray-500 shadow-sm">
+              <div className="h-px flex-1 bg-fill-3" />
+              <span className="shrink-0 whitespace-nowrap rounded-xl border border-separator-border bg-background-primary-default px-3.5 py-1.5 font-mono text-[11px] text-text-secondary shadow-sm">
                 {row.formula}
               </span>
-              <div className="h-px flex-1 bg-gray-200" />
+              <div className="h-px flex-1 bg-fill-3" />
               <svg width="8" height="12" viewBox="0 0 8 12" fill="none" className="shrink-0">
                 <path d="M0 0 L8 6 L0 12 Z" fill="#d1d5db" />
               </svg>
             </div>
 
             {/* Output badge */}
-            <div className={`w-[164px] shrink-0 rounded-xl border px-3.5 py-2 text-center text-[12px] font-bold ${row.outputCls}`}>
+            <div className={`w-[164px] shrink-0 rounded-xl border px-3.5 py-2 text-center text-[12px] font-semibold ${row.outputCls}`}>
               {row.output}
             </div>
           </div>
@@ -1795,7 +1796,7 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
                 transition: "opacity 0.3s ease 0.1s",
               }}
             >
-              <span className="text-sm font-bold text-gray-200">+</span>
+              <span className="text-body-medium text-text-tertiary">+</span>
             </div>
           )}
         </div>
@@ -1806,14 +1807,14 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
         className="mx-6 mt-5 mb-4 flex items-center gap-3"
         style={{ opacity: phase >= 6 ? 1 : 0, transition: "opacity 0.4s ease" }}
       >
-        <div className="h-px flex-1 bg-blue-200" />
-        <span className="text-[11px] font-bold uppercase tracking-widest text-blue-400">Total</span>
-        <div className="h-px flex-1 bg-blue-200" />
+        <div className="h-px flex-1 bg-accent-surface-strong" />
+        <span className="text-caption-2-semibold text-accent-text">Total</span>
+        <div className="h-px flex-1 bg-accent-surface-strong" />
       </div>
 
       {/* Total box */}
       <div
-        className="mx-6 flex items-center gap-5 rounded-2xl bg-blue-600 px-6 py-5"
+        className="mx-6 flex items-center gap-5 rounded-2xl bg-accent-solid px-6 py-5"
         style={{
           opacity: phase >= 6 ? 1 : 0,
           transform: phase >= 6 ? "none" : "translateY(10px)",
@@ -1824,15 +1825,15 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
         }}
       >
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Result</p>
-          <p className="mt-1 text-base font-extrabold text-white">Total Running Cost Per Km</p>
-          <p className="mt-1 font-mono text-[11px] text-blue-300">
+          <p className="text-caption-2-semibold text-on-solid/80">Result</p>
+          <p className="mt-1 text-headline-semibold text-on-solid">Total Running Cost Per Km</p>
+          <p className="mt-1 font-mono text-[11px] text-on-solid/80">
             = EMI + Mileage + AdBlue + Tyre + Maintenance + Compliance
           </p>
         </div>
-        <div className="shrink-0 rounded-xl bg-white/15 px-6 py-3 text-right">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-200">Per Km</p>
-          <p className="mt-0.5 text-xl font-extrabold tabular-nums text-white">₹ —</p>
+        <div className="shrink-0 rounded-xl bg-on-solid/15 px-6 py-3 text-right">
+          <p className="text-caption-2-semibold text-on-solid/80">Per Km</p>
+          <p className="mt-0.5 text-title-2-semibold tabular-nums text-on-solid">₹ —</p>
         </div>
       </div>
     </div>
@@ -1854,18 +1855,18 @@ function CalcInfoModal({ mode, onClose }: { mode: Mode; onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="relative flex w-full max-w-3xl max-h-[88vh] flex-col rounded-2xl bg-white shadow-2xl"
+        className="relative flex w-full max-w-3xl max-h-[88vh] flex-col rounded-2xl bg-background-primary-default shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal header */}
-        <div className="flex items-center gap-4 border-b border-gray-100 px-7 py-5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+        <div className="flex items-center gap-4 border-b border-separator-border px-7 py-5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-surface text-accent-text">
             <Info className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-bold text-gray-900">How is this calculated?</h2>
-            <p className="mt-0.5 text-xs text-gray-400">
-              <span className="font-semibold text-gray-500">{mode} Mode</span> — cost breakdown per km
+            <h2 className="text-headline-semibold text-text-primary">How is this calculated?</h2>
+            <p className="mt-0.5 text-xs text-text-tertiary">
+              <span className="font-semibold text-text-secondary">{mode} Mode</span> — cost breakdown per km
             </p>
           </div>
 
@@ -1881,7 +1882,7 @@ function CalcInfoModal({ mode, onClose }: { mode: Mode; onClose: () => void }) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1897,9 +1898,9 @@ function CalcInfoModal({ mode, onClose }: { mode: Mode; onClose: () => void }) {
                 <button
                   type="button"
                   onClick={() => setReplayKey((k) => k + 1)}
-                  className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-xs font-semibold text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-30"
+                  className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-caption-1-semibold text-text-secondary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md disabled:pointer-events-none disabled:opacity-30"
                 >
-                  ↺ &nbsp;Replay animation
+                  <ReplayIcon className="size-4" />Replay animation
                 </button>
               </div>
             </div>
@@ -1909,28 +1910,28 @@ function CalcInfoModal({ mode, onClose }: { mode: Mode; onClose: () => void }) {
                 const c = COLOR_MAP[section.color];
                 return (
                   <div key={section.title} className={`rounded-2xl border px-5 py-5 ${c.section}`}>
-                    <p className="mb-4 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                    <p className="mb-4 text-caption-2-semibold text-text-tertiary">
                       {section.title}
                     </p>
                     <div className="flex flex-col gap-3.5">
                       {section.fields.map((field) => (
                         <div key={field.label} className="flex items-start gap-3.5">
-                          <span className={`mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          <span className={`mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-caption-2-semibold ${
                             field.type === "fetched"
-                              ? "bg-teal-100 text-teal-700"
+                              ? "bg-teal-surface-strong text-teal-text"
                               : field.type === "calculated"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-gray-100 text-gray-500"
+                                ? "bg-accent-surface-strong text-accent-text"
+                                : "bg-fill-2 text-text-secondary"
                           }`}>
                             {field.type === "fetched" ? "Fetched" : field.type === "calculated" ? "Auto" : "Manual"}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-800">{field.label}</p>
+                            <p className="text-body-semibold text-text-primary">{field.label}</p>
                             {(field.type === "calculated" || field.type === "fetched") && field.formula && (
-                              <p className={`mt-1 font-mono text-[11px] ${field.type === "fetched" ? "text-teal-600" : "text-blue-600"}`}>= {field.formula}</p>
+                              <p className={`mt-1 font-mono text-[11px] ${field.type === "fetched" ? "text-teal-text" : "text-accent-text"}`}>= {field.formula}</p>
                             )}
                             {field.note && (
-                              <p className="mt-1 text-[11px] leading-relaxed text-gray-400">{field.note}</p>
+                              <p className="mt-1 text-[11px] leading-relaxed text-text-tertiary">{field.note}</p>
                             )}
                           </div>
                         </div>
@@ -2533,29 +2534,29 @@ export default function RunningCostCalculatorPage() {
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
             <Gauge className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Running Cost Calculator</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Running Cost Calculator</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Calculate and analyse the per-kilometre running cost for your fleet.
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => setShowGuide(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+          <button type="button" onClick={() => setShowGuide(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md">
             <BookOpen className="h-4 w-4" />
             Quick Start Guide
           </button>
-          <button type="button" onClick={() => setShowCalcInfo(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+          <button type="button" onClick={() => setShowCalcInfo(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md">
             <Info className="h-4 w-4" />
             How is this calculated?
           </button>
           {trucks.length > 0 && (
             <button
               type="button" onClick={openExportPreview} disabled={preparingExport}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             >
               {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
               {preparingExport ? "Preparing…" : "View"}
@@ -2604,7 +2605,7 @@ export default function RunningCostCalculatorPage() {
                     type="button"
                     onClick={() => removeCompareSlot(index)}
                     aria-label={`Remove vehicle ${index + 1}`}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-tertiary hover:bg-danger-surface-strong hover:text-danger-text"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -2615,7 +2616,7 @@ export default function RunningCostCalculatorPage() {
               <button
                 type="button"
                 onClick={addCompareSlot}
-                className="flex h-10 shrink-0 items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 text-sm font-medium text-gray-500 hover:border-blue-400 hover:text-blue-600"
+                className="flex h-10 shrink-0 items-center gap-1 rounded-full border border-dashed border-border-button-default px-3 text-body-medium text-text-secondary hover:border-accent-border-strong hover:text-accent-text"
               >
                 <Plus className="h-4 w-4" />
                 Add vehicle
@@ -2640,8 +2641,8 @@ export default function RunningCostCalculatorPage() {
       {/* Mode banner */}
       <div className={`flex items-center gap-3 rounded-xl border px-5 py-3 transition-colors duration-300 ${MODE_STYLE[mode].banner}`}>
         <span className={`h-2 w-2 rounded-full ${MODE_STYLE[mode].dot}`} />
-        <p className={`text-sm font-medium ${MODE_STYLE[mode].text}`}>
-          Currently in <span className="font-bold">{mode} Mode</span> for Calculation
+        <p className={`text-body-medium ${MODE_STYLE[mode].text}`}>
+          Currently in <span className="font-semibold">{mode} Mode</span> for Calculation
         </p>
       </div>
 
@@ -2655,15 +2656,13 @@ export default function RunningCostCalculatorPage() {
               if (trucksLoading) {
                 return truckView === "list"
                   ? [1, 2, 3].map((i) => (
-                      <div key={i} className="h-28 animate-pulse rounded-2xl border border-gray-200 bg-gray-100" />
+                      <div key={i} className="h-28 animate-pulse rounded-2xl border border-separator-border bg-fill-2" />
                     ))
-                  : <div className="h-28 animate-pulse rounded-2xl border border-gray-200 bg-gray-100" />;
+                  : <div className="h-28 animate-pulse rounded-2xl border border-separator-border bg-fill-2" />;
               }
               if (trucks.length === 0) {
                 return (
-                  <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
-                    No trucks found in fleet.
-                  </div>
+                  <EmptyState size="compact" illustration="logistics" title="No trucks found in fleet" />
                 );
               }
 
@@ -2679,7 +2678,7 @@ export default function RunningCostCalculatorPage() {
               if (truckView === "compare" && displayedTrucks.length < 2) {
                 const stillNeeded = 2 - displayedTrucks.length;
                 return (
-                  <div className="col-span-full flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
+                  <div className="col-span-full flex items-center justify-center rounded-2xl border border-dashed border-separator-border bg-background-primary-default py-16 text-sm text-text-tertiary">
                     Select {stillNeeded} more vehicle{stillNeeded !== 1 ? "s" : ""} above to compare.
                   </div>
                 );
@@ -2687,11 +2686,9 @@ export default function RunningCostCalculatorPage() {
 
               if (displayedTrucks.length === 0) {
                 return (
-                  <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
-                    {truckView === "list"
-                      ? `No trucks match "${truckSearch}".`
-                      : "Select a vehicle above to see its cost breakdown."}
-                  </div>
+                  <EmptyState size="compact" illustration="not-found" title={truckView === "list"
+                      ? `No trucks match "${truckSearch}"`
+                      : "Select a vehicle above to see its cost breakdown"} />
                 );
               }
 
@@ -2750,26 +2747,26 @@ export default function RunningCostCalculatorPage() {
           <div className="col-span-1 flex flex-col gap-4">
 
             {/* Tyre Details card — Manual only */}
-            {mode === "Manual" && <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {mode === "Manual" && <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
               {/* Card header */}
               <button
                 type="button"
                 onClick={() => setTyreCardOpen((o) => !o)}
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${tyreCardOpen ? "border-b border-gray-100" : ""}`}
+                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${tyreCardOpen ? "border-b border-separator-border" : ""}`}
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-surface text-accent-text">
                   <CircleDot className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-sm font-bold text-gray-800">Tyre Details</h2>
+                <h2 className="flex-1 text-body-semibold text-text-primary">Tyre Details</h2>
                 <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${tyreCardOpen ? "rotate-180" : "rotate-0"}`}
+                  className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${tyreCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
               </button>
 
               {/* Tyre rows */}
-              <div className={`flex flex-col divide-y divide-gray-100 overflow-hidden transition-all duration-300 ${tyreCardOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className={`flex flex-col divide-y divide-separator-border overflow-hidden transition duration-300 ${tyreCardOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
                 {tyreTypes.length === 0 && (
-                  <p className="px-4 py-6 text-center text-xs text-gray-400">
+                  <p className="px-4 py-6 text-center text-xs text-text-tertiary">
                     No tyre types configured.
                   </p>
                 )}
@@ -2780,15 +2777,15 @@ export default function RunningCostCalculatorPage() {
                     <div key={tyreType} className="flex flex-col gap-3 px-4 py-4">
                       {/* Tyre type label */}
                       <div className="flex items-center gap-2">
-                        <CircleDot className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                        <CircleDot className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+                        <span className="text-caption-1-semibold text-text-primary">
                           {tyreType}
                         </span>
                       </div>
 
                       {/* Tyre Cost */}
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        <label className="mb-1 block text-caption-2-semibold text-text-tertiary">
                           Tyre Cost (₹)
                         </label>
                         <input
@@ -2803,7 +2800,7 @@ export default function RunningCostCalculatorPage() {
 
                       {/* Expected Range */}
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        <label className="mb-1 block text-caption-2-semibold text-text-tertiary">
                           Expected Range (km)
                         </label>
                         <input
@@ -2818,13 +2815,13 @@ export default function RunningCostCalculatorPage() {
 
                       {/* Cost per Km — calculated */}
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        <label className="mb-1 block text-caption-2-semibold text-text-tertiary">
                           Cost per Km
                         </label>
-                        <div className={`flex items-center rounded-lg border px-3 py-2 text-sm font-bold tabular-nums ${
+                        <div className={`flex items-center rounded-lg border px-3 py-2 text-body-semibold tabular-nums ${
                           costPerKm
-                            ? "border-blue-200 bg-blue-50 text-blue-700"
-                            : "border-gray-100 bg-gray-50 text-gray-400"
+                            ? "border-accent-border bg-accent-surface text-accent-text"
+                            : "border-separator-border bg-fill-1 text-text-tertiary"
                         }`}>
                           {costPerKm ? `₹ ${costPerKm}` : "—"}
                         </div>
@@ -2836,24 +2833,24 @@ export default function RunningCostCalculatorPage() {
             </div>}
 
             {/* Truck Run Details card — Manual only */}
-            {mode === "Manual" && <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {mode === "Manual" && <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
               <button
                 type="button"
                 onClick={() => setRunCardOpen((o) => !o)}
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${runCardOpen ? "border-b border-gray-100" : ""}`}
+                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${runCardOpen ? "border-b border-separator-border" : ""}`}
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-surface text-success-text">
                   <Gauge className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-sm font-bold text-gray-800">Truck Run Details</h2>
+                <h2 className="flex-1 text-body-semibold text-text-primary">Truck Run Details</h2>
                 <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${runCardOpen ? "rotate-180" : "rotate-0"}`}
+                  className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${runCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
               </button>
 
-              <div className={`flex flex-col divide-y divide-gray-100 overflow-hidden transition-all duration-300 ${runCardOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className={`flex flex-col divide-y divide-separator-border overflow-hidden transition duration-300 ${runCardOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
                 {tyreLayouts.length === 0 && (
-                  <p className="px-4 py-6 text-center text-xs text-gray-400">
+                  <p className="px-4 py-6 text-center text-xs text-text-tertiary">
                     No tyre layouts found in fleet.
                   </p>
                 )}
@@ -2863,15 +2860,15 @@ export default function RunningCostCalculatorPage() {
                     <div key={layout} className="flex flex-col gap-3 px-4 py-4">
                       {/* Layout label */}
                       <div className="flex items-center gap-2">
-                        <Gauge className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                        <Gauge className="h-3.5 w-3.5 shrink-0 text-success-text" />
+                        <span className="text-caption-1-semibold text-text-primary">
                           {layout}
                         </span>
                       </div>
 
                       {/* Km / Month */}
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        <label className="mb-1 block text-caption-2-semibold text-text-tertiary">
                           Expected Km / Month
                         </label>
                         <input
@@ -2886,9 +2883,9 @@ export default function RunningCostCalculatorPage() {
 
                       {/* Km / Day */}
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        <label className="mb-1 block text-caption-2-semibold text-text-tertiary">
                           Expected Km / Day
-                          <span className="ml-1 normal-case tracking-normal text-gray-300">(÷ 26)</span>
+                          <span className="ml-1 normal-case tracking-normal text-text-tertiary">(÷ 26)</span>
                         </label>
                         <input
                           type="number"
@@ -2906,24 +2903,24 @@ export default function RunningCostCalculatorPage() {
             </div>}
 
             {/* Fuel Details card — Manual only; Basic and Advanced auto-fetch or handle differently */}
-            {mode === "Manual" && <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {mode === "Manual" && <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
               <button
                 type="button"
                 onClick={() => setFuelCardOpen((o) => !o)}
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${fuelCardOpen ? "border-b border-gray-100" : ""}`}
+                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${fuelCardOpen ? "border-b border-separator-border" : ""}`}
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warning-surface text-warning-text">
                   <Fuel className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-sm font-bold text-gray-800">Fuel Details</h2>
+                <h2 className="flex-1 text-body-semibold text-text-primary">Fuel Details</h2>
                 <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${fuelCardOpen ? "rotate-180" : "rotate-0"}`}
+                  className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${fuelCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
               </button>
 
-              <div className={`overflow-hidden transition-all duration-300 ${fuelCardOpen ? "max-h-40 opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className={`overflow-hidden transition duration-300 ${fuelCardOpen ? "max-h-40 opacity-100" : "max-h-0 opacity-0"}`}>
                 <div className="px-4 py-4">
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                  <label className="mb-1 block text-caption-2-semibold text-text-tertiary">
                     Cost Per Litre (₹)
                   </label>
                   <input
@@ -2940,28 +2937,28 @@ export default function RunningCostCalculatorPage() {
             </div>}
 
             {/* Tyre Cost Configuration card — Manual only */}
-            {mode === "Manual" && <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {mode === "Manual" && <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
               <button
                 type="button"
                 onClick={() => setTyreCostConfigCardOpen((o) => !o)}
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${tyreCostConfigCardOpen ? "border-b border-gray-100" : ""}`}
+                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${tyreCostConfigCardOpen ? "border-b border-separator-border" : ""}`}
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-surface text-success-text">
                   <CircleDot className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-sm font-bold text-gray-800">Tyre Cost Configuration</h2>
+                <h2 className="flex-1 text-body-semibold text-text-primary">Tyre Cost Configuration</h2>
                 <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${tyreCostConfigCardOpen ? "rotate-180" : "rotate-0"}`}
+                  className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${tyreCostConfigCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
               </button>
 
-              <div className={`overflow-hidden transition-all duration-300 ${tyreCostConfigCardOpen ? "max-h-[4000px] opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className={`overflow-hidden transition duration-300 ${tyreCostConfigCardOpen ? "max-h-[4000px] opacity-100" : "max-h-0 opacity-0"}`}>
                 {tyreLayouts.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-xs text-gray-400">
+                  <div className="px-4 py-6 text-center text-xs text-text-tertiary">
                     No tyre layouts found.
                   </div>
                 ) : (
-                  <div className="flex flex-col divide-y divide-gray-100">
+                  <div className="flex flex-col divide-y divide-separator-border">
                     {tyreLayouts.map((layout) => {
                       const layoutTotal = tyreTypes.reduce((sum, tyreType) => {
                         const qtyStr = modeData.tyreCostConfigQty[layout]?.[tyreType] ?? "";
@@ -2976,23 +2973,23 @@ export default function RunningCostCalculatorPage() {
                       <div key={layout} className="px-4 py-4">
                         {/* Layout header */}
                         <div className="mb-3 flex items-center gap-2">
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-600">
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-success-surface-strong text-success-text">
                             <CircleDot className="h-3.5 w-3.5" />
                           </div>
-                          <span className="flex-1 text-xs font-bold text-gray-800">{layout}</span>
+                          <span className="flex-1 text-caption-1-semibold text-text-primary">{layout}</span>
                           {/* Total Cost Per KM for this layout */}
-                          <div className={`flex items-center gap-1 rounded-lg px-2.5 py-1 ${layoutTotal > 0 ? "bg-emerald-600" : "bg-gray-100"}`}>
-                            <span className={`text-[10px] font-bold tabular-nums ${layoutTotal > 0 ? "text-white" : "text-gray-400"}`}>
+                          <div className={`flex items-center gap-1 rounded-lg px-2.5 py-1 ${layoutTotal > 0 ? "bg-success-solid" : "bg-fill-2"}`}>
+                            <span className={`text-caption-2-semibold tabular-nums ${layoutTotal > 0 ? "text-on-solid" : "text-text-tertiary"}`}>
                               {layoutTotal > 0 ? `₹ ${layoutTotal.toFixed(4)}` : "—"}
                             </span>
-                            {layoutTotal > 0 && <span className="text-[9px] font-semibold text-emerald-300">/ km</span>}
+                            {layoutTotal > 0 && <span className="text-[9px] font-semibold text-on-solid/80">/ km</span>}
                           </div>
                         </div>
 
                         {/* Tyre types under this layout */}
                         <div className="flex flex-col gap-2 pl-2">
                           {tyreTypes.length === 0 ? (
-                            <p className="text-[11px] text-gray-300">No tyre types configured.</p>
+                            <p className="text-[11px] text-text-tertiary">No tyre types configured.</p>
                           ) : (
                             tyreTypes.map((tyreType) => {
                               const qtyStr = modeData.tyreCostConfigQty[layout]?.[tyreType] ?? "";
@@ -3006,7 +3003,7 @@ export default function RunningCostCalculatorPage() {
 
                               return (
                                 <div key={tyreType} className="flex items-center gap-2">
-                                  <span className="w-20 shrink-0 text-[11px] font-semibold text-gray-600">{tyreType}</span>
+                                  <span className="w-20 shrink-0 text-caption-2-semibold text-text-secondary">{tyreType}</span>
 
                                   {/* Box 1 — quantity input */}
                                   <input
@@ -3031,18 +3028,18 @@ export default function RunningCostCalculatorPage() {
                                         },
                                       }));
                                     }}
-                                    className="h-7 w-20 rounded-lg border border-gray-200 bg-gray-50 px-2 text-center text-xs font-semibold text-gray-800 outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+                                    className="h-7 w-20 rounded-lg border border-separator-border bg-fill-1 px-2 text-center text-caption-1-semibold text-text-primary outline-none focus:border-accent-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-accent-border transition"
                                   />
 
                                   {/* Box 2 — Cost Per KM, auto-calculated */}
                                   <div className="relative h-7 w-28">
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">₹</span>
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-caption-2-semibold text-text-tertiary">₹</span>
                                     <input
                                       type="text"
                                       readOnly
                                       value={costPerKm != null ? costPerKm.toFixed(4) : ""}
                                       placeholder="—"
-                                      className="h-full w-full rounded-lg border border-gray-100 bg-gray-100 pl-5 pr-2 text-center text-xs font-semibold text-gray-500 outline-none cursor-default"
+                                      className="h-full w-full rounded-lg border border-separator-border bg-fill-2 pl-5 pr-2 text-center text-caption-1-semibold text-text-secondary outline-none cursor-default"
                                     />
                                   </div>
                                 </div>
@@ -3059,37 +3056,37 @@ export default function RunningCostCalculatorPage() {
             </div>}
 
             {/* AdBlue Details card — Manual only */}
-            {mode === "Manual" && <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {mode === "Manual" && <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
               <button
                 type="button"
                 onClick={() => setAdblueCardOpen((o) => !o)}
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${adblueCardOpen ? "border-b border-gray-100" : ""}`}
+                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${adblueCardOpen ? "border-b border-separator-border" : ""}`}
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-surface text-teal-text">
                   <Droplets className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-sm font-bold text-gray-800">AdBlue Details</h2>
+                <h2 className="flex-1 text-body-semibold text-text-primary">AdBlue Details</h2>
                 <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${adblueCardOpen ? "rotate-180" : "rotate-0"}`}
+                  className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${adblueCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
               </button>
 
-              <div className={`flex flex-col divide-y divide-gray-100 overflow-hidden transition-all duration-300 ${adblueCardOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className={`flex flex-col divide-y divide-separator-border overflow-hidden transition duration-300 ${adblueCardOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
                 {adblueManufacturers.length === 0 && (
-                  <p className="px-4 py-6 text-center text-xs text-gray-400">
+                  <p className="px-4 py-6 text-center text-xs text-text-tertiary">
                     No manufacturers yet — add them in Our Fleet → Manufacturers.
                   </p>
                 )}
                 {adblueManufacturers.map((m) => (
                   <div key={m.id} className="flex flex-col gap-3 px-4 py-4">
                     <div className="flex items-center gap-2">
-                      <Droplets className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                      <Droplets className="h-3.5 w-3.5 shrink-0 text-teal-text" />
+                      <span className="text-caption-1-semibold text-text-primary">
                         {m.name}
                       </span>
                     </div>
                     <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                      <label className="mb-1 block text-caption-2-semibold text-text-tertiary">
                         AdBlue Price (Per Litre) (₹)
                       </label>
                       <input

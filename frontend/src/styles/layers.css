@@ -1,0 +1,20 @@
+/* ---------------------------------------------------------------------------
+ * Stacking layers — the ONE place z-index levels are decided.
+ *
+ * Legacy pages still use ad-hoc values up to z-[10050] (modals, lightboxes,
+ * full-screen viewers). Feedback must always win over all of them, so it lives
+ * far above. New UI uses these named utilities instead of z-[n] literals:
+ *
+ *   z-overlay   page overlays: drawers, modals              1000
+ *   z-confirm   confirm / prompt dialogs (ConfirmHost)    100000
+ *   z-toast     toasts (Toaster), above confirms          100100
+ * --------------------------------------------------------------------------- */
+:root {
+  --z-overlay: 1000;
+  --z-confirm: 100000;
+  --z-toast: 100100;
+}
+
+@utility z-overlay { z-index: var(--z-overlay); }
+@utility z-confirm { z-index: var(--z-confirm); }
+@utility z-toast { z-index: var(--z-toast); }

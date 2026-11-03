@@ -4,17 +4,18 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Segmented } from "@/components/ui/Segmented";
 import { useEffect, useState } from "react";
-import { IndianRupee, Truck as TruckIcon, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2, Calculator } from "lucide-react";
+import { RiMoneyRupeeCircleLine as IndianRupee, RiTruckLine as TruckIcon, RiCloseLine as X, RiArrowDownSLine as ChevronDown, RiGasStationLine as Fuel, RiEditLine as PencilLine, RiBookOpenLine as BookOpen, RiQuestionLine as HelpCircle, RiCheckboxCircleLine as CheckCircle2, RiCalculatorLine as Calculator } from "@remixicon/react";
 import { trucksApi, branchesApi, financeApi, fuelLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi, adblueApi, type AdBlueStats } from "@/lib/api";
 import { isEmiCompleted } from "@/lib/emi-schedule";
 import { HALT_CONTAINER_TYPES } from "@/lib/halt-pay";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import type { Branch } from "@/types/branch";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100 transition";
+  "w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-body-semibold text-text-primary outline-none focus:border-success-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-success-border transition";
 
 type Truck = {
   id: string;
@@ -40,12 +41,12 @@ type FieldDef = {
 };
 
 const CARD_ACCENTS = [
-  { badge: "bg-blue-50 text-blue-600"     },
-  { badge: "bg-indigo-50 text-indigo-600" },
-  { badge: "bg-slate-100 text-slate-600"  },
-  { badge: "bg-sky-50 text-sky-700"       },
-  { badge: "bg-violet-50 text-violet-600" },
-  { badge: "bg-blue-50 text-blue-500"     },
+  { badge: "bg-accent-surface text-accent-text"     },
+  { badge: "bg-purple-surface text-purple-text" },
+  { badge: "bg-fill-2 text-text-secondary"  },
+  { badge: "bg-teal-surface text-teal-text"       },
+  { badge: "bg-purple-surface text-purple-text" },
+  { badge: "bg-accent-surface text-accent-text"     },
 ];
 
 const FIELD_ROWS: FieldDef[][] = [
@@ -93,32 +94,32 @@ function FuelCostCard({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${open ? "border-b border-gray-100" : ""}`}
+        className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${open ? "border-b border-separator-border" : ""}`}
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-surface text-accent-text">
           <Fuel className="h-4 w-4" />
         </div>
-        <h2 className="flex-1 text-sm font-bold text-gray-800">Fuel Cost Details</h2>
+        <h2 className="flex-1 text-body-semibold text-text-primary">Fuel Cost Details</h2>
         <ChevronDown
-          className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${open ? "rotate-180" : "rotate-0"}`}
+          className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${open ? "rotate-180" : "rotate-0"}`}
         />
       </button>
 
       <div
-        className={`flex flex-col overflow-hidden transition-all duration-300 ${
+        className={`flex flex-col overflow-hidden transition duration-300 ${
           open ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <div className="flex flex-col gap-2 px-4 py-4">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          <label className="text-caption-2-semibold text-text-tertiary">
             Base Fuel Cost (Per Liter)
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">₹</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-body-semibold text-text-tertiary">₹</span>
             <input
               type="number"
               min="0"
@@ -127,7 +128,7 @@ function FuelCostCard({
               value={value ?? ""}
               onChange={(e) => onChange(e.target.value)}
               onWheel={(e) => e.currentTarget.blur()}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-7 pr-3 text-sm font-semibold text-gray-800 outline-none focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100 transition"
+              className="w-full rounded-lg border border-separator-border bg-fill-1 py-2 pl-7 pr-3 text-body-semibold text-text-primary outline-none focus:border-success-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-success-border transition"
             />
           </div>
         </div>
@@ -152,34 +153,34 @@ function TollPricingCard({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${open ? "border-b border-gray-100" : ""}`}
+        className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${open ? "border-b border-separator-border" : ""}`}
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warning-surface text-warning-text">
           <IndianRupee className="h-4 w-4" />
         </div>
-        <h2 className="flex-1 text-sm font-bold text-gray-800">Toll Pricing Details</h2>
+        <h2 className="flex-1 text-body-semibold text-text-primary">Toll Pricing Details</h2>
         <ChevronDown
-          className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${open ? "rotate-180" : "rotate-0"}`}
+          className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${open ? "rotate-180" : "rotate-0"}`}
         />
       </button>
 
       <div
-        className={`flex flex-col divide-y divide-gray-100 overflow-hidden transition-all duration-300 ${
+        className={`flex flex-col divide-y divide-separator-border overflow-hidden transition duration-300 ${
           open ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         {layouts.length === 0 ? (
-          <p className="px-4 py-6 text-center text-xs text-gray-400">
+          <p className="px-4 py-6 text-center text-xs text-text-tertiary">
             No tyre layouts found in fleet.
           </p>
         ) : (
           layouts.map((layout) => (
             <div key={layout} className="flex flex-col gap-2 px-4 py-4">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              <label className="text-caption-2-semibold text-text-tertiary">
                 {layout}
               </label>
               <input
@@ -224,7 +225,7 @@ function FieldCell({
         placeholder="0"
         value={value ?? ""}
         onChange={(e) => onChange(field.key, e.target.value)}
-        className="w-full rounded border border-gray-200 bg-white px-1 py-1 text-center text-[11px] font-bold outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition tabular-nums text-gray-800 placeholder:text-gray-300"
+        className="w-full rounded border border-separator-border bg-background-primary-default px-1 py-1 text-center text-caption-2-semibold outline-none focus:border-accent-border-strong focus:ring-1 focus:ring-accent-border transition tabular-nums text-text-primary placeholder:text-text-placeholder"
       />
     );
   }
@@ -232,10 +233,10 @@ function FieldCell({
   if (field.type === "fetched") {
     return (
       <div
-        className={`flex w-full items-center justify-center rounded border px-1 py-1 text-center text-[11px] font-bold tabular-nums ${
+        className={`flex w-full items-center justify-center rounded border px-1 py-1 text-center text-caption-2-semibold tabular-nums ${
           hasValue
-            ? "border-teal-200 bg-teal-50 text-teal-600"
-            : "border-gray-200 bg-gray-50 text-gray-300"
+            ? "border-teal-border bg-teal-surface text-teal-text"
+            : "border-separator-border bg-fill-1 text-text-tertiary"
         }`}
       >
         {hasValue ? value : emptyText}
@@ -246,10 +247,10 @@ function FieldCell({
   // calculated
   return (
     <div
-      className={`flex w-full items-center justify-center rounded border px-1 py-1 text-center text-[11px] font-bold tabular-nums ${
+      className={`flex w-full items-center justify-center rounded border px-1 py-1 text-center text-caption-2-semibold tabular-nums ${
         hasValue
-          ? "border-blue-200 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-300"
+          ? "border-accent-border bg-accent-surface text-accent-text"
+          : "border-separator-border bg-background-primary-default text-text-tertiary"
       }`}
     >
       {hasValue ? value : emptyText}
@@ -283,24 +284,24 @@ function OverridableCell({
         onBlur={() => setFocused(false)}
         onWheel={(e) => e.currentTarget.blur()}
         placeholder={autoRawValue || "—"}
-        className={`w-full rounded border px-1 py-1 text-center text-[11px] font-bold tabular-nums outline-none transition ${
+        className={`w-full rounded border px-1 py-1 text-center text-caption-2-semibold tabular-nums outline-none transition ${
           isOverridden
-            ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-1 focus:ring-amber-100"
+            ? "border-warning-border-strong bg-warning-surface text-warning-text placeholder:text-text-placeholder focus:border-warning-border-strong focus:ring-1 focus:ring-warning-border"
             : focused
-              ? "border-teal-400 bg-white text-teal-700 placeholder:text-teal-300 focus:ring-1 focus:ring-teal-100"
-              : "border-dashed border-teal-300 bg-teal-50 text-transparent placeholder:text-teal-600 cursor-text"
+              ? "border-teal-border-strong bg-background-primary-default text-teal-text placeholder:text-text-placeholder focus:ring-1 focus:ring-teal-border"
+              : "border-dashed border-teal-border-strong bg-teal-surface text-transparent placeholder:text-teal-text cursor-text"
         }`}
       />
       {/* Pencil accent — signals this field is manually editable */}
       {!isOverridden && !focused && (
-        <PencilLine className="pointer-events-none absolute right-0.5 top-0.5 h-2 w-2 text-teal-400" />
+        <PencilLine className="pointer-events-none absolute right-0.5 top-0.5 h-2 w-2 text-teal-text" />
       )}
       {isOverridden && (
         <button
           type="button"
           onClick={() => onChange("")}
           title="Reset to auto-fetched"
-          className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400 text-white hover:bg-amber-500 transition-colors"
+          className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-warning-solid text-on-solid hover:bg-warning-solid transition-colors"
         >
           <X className="h-2 w-2" />
         </button>
@@ -346,48 +347,48 @@ function QuickStartGuideModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-scrim/40" />
       <div
-        className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden"
+        className="relative z-10 w-full max-w-lg rounded-2xl bg-background-primary-default shadow-2xl ring-1 ring-border-button-hover overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/20">
-            <BookOpen className="h-4 w-4 text-white" />
+        <div className="flex items-center gap-3 border-b border-separator-border bg-accent-solid px-5 py-4">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-on-solid/20">
+            <BookOpen className="h-4 w-4 text-on-solid" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-bold text-white">Quick Start Guide</h2>
-            <p className="text-[11px] text-blue-200">Get up and running in 6 steps</p>
+            <h2 className="text-body-semibold text-on-solid">Quick Start Guide</h2>
+            <p className="text-[11px] text-on-solid/80">Get up and running in 6 steps</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-on-solid/10 text-on-solid hover:bg-on-solid/20 transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
         {/* Steps */}
-        <div className="flex flex-col divide-y divide-gray-50 max-h-[70vh] overflow-y-auto">
+        <div className="flex flex-col divide-y divide-separator-border max-h-[70vh] overflow-y-auto">
           {GUIDE_STEPS.map((step, i) => (
-            <div key={i} className="flex gap-3.5 px-5 py-4 hover:bg-gray-50/60 transition-colors">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-extrabold text-white mt-0.5">
+            <div key={i} className="flex gap-3.5 px-5 py-4 hover:bg-fill-2 transition-colors">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-solid text-caption-2-semibold text-on-solid mt-0.5">
                 {i + 1}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-bold text-gray-900 mb-0.5">{step.title}</p>
-                <p className="text-[11px] leading-relaxed text-gray-500">{step.body}</p>
+                <p className="text-[12px] font-semibold text-text-primary mb-0.5">{step.title}</p>
+                <p className="text-[11px] leading-relaxed text-text-secondary">{step.body}</p>
               </div>
             </div>
           ))}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3">
-          <CheckCircle2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-          <p className="text-[10px] text-gray-400">All values are saved automatically — they persist across page reloads.</p>
+        <div className="flex items-center gap-2 border-t border-separator-border bg-fill-1 px-5 py-3">
+          <CheckCircle2 className="h-3.5 w-3.5 text-accent-text shrink-0" />
+          <p className="text-[10px] text-text-tertiary">All values are saved automatically — they persist across page reloads.</p>
         </div>
       </div>
     </div>
@@ -407,7 +408,7 @@ type FormulaSection = {
 const FORMULA_SECTIONS: FormulaSection[] = [
   {
     title: "Batta & Toll",
-    color: "bg-violet-50 text-violet-700 border-violet-200",
+    color: "bg-purple-surface text-purple-text border-purple-border",
     rows: [
       { field: "Toll Pricing",  formula: "Entered manually in Toll Pricing Details panel (per tyre layout)" },
       { field: "Driver Batta",  formula: "Driver Compensation % ÷ 100 × Hire Amount" },
@@ -416,7 +417,7 @@ const FORMULA_SECTIONS: FormulaSection[] = [
   },
   {
     title: "EMI",
-    color: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    color: "bg-purple-surface text-purple-text border-purple-border",
     rows: [
       { field: "EMI Per Day",   formula: "Fetched from EMI Tracking records — or enter manually" },
       { field: "EMI Per KM",    formula: "EMI Per Day ÷ Expected Daily Range (km/day from Truck Run Config) — or enter manually" },
@@ -425,7 +426,7 @@ const FORMULA_SECTIONS: FormulaSection[] = [
   },
   {
     title: "Fuel & Mileage",
-    color: "bg-sky-50 text-sky-700 border-sky-200",
+    color: "bg-teal-surface text-teal-text border-teal-border",
     rows: [
       { field: "Truck Mileage",       formula: "Average km/L from fuel log history — or enter manually" },
       { field: "Mileage Cost Per KM", formula: "Fuel Cost Per Litre ÷ Truck Mileage — or enter manually" },
@@ -434,7 +435,7 @@ const FORMULA_SECTIONS: FormulaSection[] = [
   },
   {
     title: "AdBlue",
-    color: "bg-cyan-50 text-cyan-700 border-cyan-200",
+    color: "bg-teal-surface text-teal-text border-teal-border",
     rows: [
       { field: "AdBlue Cost Per KM", formula: "The truck's manufacturer's AdBlue price ÷ its AdBlue km per litre (Truck's AdBlue History) — or enter manually" },
       { field: "AdBlue Expenses",    formula: "AdBlue Cost Per KM × Total KM" },
@@ -442,7 +443,7 @@ const FORMULA_SECTIONS: FormulaSection[] = [
   },
   {
     title: "Tyres",
-    color: "bg-teal-50 text-teal-700 border-teal-200",
+    color: "bg-teal-surface text-teal-text border-teal-border",
     rows: [
       { field: "Tyre Cost Per KM", formula: "Sum of (Tyre Purchase Cost ÷ Expected Range km) for each currently fitted tyre — or enter manually" },
       { field: "Tyre Expenses",    formula: "Tyre Cost Per KM × Total KM" },
@@ -450,7 +451,7 @@ const FORMULA_SECTIONS: FormulaSection[] = [
   },
   {
     title: "Maintenance",
-    color: "bg-amber-50 text-amber-700 border-amber-200",
+    color: "bg-warning-surface text-warning-text border-warning-border",
     rows: [
       { field: "Maint. Cost / Day", formula: "12-month maintenance total ÷ 12 months ÷ 26 working days — or enter manually" },
       { field: "Maint. Cost / KM",  formula: "Maint. Cost / Day ÷ Expected Daily Range (km/day from Truck Run Config) — or enter manually" },
@@ -459,7 +460,7 @@ const FORMULA_SECTIONS: FormulaSection[] = [
   },
   {
     title: "Footer Totals",
-    color: "bg-slate-100 text-slate-700 border-slate-300",
+    color: "bg-fill-2 text-text-primary border-border-button-default",
     rows: [
       { field: "Total Expenses", formula: "Toll + Driver Batta + Cleaner Batta + EMI Expenses + Diesel Expenses + AdBlue Expenses + Tyre Expenses + Maint. Expenses" },
       { field: "Total Profit",   formula: "Hire Amount − Total Expenses  (shown only when result is positive)" },
@@ -474,41 +475,41 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-scrim/40" />
       <div
-        className="relative z-10 w-full max-w-xl rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden"
+        className="relative z-10 w-full max-w-xl rounded-2xl bg-background-primary-default shadow-2xl ring-1 ring-border-button-hover overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-slate-700 to-slate-800 dark:from-slate-100 dark:to-slate-200 px-5 py-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/20">
-            <HelpCircle className="h-4 w-4 text-white" />
+        <div className="flex items-center gap-3 border-b border-separator-border bg-inverse px-5 py-4">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-on-solid/20">
+            <HelpCircle className="h-4 w-4 text-on-solid" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-bold text-white">How is this Calculated?</h2>
-            <p className="text-[11px] text-slate-400 dark:text-slate-600">Formula reference for every field in the truck card</p>
+            <h2 className="text-body-semibold text-on-solid">How is this Calculated?</h2>
+            <p className="text-[11px] text-text-tertiary">Formula reference for every field in the truck card</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-on-solid/10 text-on-solid hover:bg-on-solid/20 transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
         {/* Sections */}
-        <div className="flex flex-col gap-0 max-h-[72vh] overflow-y-auto divide-y divide-gray-100">
+        <div className="flex flex-col gap-0 max-h-[72vh] overflow-y-auto divide-y divide-separator-border">
           {FORMULA_SECTIONS.map((section) => (
             <div key={section.title} className="px-5 py-4">
-              <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-widest mb-3 ${section.color}`}>
+              <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[9px] font-semibold mb-3 ${section.color}`}>
                 {section.title}
               </span>
               <div className="flex flex-col gap-2">
                 {section.rows.map((row) => (
                   <div key={row.field} className="grid grid-cols-[140px_1fr] gap-3 items-start">
-                    <span className="text-[11px] font-bold text-gray-700 leading-snug pt-px">{row.field}</span>
-                    <span className="text-[11px] text-gray-500 leading-snug">{row.formula}</span>
+                    <span className="text-caption-2-semibold text-text-primary leading-snug pt-px">{row.field}</span>
+                    <span className="text-[11px] text-text-secondary leading-snug">{row.formula}</span>
                   </div>
                 ))}
               </div>
@@ -517,11 +518,11 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Footer note */}
-        <div className="flex items-start gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3">
-          <PencilLine className="h-3 w-3 text-teal-500 shrink-0 mt-0.5" />
-          <p className="text-[10px] text-gray-400 leading-relaxed">
-            <span className="font-semibold text-teal-600">Teal fields</span> are auto-fetched from fleet data.
-            Click to override. <span className="font-semibold text-amber-600">Amber fields</span> are overridden — click × to reset.
+        <div className="flex items-start gap-2 border-t border-separator-border bg-fill-1 px-5 py-3">
+          <PencilLine className="h-3 w-3 text-teal-text shrink-0 mt-0.5" />
+          <p className="text-[10px] text-text-tertiary leading-relaxed">
+            <span className="font-semibold text-teal-text">Teal fields</span> are auto-fetched from fleet data.
+            Click to override. <span className="font-semibold text-warning-text">Amber fields</span> are overridden — click × to reset.
             Paired Per Day ↔ Per KM fields cross-derive automatically.
           </p>
         </div>
@@ -815,25 +816,25 @@ function TruckProfitCard({
   }
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-[0_4px_6px_-1px_rgba(0,0,0,0.07),0_8px_24px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_16px_-2px_rgba(0,0,0,0.1),0_16px_40px_-8px_rgba(0,0,0,0.08)] transition-shadow duration-300">
+    <div className="rounded-xl border border-separator-border bg-background-primary-default overflow-hidden shadow-[0_4px_6px_-1px_rgba(0,0,0,0.07),0_8px_24px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_16px_-2px_rgba(0,0,0,0.1),0_16px_40px_-8px_rgba(0,0,0,0.08)] transition-shadow duration-300">
       {/* Card header */}
-      <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-200 text-gray-600">
+      <div className="flex items-center gap-3 border-b border-separator-border bg-fill-1 px-4 py-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-fill-3 text-text-secondary">
           <TruckIcon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1 flex items-center gap-3">
-          <p className="text-sm font-bold text-gray-900 truncate">{truck.registrationNumber}</p>
+          <p className="text-body-semibold text-text-primary truncate">{truck.registrationNumber}</p>
           <div className="flex items-center gap-1.5">
-            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+            <span className="rounded-full bg-fill-3 px-2 py-0.5 text-caption-2-semibold text-text-secondary">
               {truck.manufacturer}
             </span>
             {truck.tyreLayout && (
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${accent.badge}`}>
+              <span className={`rounded-full px-2 py-0.5 text-caption-2-semibold ${accent.badge}`}>
                 {truck.tyreLayout}
               </span>
             )}
             {truck.branchRegisteredTo && (
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+              <span className="rounded-full border border-success-border bg-success-surface px-2 py-0.5 text-caption-2-semibold text-success-text">
                 {truck.branchRegisteredTo}
               </span>
             )}
@@ -845,14 +846,14 @@ function TruckProfitCard({
       {FIELD_ROWS.map((row, rowIdx) => (
         <div
           key={rowIdx}
-          className={`flex bg-gray-50/60 ${rowIdx > 0 ? "border-t border-gray-100" : ""}`}
+          className={`flex bg-fill-1 ${rowIdx > 0 ? "border-t border-separator-border" : ""}`}
         >
           {row.map((field, colIdx) => (
             <div
               key={field.key}
-              className={`flex flex-1 min-w-0 flex-col gap-1 py-2 px-1.5 ${colIdx > 0 ? "border-l border-gray-100" : ""}`}
+              className={`flex flex-1 min-w-0 flex-col gap-1 py-2 px-1.5 ${colIdx > 0 ? "border-l border-separator-border" : ""}`}
             >
-              <span className="text-[8.5px] font-semibold uppercase tracking-wide text-gray-400 leading-tight text-center truncate">
+              <span className="text-[8.5px] font-semibold text-text-tertiary leading-tight text-center truncate">
                 {field.label}
               </span>
               {field.overridable ? (
@@ -901,28 +902,28 @@ function TruckProfitCard({
       ))}
 
       {/* Footer — Total Expenses / Total Profit / Total Loss */}
-      <div className="grid grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-b-xl">
-        <div className="flex items-center justify-between gap-2 bg-slate-800 dark:bg-slate-100 px-3 py-2">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-600 leading-tight">
+      <div className="grid grid-cols-3 divide-x divide-on-solid/10 overflow-hidden rounded-b-xl">
+        <div className="flex items-center justify-between gap-2 bg-inverse px-3 py-2">
+          <span className="text-[9px] font-semibold text-text-tertiary leading-tight">
             Total<br />Expenses
           </span>
-          <span className="text-xs font-extrabold tabular-nums text-white dark:text-gray-900">
+          <span className="text-caption-1-semibold tabular-nums text-on-solid">
             {hasExpenses ? `₹${totalExpenses.toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss >= 0 ? "bg-blue-600 dark:bg-blue-400" : "bg-blue-900 dark:bg-blue-50"}`}>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-blue-200 dark:text-blue-700 leading-tight">
+        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss >= 0 ? "bg-accent-solid " : "bg-accent-solid "}`}>
+          <span className="text-[9px] font-semibold text-on-solid/80 leading-tight">
             Total<br />Profit
           </span>
-          <span className="text-xs font-extrabold tabular-nums text-white dark:text-blue-900">
+          <span className="text-caption-1-semibold tabular-nums text-on-solid">
             {profitOrLoss !== null && profitOrLoss >= 0 ? `₹${profitOrLoss.toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss < 0 ? "bg-red-600 dark:bg-red-400" : "bg-red-900 dark:bg-red-50"}`}>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-red-300 dark:text-red-700 leading-tight">
+        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss < 0 ? "bg-danger-solid " : "bg-danger-solid "}`}>
+          <span className="text-[9px] font-semibold text-on-solid/80 leading-tight">
             Total<br />Loss
           </span>
-          <span className="text-xs font-extrabold tabular-nums text-white dark:text-red-900">
+          <span className="text-caption-1-semibold tabular-nums text-on-solid">
             {profitOrLoss !== null && profitOrLoss < 0 ? `₹${Math.abs(profitOrLoss).toFixed(2)}` : "—"}
           </span>
         </div>
@@ -1140,23 +1141,23 @@ export default function TripProfitabilityCalculatorPage() {
       {/* Page header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
             <Calculator className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Profitability Calculator</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Trip Profitability Calculator</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Estimate and analyse profit margins per trip across your fleet.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => setShowGuide(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+          <button type="button" onClick={() => setShowGuide(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md">
             <BookOpen className="h-4 w-4" />
             Quick Start Guide
           </button>
-          <button type="button" onClick={() => setShowCalc(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+          <button type="button" onClick={() => setShowCalc(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md">
             <HelpCircle className="h-4 w-4" />
             How is this Calculated?
           </button>
@@ -1217,12 +1218,12 @@ export default function TripProfitabilityCalculatorPage() {
         <div className="col-span-3 flex flex-col gap-4">
 
           {/* Trip Details card */}
-          <div className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.06),0_4px_16px_-4px_rgba(0,0,0,0.05)]">
+          <div className="rounded-xl border border-separator-border bg-background-primary-default px-5 py-4 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.06),0_4px_16px_-4px_rgba(0,0,0,0.05)]">
             <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent-surface text-accent-text">
                 <IndianRupee className="h-3.5 w-3.5" />
               </div>
-              <h2 className="text-sm font-bold text-gray-800">Trip Details</h2>
+              <h2 className="text-body-semibold text-text-primary">Trip Details</h2>
             </div>
             <div className="grid grid-cols-6 gap-3">
               {[
@@ -1233,7 +1234,7 @@ export default function TripProfitabilityCalculatorPage() {
                 { label: "Trip Duration (Days)",   key: "tripDuration", type: "number", placeholder: "e.g. 5"       },
               ].map(({ label, key, type, placeholder }) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</label>
+                  <label className="text-caption-2-semibold text-text-tertiary">{label}</label>
                   <input
                     type={type}
                     min={type === "number" ? "0" : undefined}
@@ -1247,7 +1248,7 @@ export default function TripProfitabilityCalculatorPage() {
                 </div>
               ))}
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="trip-vehicle-type" className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Vehicle Type</label>
+                <label htmlFor="trip-vehicle-type" className="text-caption-2-semibold text-text-tertiary">Vehicle Type</label>
                 <select
                   id="trip-vehicle-type"
                   value={vehicleType.spec}
@@ -1266,20 +1267,14 @@ export default function TripProfitabilityCalculatorPage() {
           <div className={truckView === "single" ? "grid grid-cols-1 gap-4 items-start" : "grid grid-cols-2 gap-4 items-start"}>
           {trucksLoading ? (
             [1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-40 animate-pulse rounded-xl border border-gray-200 bg-gray-100" />
+              <div key={i} className="h-40 animate-pulse rounded-xl border border-separator-border bg-fill-2" />
             ))
           ) : trucks.length === 0 ? (
-            <div className="col-span-2 flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
-              No trucks found in fleet.
-            </div>
+            <EmptyState size="compact" illustration="logistics" title="No trucks found in fleet" />
           ) : filtered.length === 0 ? (
-            <div className="col-span-2 flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white py-10 text-sm text-gray-400">
-              {truckView === "list"
+            <EmptyState size="compact" illustration="logistics" title={truckView === "list"
                 ? `No trucks match "${truckSearch}".`
-                : truckView === "compare"
-                ? "Select both vehicles above to compare."
-                : "Select a vehicle above to see its profitability breakdown."}
-            </div>
+                : truckView === "compare" ? "Select both vehicles above to compare" : "Select a vehicle above to see its profitability breakdown"} />
           ) : (
             filtered.map((truck, idx) => (
               <TruckProfitCard

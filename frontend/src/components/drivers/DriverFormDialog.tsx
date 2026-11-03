@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FileText, Eye, EyeOff, KeyRound } from "lucide-react";
-import { showError, validateFileSize } from "@/lib/swal";
+import { RiFileTextLine as FileText, RiEyeLine as Eye, RiEyeOffLine as EyeOff, RiKey2Line as KeyRound } from "@remixicon/react";
+import { showError } from "@/lib/feedback";
+import { validateFileSize } from "@/lib/file-limits";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
@@ -16,7 +17,7 @@ import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 export const DRAFT_KEY = "erp_driver_form_draft";
 
 const sectionHeadingClass =
-  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+  "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 export type DriverFiles = { photo?: File | null; aadhaar?: File | null; license?: File | null };
 
@@ -141,7 +142,7 @@ export function DriverFormDialog({
             value={driverId}
             readOnly
             disabled
-            className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+            className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
           />
         </Field>
 
@@ -160,7 +161,7 @@ export function DriverFormDialog({
                 reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
                 reader.readAsDataURL(file);
               }}
-              className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
+              className="text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-surface file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent-text hover:file:bg-accent-surface-strong"
             />
           </div>
         </Field>
@@ -292,7 +293,7 @@ export function DriverFormDialog({
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>Bank Account Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Bank Name">
@@ -347,7 +348,7 @@ export function DriverFormDialog({
           />
         </Field>
 
-        <div className="rounded-lg border border-gray-200 p-4 flex flex-col gap-4">
+        <div className="rounded-lg border border-separator-border p-4 flex flex-col gap-4">
           <p className={sectionHeadingClass}>Software Credentials</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Username (auto-filled from email)">
@@ -362,12 +363,12 @@ export function DriverFormDialog({
                 placeholder="Auto-filled from email"
               />
               {usernameIsSynced ? (
-                <p className="mt-1 text-xs text-green-600">&#10003; Synced with email</p>
+                <p className="mt-1 text-xs text-success-text">&#10003; Synced with email</p>
               ) : form.email ? (
                 <button
                   type="button"
                   onClick={resetUsernameToEmail}
-                  className="mt-1 text-xs text-blue-600 underline hover:text-blue-800"
+                  className="mt-1 text-xs text-accent-text underline hover:text-accent-text-strong"
                 >
                   Reset to email
                 </button>
@@ -381,7 +382,7 @@ export function DriverFormDialog({
                 readOnly={!!initialData}
                 value={initialData ? "••••••••" : form.password}
                 onChange={(e) => !initialData && update("password", e.target.value)}
-                className={`${inputClassLower} ${initialData ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""}`}
+                className={`${inputClassLower} ${initialData ? "bg-fill-1 text-text-tertiary cursor-not-allowed" : ""}`}
                 placeholder="Set a login password"
               />
             </Field>
@@ -395,7 +396,7 @@ export function DriverFormDialog({
                   setChangePassword((v) => !v);
                   update("password", "");
                 }}
-                className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                className="flex items-center gap-2 text-body-medium text-accent-text hover:text-accent-text-strong transition-colors"
               >
                 <KeyRound className="w-4 h-4" />
                 {changePassword ? "Cancel password change" : "Change password"}
@@ -415,7 +416,7 @@ export function DriverFormDialog({
                       <button
                         type="button"
                         onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                        className="absolute right-3 top-2.5 text-text-tertiary hover:text-text-secondary focus:outline-none"
                       >
                         {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -439,7 +440,7 @@ export function DriverFormDialog({
                 setFiles((prev) => ({ ...prev, aadhaar: file }));
                 update("aadhaarFileName", file.name);
               }}
-              className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
+              className="text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-surface file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent-text hover:file:bg-accent-surface-strong"
             />
             <FilePreviewBadge
               fileName={form.aadhaarFileName}
@@ -461,7 +462,7 @@ export function DriverFormDialog({
                 setFiles((prev) => ({ ...prev, license: file }));
                 update("licenseFileName", file.name);
               }}
-              className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
+              className="text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-surface file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent-text hover:file:bg-accent-surface-strong"
             />
             <FilePreviewBadge
               fileName={form.licenseFileName}
@@ -477,13 +478,13 @@ export function DriverFormDialog({
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {initialData ? "Save Changes" : "Add Driver"}
           </button>

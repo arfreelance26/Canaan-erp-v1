@@ -2,23 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Landmark,
-  Wallet,
-  ShieldCheck,
-  History,
-  CalendarCheck,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  TrendingUp,
-  IndianRupee,
-  FileWarning,
-  CircleDot,
-  Flag,
-} from "lucide-react";
+import { RiBankLine as Landmark, RiWallet3Line as Wallet, RiShieldCheckLine as ShieldCheck, RiHistoryLine as History, RiCalendarCheckLine as CalendarCheck, RiAlertLine as AlertTriangle, RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiArrowRightUpLine as TrendingUp, RiMoneyRupeeCircleLine as IndianRupee, RiFileWarningLine as FileWarning, RiRecordCircleLine as CircleDot, RiFlagLine as Flag } from "@remixicon/react";
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { ComplianceAlertBanner } from "./ComplianceAlertBanner";
 import { FleetStatusPanel } from "./FleetStatusPanel";
@@ -36,12 +22,14 @@ import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
 
 
+import { EmptyState } from "@/components/ui/EmptyState";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 const QUICK_LINKS = [
-  { label: "Trip Finalization",   href: "/trips/finalization",         icon: CalendarCheck, color: "bg-blue-50 text-blue-600 border-blue-200" },
-  { label: "Trip History",        href: "/trips/history",              icon: History,       color: "bg-violet-50 text-violet-600 border-violet-200" },
-  { label: "Driver Compensation", href: "/finance/driver-compensation", icon: Wallet,        color: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-  { label: "EMI Tracking",        href: "/finance/emi-tracking",        icon: Landmark,      color: "bg-amber-50 text-amber-600 border-amber-200" },
-  { label: "Compliance",          href: "/maintenance/compliance",      icon: ShieldCheck,   color: "bg-teal-50 text-teal-600 border-teal-200" },
+  { label: "Trip Finalization",   href: "/trips/finalization",         icon: CalendarCheck, color: "bg-accent-surface text-accent-text border-accent-border" },
+  { label: "Trip History",        href: "/trips/history",              icon: History,       color: "bg-purple-surface text-purple-text border-purple-border" },
+  { label: "Driver Compensation", href: "/finance/driver-compensation", icon: Wallet,        color: "bg-success-surface text-success-text border-success-border" },
+  { label: "EMI Tracking",        href: "/finance/emi-tracking",        icon: Landmark,      color: "bg-warning-surface text-warning-text border-warning-border" },
+  { label: "Compliance",          href: "/maintenance/compliance",      icon: ShieldCheck,   color: "bg-teal-surface text-teal-text border-teal-border" },
 ];
 
 const DOC_FIELDS: { label: string; key: keyof Truck }[] = [
@@ -78,8 +66,8 @@ function SectionTitle({ icon: Icon, title, badge, badgeVariant }: {
 }) {
   return (
     <div className="mb-4 flex items-center gap-2.5">
-      <Icon className="h-4 w-4 text-gray-400" />
-      <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+      <Icon className="h-4 w-4 text-text-tertiary" />
+      <h2 className="text-body-semibold text-text-primary">{title}</h2>
       {badge !== undefined && Number(badge) > 0 && (
         <Badge variant={badgeVariant ?? "neutral"}>{badge}</Badge>
       )}
@@ -173,15 +161,7 @@ export function FinanceManagerDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3.5">
-            <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
-              <Landmark className="h-5 w-5" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Accounts Dashboard</h1>
-              <p className="mt-0.5 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
-            </div>
-          </div>
+          <DashboardHero illustration="finance" title="Accounts" description="EMI obligations, trip finalization and compliance" />
         </div>
       </div>
 
@@ -248,11 +228,11 @@ export function FinanceManagerDashboard() {
 
       {/* Quick Links */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Quick Access</h2>
+        <h2 className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
             <Link key={href} href={href}
-              className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center text-xs font-semibold transition-all hover:-translate-y-1 hover:shadow-md ${color}`}
+              className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center text-caption-1-semibold transition hover:shadow-md ${color}`}
             >
               <Icon className="h-6 w-6" />
               {label}
@@ -266,15 +246,15 @@ export function FinanceManagerDashboard() {
         <CardContent className="p-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <h2 className="text-sm font-semibold text-gray-800">Trips Pending Invoice</h2>
+              <h2 className="text-body-semibold text-text-primary">Trips Pending Invoice</h2>
               {!loading && (
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-blue-700">
+                <span className="rounded-full bg-accent-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-accent-text">
                   {pendingFinalization.length}
                 </span>
               )}
             </div>
             {pendingFinalization.length > 0 && (
-              <Link href="/trips/finalization" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+              <Link href="/trips/finalization" className="text-caption-1-semibold text-accent-text transition-colors hover:text-accent-text-strong">
                 View all →
               </Link>
             )}
@@ -283,25 +263,25 @@ export function FinanceManagerDashboard() {
             <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
           ) : pendingFinalization.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-gray-600">All trips invoiced</p>
-              <p className="text-xs text-gray-400">No pending finalization</p>
+              <CheckCircle2 className="h-8 w-8 text-success-text" />
+              <p className="text-body-medium text-text-secondary">All trips invoiced</p>
+              <p className="text-xs text-text-tertiary">No pending finalization</p>
             </div>
           ) : (
-            <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+            <ul className="max-h-72 divide-y divide-separator-border overflow-y-auto pr-1">
               {pendingFinalization.slice(0, 8).map((trip) => {
                 const st = trip.verificationStatus;
                 const tone =
-                  st === "verified" ? { text: "text-emerald-700", dot: "bg-emerald-500" }
-                  : st === "flagged" ? { text: "text-red-700", dot: "bg-red-500" }
-                  : { text: "text-gray-500", dot: "bg-gray-400" };
+                  st === "verified" ? { text: "text-success-text", dot: "bg-success-solid" }
+                  : st === "flagged" ? { text: "text-danger-text", dot: "bg-danger-solid" }
+                  : { text: "text-text-secondary", dot: "bg-fill-4" };
                 return (
                   <li key={trip.id} className="flex items-center gap-4 py-2.5">
-                    <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
-                    <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
-                      {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+                    <p className="w-24 shrink-0 text-body-semibold tabular-nums text-text-primary">{trip.tripId}</p>
+                    <p className="min-w-0 flex-1 truncate text-xs uppercase text-text-secondary">
+                      {trip.origin} <span className="px-1 text-text-tertiary">→</span> {trip.destination}
                     </p>
-                    <span className={`flex shrink-0 items-center gap-1.5 text-xs font-medium capitalize ${tone.text}`}>
+                    <span className={`flex shrink-0 items-center gap-1.5 text-caption-1-medium capitalize ${tone.text}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
                       {st}
                     </span>
@@ -321,17 +301,17 @@ export function FinanceManagerDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold text-gray-800">Compliance Alerts</h2>
+                <h2 className="text-body-semibold text-text-primary">Compliance Alerts</h2>
                 {!loading && (
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
-                    complianceAlerts.some((a) => a.status === "Expired") ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+                  <span className={`rounded-full px-2 py-0.5 text-caption-2-semibold tabular-nums ${
+                    complianceAlerts.some((a) => a.status === "Expired") ? "bg-danger-surface text-danger-text" : "bg-warning-surface text-warning-text"
                   }`}>
                     {complianceAlerts.length}
                   </span>
                 )}
               </div>
               {complianceAlerts.length > 0 && (
-                <Link href="/maintenance/compliance" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+                <Link href="/maintenance/compliance" className="text-caption-1-semibold text-accent-text transition-colors hover:text-accent-text-strong">
                   View all →
                 </Link>
               )}
@@ -340,24 +320,24 @@ export function FinanceManagerDashboard() {
               <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
             ) : complianceAlerts.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <ShieldCheck className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm font-medium text-gray-600">All documents valid</p>
+                <ShieldCheck className="h-8 w-8 text-success-text" />
+                <p className="text-body-medium text-text-secondary">All documents valid</p>
               </div>
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+              <ul className="max-h-72 divide-y divide-separator-border overflow-y-auto pr-1">
                 {complianceAlerts.slice(0, 10).map((a, i) => {
                   const days = daysBetween(a.date);
                   const isExpired = a.status === "Expired";
                   return (
                     <li key={i} className="flex items-center gap-3 py-2.5">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${isExpired ? "bg-red-500" : "bg-amber-400"}`} />
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${isExpired ? "bg-danger-solid" : "bg-warning-solid"}`} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">
-                          {a.doc} <span className="font-normal text-gray-400">·</span> {a.truck.registrationNumber}
+                        <p className="truncate text-body-semibold text-text-primary">
+                          {a.doc} <span className="font-normal text-text-tertiary">·</span> {a.truck.registrationNumber}
                         </p>
-                        <p className="text-[11px] text-gray-500">{a.truck.truckId}</p>
+                        <p className="text-[11px] text-text-secondary">{a.truck.truckId}</p>
                       </div>
-                      <span className={`shrink-0 text-xs font-semibold tabular-nums ${isExpired ? "text-red-600" : "text-amber-600"}`}>
+                      <span className={`shrink-0 text-caption-1-semibold tabular-nums ${isExpired ? "text-danger-text" : "text-warning-text"}`}>
                         {isExpired ? `${Math.abs(days).toLocaleString("en-IN")}d overdue` : `${days}d left`}
                       </span>
                     </li>
@@ -372,9 +352,9 @@ export function FinanceManagerDashboard() {
         <Card>
           <CardContent className="p-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <h2 className="text-sm font-semibold text-gray-800">Recurring Payments Due Soon</h2>
+              <h2 className="text-body-semibold text-text-primary">Recurring Payments Due Soon</h2>
               {!loading && dueSoonRecurring.length > 0 && (
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-blue-700">
+                <span className="rounded-full bg-accent-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-accent-text">
                   {dueSoonRecurring.length}
                 </span>
               )}
@@ -382,24 +362,20 @@ export function FinanceManagerDashboard() {
             {loading ? (
               <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
             ) : dueSoonRecurring.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm font-medium text-gray-600">Nothing due in the next 7 days</p>
-                <p className="text-xs text-gray-400">Upcoming recurring payments will appear here</p>
-              </div>
+              <EmptyState size="compact" illustration="no-data" title="Nothing due in the next 7 days" description="Upcoming recurring payments will appear here" />
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+              <ul className="max-h-72 divide-y divide-separator-border overflow-y-auto pr-1">
                 {dueSoonRecurring.map((r) => {
                   const days = daysBetween(r.nextDueDate);
                   return (
                     <li key={r.id} className="flex items-center gap-3 py-2.5">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">{r.title}</p>
-                        <p className="text-[11px] text-gray-500">{r.category} · {r.frequency}</p>
+                        <p className="truncate text-body-semibold text-text-primary">{r.title}</p>
+                        <p className="text-[11px] text-text-secondary">{r.category} · {r.frequency}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-sm font-semibold tabular-nums text-gray-900">{fmt(r.amount)}</p>
-                        <p className={`text-[11px] ${days === 0 ? "font-semibold text-red-600" : days <= 3 ? "font-medium text-amber-600" : "text-gray-400"}`}>
+                        <p className="text-body-semibold tabular-nums text-text-primary">{fmt(r.amount)}</p>
+                        <p className={`text-[11px] ${days === 0 ? "font-semibold text-danger-text" : days <= 3 ? "font-medium text-warning-text" : "text-text-tertiary"}`}>
                           {days === 0 ? "Due today" : `in ${days}d`}
                         </p>
                       </div>

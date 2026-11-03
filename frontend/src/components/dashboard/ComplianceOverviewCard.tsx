@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { RiShieldCheckLine as ShieldCheck } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
 import { formatDate } from "@/lib/format-date";
 import { Segmented } from "@/components/ui/Segmented";
 import { PillSearch } from "@/components/ui/PillSearch";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Status = "valid" | "soon" | "expired" | "none";
 type Filter = "all" | "expired" | "soon";
 
@@ -22,9 +23,9 @@ const DOCS: { label: string; field: keyof Truck; kind: ComplianceField }[] = [
 ];
 
 const CHIP: Record<Exclude<Status, "none">, { label: string; cls: string }> = {
-  valid: { label: "Valid", cls: "bg-emerald-50 text-emerald-700" },
-  soon: { label: "Soon", cls: "bg-amber-50 text-amber-700" },
-  expired: { label: "Expired", cls: "bg-red-50 text-red-700" },
+  valid: { label: "Valid", cls: "bg-success-surface text-success-text" },
+  soon: { label: "Soon", cls: "bg-warning-surface text-warning-text" },
+  expired: { label: "Expired", cls: "bg-danger-surface text-danger-text" },
 };
 
 type Row = {
@@ -81,38 +82,38 @@ export function ComplianceOverviewCard({ trucks }: { trucks: Truck[] }) {
   const trucksWithIssues = rows.filter((r) => r.expired > 0).length;
 
   return (
-    <div className="dk-inset overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-blue-50/70 via-white to-white px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-separator-border bg-accent-surface/70 px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-surface-strong text-accent-text">
             <ShieldCheck className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-sm font-bold text-gray-900">Compliance Overview</h2>
-            <p className="text-xs text-gray-500">
+            <h2 className="text-body-semibold text-text-primary">Compliance Overview</h2>
+            <p className="text-xs text-text-secondary">
               {trucksWithIssues === 0
                 ? `All ${rows.length} trucks have valid documents`
                 : `${trucksWithIssues} of ${rows.length} trucks have an expired document`}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-          <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
-            <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <div className="flex flex-wrap items-center gap-2 text-caption-1-semibold">
+          <span className="flex items-center gap-1.5 rounded-full bg-success-surface px-2.5 py-1 text-success-text">
+            <i className="h-1.5 w-1.5 rounded-full bg-success-solid" />
             {totals.valid} valid
           </span>
-          <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
-            <i className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          <span className="flex items-center gap-1.5 rounded-full bg-warning-surface px-2.5 py-1 text-warning-text">
+            <i className="h-1.5 w-1.5 rounded-full bg-warning-solid" />
             {totals.soon} expiring soon
           </span>
-          <span className="flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-red-700">
-            <i className="h-1.5 w-1.5 rounded-full bg-red-500" />
+          <span className="flex items-center gap-1.5 rounded-full bg-danger-surface px-2.5 py-1 text-danger-text">
+            <i className="h-1.5 w-1.5 rounded-full bg-danger-solid" />
             {totals.expired} expired
           </span>
           {totals.none > 0 && (
-            <span className="flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-gray-500">
-              <i className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+            <span className="flex items-center gap-1.5 rounded-full bg-fill-2 px-2.5 py-1 text-text-secondary">
+              <i className="h-1.5 w-1.5 rounded-full bg-fill-4" />
               {totals.none} no date
             </span>
           )}
@@ -136,51 +137,49 @@ export function ComplianceOverviewCard({ trucks }: { trucks: Truck[] }) {
 
       {/* Table */}
       <div className="p-4">
-        <div className="overflow-hidden rounded-xl border border-gray-100">
+        <div className="overflow-hidden rounded-xl border border-separator-border">
           <div className="custom-scrollbar max-h-96 overflow-auto">
             <table className="w-full min-w-[720px] text-left text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Truck</th>
+                <tr className="border-b border-separator-border bg-fill-1">
+                  <th className="px-5 py-2.5 text-caption-2-semibold text-text-secondary">Truck</th>
                   {DOCS.map((d) => (
-                    <th key={d.label} className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    <th key={d.label} className="px-4 py-2.5 text-caption-2-semibold text-text-secondary">
                       {d.label}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-separator-border">
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={DOCS.length + 1} className="px-5 py-10 text-center text-xs text-gray-400">
-                      {rows.length === 0 ? "No trucks in the fleet yet." : "No trucks match this filter."}
-                    </td>
+                    <td colSpan={DOCS.length + 1} className="p-0"><EmptyState size="compact" illustration={rows.length === 0 ? "logistics" : "not-found"} title={rows.length === 0 ? "No trucks in the fleet yet" : "No trucks match this filter"} /></td>
                   </tr>
                 ) : (
                   visible.map((r) => (
-                    <tr key={r.truck.id} className="transition-colors hover:bg-gray-50/70">
+                    <tr key={r.truck.id} className="transition-colors hover:bg-fill-2">
                       <td className="relative px-5 py-2.5">
                         {r.worst !== "valid" && (
                           <span
                             className={`absolute inset-y-2 left-0 w-1 rounded-r-full ${
-                              r.worst === "expired" ? "bg-red-500" : "bg-amber-400"
+                              r.worst === "expired" ? "bg-danger-solid" : "bg-warning-solid"
                             }`}
                           />
                         )}
-                        <p className="text-xs font-bold text-gray-900">{r.truck.registrationNumber || r.truck.truckId}</p>
-                        <p className="text-[11px] text-gray-400">{r.truck.truckId}</p>
+                        <p className="text-caption-1-semibold text-text-primary">{r.truck.registrationNumber || r.truck.truckId}</p>
+                        <p className="text-[11px] text-text-tertiary">{r.truck.truckId}</p>
                       </td>
                       {r.cells.map((c, i) => (
                         <td key={DOCS[i].label} className="px-4 py-2.5">
                           {c.status === "none" ? (
-                            <span className="text-gray-300" title="No date on record">—</span>
+                            <span className="text-text-tertiary" title="No date on record">—</span>
                           ) : (
                             <div className="flex flex-col items-start gap-0.5">
-                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${CHIP[c.status].cls}`}>
+                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-caption-2-semibold ${CHIP[c.status].cls}`}>
                                 <i className="h-1 w-1 rounded-full bg-current" />
                                 {CHIP[c.status].label}
                               </span>
-                              <span className="pl-1 text-[10px] tabular-nums text-gray-400">{formatDate(c.date)}</span>
+                              <span className="pl-1 text-[10px] tabular-nums text-text-tertiary">{formatDate(c.date)}</span>
                             </div>
                           )}
                         </td>
@@ -192,8 +191,8 @@ export function ComplianceOverviewCard({ trucks }: { trucks: Truck[] }) {
             </table>
           </div>
         </div>
-        <p className="mt-2 text-[11px] text-gray-500">
-          Showing <span className="font-semibold tabular-nums text-gray-700">{visible.length}</span> of {rows.length} trucks · worst first
+        <p className="mt-2 text-[11px] text-text-secondary">
+          Showing <span className="font-semibold tabular-nums text-text-primary">{visible.length}</span> of {rows.length} trucks · worst first
         </p>
       </div>
     </div>

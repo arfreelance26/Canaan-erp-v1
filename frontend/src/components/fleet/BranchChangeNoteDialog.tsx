@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { X, GitBranch } from "lucide-react";
+import { RiCloseLine as X, RiGitBranchLine as GitBranch } from "@remixicon/react";
 
 type Props = {
   open: boolean;
@@ -38,37 +38,37 @@ export function BranchChangeNoteDialog({ open, truckLabel, fromBranch, toBranch,
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/60 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div className="absolute inset-0 bg-scrim/40" onClick={handleClose} />
+      <div className="relative w-full max-w-md rounded-2xl border border-separator-border bg-background-primary-default shadow-2xl">
+        <div className="flex items-center justify-between border-b border-separator-border px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-              <GitBranch className="h-4 w-4 text-blue-600" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-surface-strong">
+              <GitBranch className="h-4 w-4 text-accent-text" />
             </div>
             <div>
-              <h2 className="text-[15px] font-semibold text-gray-900">Change Branch</h2>
-              <p className="text-[11px] text-gray-500">{truckLabel}</p>
+              <h2 className="text-[15px] font-semibold text-text-primary">Change Branch</h2>
+              <p className="text-[11px] text-text-secondary">{truckLabel}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-text-secondary"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 py-5">
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm">
-            <span className="font-semibold text-gray-500">{fromBranch || "Unassigned"}</span>
-            <span className="text-gray-300">→</span>
-            <span className="font-semibold text-blue-700">{toBranch}</span>
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-separator-border bg-fill-1 px-4 py-3 text-sm">
+            <span className="font-semibold text-text-secondary">{fromBranch || "Unassigned"}</span>
+            <span className="text-text-tertiary">→</span>
+            <span className="font-semibold text-accent-text">{toBranch}</span>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-gray-700">
-              Note for this change <span className="text-red-500">*</span>
+            <label className="text-body-2-medium text-text-primary">
+              Note for this change <span className="text-danger-text">*</span>
             </label>
             <textarea
               value={note}
@@ -77,9 +77,9 @@ export function BranchChangeNoteDialog({ open, truckLabel, fromBranch, toBranch,
               rows={4}
               required
               autoFocus
-              className="w-full resize-none rounded-lg border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              className="w-full resize-none rounded-lg border border-separator-border bg-background-primary-default px-3 py-2.5 text-sm text-text-primary outline-none transition placeholder:text-text-placeholder focus:border-accent-solid focus:bg-background-primary-default focus:ring-4 focus:ring-accent-solid/10"
             />
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-text-tertiary">
               This is just a record of the change — no approval is needed.
             </span>
           </div>
@@ -88,14 +88,14 @@ export function BranchChangeNoteDialog({ open, truckLabel, fromBranch, toBranch,
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting || !note.trim()}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? "Saving..." : "Confirm Change"}
             </button>

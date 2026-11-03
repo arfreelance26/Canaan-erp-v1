@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  CheckCircle2,
-  FileWarning,
-  Navigation,
-  ArrowRight,
-  Activity,
-} from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiFileWarningLine as FileWarning, RiNavigationLine as Navigation, RiArrowRightLine as ArrowRight, RiPulseLine as Activity } from "@remixicon/react";
 import { dashboardApi, type TripsOverview, type TripOverviewRow } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -15,23 +9,23 @@ import { cn } from "@/lib/utils";
 
 /* ── Status badges — same pill pattern used across the app ─────────────────── */
 const STATUS_PILL: Record<string, string> = {
-  Assigned:     "bg-sky-100 text-sky-700",
-  Started:      "bg-blue-100 text-blue-700",
-  Loaded:       "bg-indigo-100 text-indigo-700",
-  "On-Transit": "bg-violet-100 text-violet-700",
-  Reached:      "bg-teal-100 text-teal-700",
-  Unloaded:     "bg-cyan-100 text-cyan-700",
-  Completed:    "bg-emerald-100 text-emerald-700",
+  Assigned:     "bg-teal-surface-strong text-teal-text",
+  Started:      "bg-accent-surface-strong text-accent-text",
+  Loaded:       "bg-purple-surface-strong text-purple-text",
+  "On-Transit": "bg-purple-surface-strong text-purple-text",
+  Reached:      "bg-teal-surface-strong text-teal-text",
+  Unloaded:     "bg-teal-surface-strong text-teal-text",
+  Completed:    "bg-success-surface-strong text-success-text",
 };
 
 const STATUS_DOT: Record<string, string> = {
-  Assigned:     "bg-sky-400",
-  Started:      "bg-blue-500",
-  Loaded:       "bg-indigo-500",
-  "On-Transit": "bg-violet-500",
-  Reached:      "bg-teal-500",
-  Unloaded:     "bg-cyan-500",
-  Completed:    "bg-emerald-500",
+  Assigned:     "bg-teal-solid",
+  Started:      "bg-accent-solid",
+  Loaded:       "bg-purple-solid",
+  "On-Transit": "bg-purple-solid",
+  Reached:      "bg-teal-solid",
+  Unloaded:     "bg-teal-solid",
+  Completed:    "bg-success-solid",
 };
 
 /* ── Section config — mirrors StatCard variants ────────────────────────────── */
@@ -42,13 +36,13 @@ const SECTIONS = [
     label:    "Current Trips",
     sublabel: "trips on road",
     /* StatCard "blue" variant */
-    card:     "border-blue-200 bg-blue-50",
-    iconCls:  "text-blue-500",
-    titleCls: "text-blue-500",
-    valueCls: "text-blue-800",
-    capCls:   "text-blue-600/80",
+    card:     "border-accent-border bg-accent-surface",
+    iconCls:  "text-accent-text",
+    titleCls: "text-accent-text",
+    valueCls: "text-accent-text-strong",
+    capCls:   "text-accent-text/80",
     /* section header in table */
-    headCls:  "text-blue-600",
+    headCls:  "text-accent-text",
   },
   {
     key:      "completedTrips"      as const,
@@ -56,12 +50,12 @@ const SECTIONS = [
     label:    "Completed",
     sublabel: "total finished",
     /* StatCard "emerald" variant */
-    card:     "border-emerald-200 bg-emerald-50",
-    iconCls:  "text-emerald-500",
-    titleCls: "text-emerald-600",
-    valueCls: "text-emerald-800",
-    capCls:   "text-emerald-600/80",
-    headCls:  "text-emerald-600",
+    card:     "border-success-border bg-success-surface",
+    iconCls:  "text-success-text",
+    titleCls: "text-success-text",
+    valueCls: "text-success-text-strong",
+    capCls:   "text-success-text/80",
+    headCls:  "text-success-text",
   },
   {
     key:      "pendingInvoiceTrips" as const,
@@ -69,12 +63,12 @@ const SECTIONS = [
     label:    "Pending Invoice",
     sublabel: "awaiting billing",
     /* StatCard "amber" variant */
-    card:     "border-amber-200 bg-amber-50",
-    iconCls:  "text-amber-500",
-    titleCls: "text-amber-600",
-    valueCls: "text-amber-800",
-    capCls:   "text-amber-600/80",
-    headCls:  "text-amber-600",
+    card:     "border-warning-border bg-warning-surface",
+    iconCls:  "text-warning-text",
+    titleCls: "text-warning-text",
+    valueCls: "text-warning-text-strong",
+    capCls:   "text-warning-text/80",
+    headCls:  "text-warning-text",
   },
 ] as const;
 
@@ -101,10 +95,10 @@ function StatTile({
   return (
     <div className={cn("rounded-xl border p-5", card)}>
       <div className="flex items-center justify-between">
-        <p className={cn("text-xs font-semibold uppercase tracking-wider", titleCls)}>{label}</p>
+        <p className={cn("text-caption-1-semibold", titleCls)}>{label}</p>
         <Icon className={cn("h-5 w-5", iconCls)} />
       </div>
-      <p className={cn("mt-2 text-3xl font-bold", valueCls)}>{value}</p>
+      <p className={cn("mt-2 text-display-4-semibold", valueCls)}>{value}</p>
       <p className={cn("mt-1 text-sm", capCls)}>{sublabel}</p>
     </div>
   );
@@ -119,11 +113,11 @@ function SectionHeader({ icon: Icon, label, count, headCls }: {
       <td colSpan={5} className="px-5 pt-5 pb-2">
         <div className="flex items-center gap-2">
           <Icon className={cn("h-3.5 w-3.5", headCls)} />
-          <span className={cn("text-[11px] font-bold uppercase tracking-widest", headCls)}>{label}</span>
-          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold leading-none", headCls, "bg-current/10")}>
+          <span className={cn("text-caption-2-semibold", headCls)}>{label}</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-caption-2-semibold leading-none", headCls, "bg-current/10")}>
             {count}
           </span>
-          <div className="ml-1 flex-1 border-t border-gray-200" />
+          <div className="ml-1 flex-1 border-t border-separator-border" />
         </div>
       </td>
     </tr>
@@ -133,31 +127,31 @@ function SectionHeader({ icon: Icon, label, count, headCls }: {
 /* ── Trip row ──────────────────────────────────────────────────────────────── */
 function TripRow({ row }: { row: TripOverviewRow }) {
   return (
-    <tr className="transition-colors hover:bg-gray-50">
+    <tr className="transition-colors hover:bg-fill-2">
       <td className="px-5 py-3">
-        <span className="text-xs font-bold text-gray-800">{row.tripId}</span>
+        <span className="text-caption-1-semibold text-text-primary">{row.tripId}</span>
       </td>
       <td className="px-5 py-3">
-        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
           <span className="max-w-[100px] truncate">{row.origin || "—"}</span>
-          <ArrowRight className="h-3 w-3 shrink-0 text-gray-300" />
+          <ArrowRight className="h-3 w-3 shrink-0 text-text-tertiary" />
           <span className="max-w-[100px] truncate">{row.destination || "—"}</span>
         </div>
       </td>
       <td className="px-5 py-3">
-        <p className="text-xs font-medium text-gray-700">{row.truckRegistration || "—"}</p>
-        <p className="text-[10px] text-gray-400">{row.driverName || ""}</p>
+        <p className="text-caption-1-medium text-text-primary">{row.truckRegistration || "—"}</p>
+        <p className="text-[10px] text-text-tertiary">{row.driverName || ""}</p>
       </td>
       <td className="px-5 py-3">
         <span className={cn(
-          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold",
-          STATUS_PILL[row.status] ?? "bg-gray-100 text-gray-600",
+          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-caption-2-semibold",
+          STATUS_PILL[row.status] ?? "bg-fill-2 text-text-secondary",
         )}>
-          <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[row.status] ?? "bg-gray-400")} />
+          <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[row.status] ?? "bg-fill-4")} />
           {row.status}
         </span>
       </td>
-      <td className="px-5 py-3 text-[11px] text-gray-400 whitespace-nowrap">
+      <td className="px-5 py-3 text-[11px] text-text-tertiary whitespace-nowrap">
         {fmtDate(row.scheduledDate)}
       </td>
     </tr>
@@ -167,7 +161,7 @@ function TripRow({ row }: { row: TripOverviewRow }) {
 function EmptyRow() {
   return (
     <tr>
-      <td colSpan={5} className="px-5 py-3 text-center text-xs text-gray-400">No trips</td>
+      <td colSpan={5} className="px-5 py-3 text-center text-xs text-text-tertiary">No trips</td>
     </tr>
   );
 }
@@ -177,9 +171,9 @@ function Skeleton() {
     <div className="space-y-3 p-5">
       {[1, 2, 3, 4].map((i) => (
         <div key={i} className="flex gap-3">
-          <div className="h-4 w-16 animate-pulse rounded bg-gray-100" />
-          <div className="h-4 flex-1 animate-pulse rounded bg-gray-100" />
-          <div className="h-4 w-20 animate-pulse rounded bg-gray-100" />
+          <div className="h-4 w-16 animate-pulse rounded bg-fill-2" />
+          <div className="h-4 flex-1 animate-pulse rounded bg-fill-2" />
+          <div className="h-4 w-20 animate-pulse rounded bg-fill-2" />
         </div>
       ))}
     </div>
@@ -205,10 +199,10 @@ export function TripSummaryWidget() {
 
       {/* ── Widget title ────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2.5">
-        <Activity className="h-5 w-5 text-gray-400" />
+        <Activity className="h-5 w-5 text-text-tertiary" />
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">Live Dashboard</p>
-          <h2 className="text-base font-bold leading-tight text-gray-900">Trip Status Overview</h2>
+          <p className="text-caption-2-semibold text-text-tertiary">Live Dashboard</p>
+          <h2 className="text-headline-semibold leading-tight text-text-primary">Trip Status Overview</h2>
         </div>
       </div>
 
@@ -231,22 +225,22 @@ export function TripSummaryWidget() {
       </div>
 
       {/* ── Table card ──────────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-separator-border bg-background-primary-default">
         {!data ? (
           <Skeleton />
         ) : (
           <div className="max-h-[480px] overflow-auto">
             <table className="w-full min-w-[560px] text-left text-xs">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
+                <tr className="border-b border-separator-border bg-fill-1">
                   {["Trip ID", "Route", "Vehicle / Driver", "Status", "Date"].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    <th key={h} className="whitespace-nowrap px-5 py-3 text-caption-2-semibold text-text-tertiary">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {SECTIONS.map((sec) => {
                   const rows = data[sec.key] as TripOverviewRow[];
                   return (

@@ -273,7 +273,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               readOnly
               disabled
               value={form.tenureMonths ? `${form.tenureMonths} months` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder="Auto-calculated from dates"
             />
           </Field>
@@ -284,7 +284,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               readOnly
               disabled
               value={tenure > 0 ? `₹ ${amountPaid.toLocaleString("en-IN")}` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder="Auto-calculated from EMI Start Date"
             />
           </Field>
@@ -295,7 +295,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               readOnly
               disabled
               value={tenure > 0 ? `₹ ${remainingEmiAmount.toLocaleString("en-IN")}` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder="Auto-calculated from EMI Start Date"
             />
           </Field>
@@ -306,7 +306,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               readOnly
               disabled
               value={totalEmiPayable > 0 ? `₹ ${totalEmiPayable.toLocaleString("en-IN")}` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder="EMI Amount × Tenure"
             />
           </Field>
@@ -317,7 +317,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               readOnly
               disabled
               value={dailyFinanceCost ? `₹ ${Number(dailyFinanceCost).toLocaleString("en-IN")}` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder="Monthly Finance Cost ÷ 26"
             />
           </Field>
@@ -328,7 +328,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               readOnly
               disabled
               value={emiCostPerKm ? `₹ ${Number(emiCostPerKm).toLocaleString("en-IN", { minimumFractionDigits: 4 })}` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder={
                 !form.truckRegistration
                   ? "Select a truck first"
@@ -345,7 +345,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               readOnly
               disabled
               value={emiCostPerKmAdvanced ? `₹ ${Number(emiCostPerKmAdvanced).toLocaleString("en-IN", { minimumFractionDigits: 4 })}` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder={
                 !form.truckRegistration
                   ? "Select a truck first"
@@ -374,13 +374,13 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {initialData ? "Save Changes" : "Add EMI Entry"}
           </button>

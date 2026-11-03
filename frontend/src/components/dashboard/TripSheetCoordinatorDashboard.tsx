@@ -2,17 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  ClipboardList,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  FileCheck,
-  Layers,
-  Navigation,
-  CalendarDays,
-  PackageCheck,
-} from "lucide-react";
+import { RiFileList3Line as ClipboardList, RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiErrorWarningLine as AlertCircle, RiFileShieldLine as FileCheck, RiStackLine as Layers, RiNavigationLine as Navigation, RiCalendar2Line as CalendarDays, RiCheckboxMultipleLine as PackageCheck } from "@remixicon/react";
 import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { FleetStatusPanel } from "./FleetStatusPanel";
@@ -23,8 +13,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import type { Trip } from "@/types/trip";
 
+import { EmptyState } from "@/components/ui/EmptyState";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 const QUICK_LINKS = [
-  { label: "Sheet Collection", href: "/trips/sheet-collection", icon: ClipboardList, color: "bg-blue-50 text-blue-600 border-blue-200" },
+  { label: "Sheet Collection", href: "/trips/sheet-collection", icon: ClipboardList, color: "bg-accent-surface text-accent-text border-accent-border" },
 ];
 
 function fmtIST(raw: string) {
@@ -44,8 +36,8 @@ function SectionTitle({ icon: Icon, title, badge, badgeVariant }: {
 }) {
   return (
     <div className="mb-4 flex items-center gap-2.5">
-      <Icon className="h-4 w-4 text-gray-400" />
-      <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+      <Icon className="h-4 w-4 text-text-tertiary" />
+      <h2 className="text-body-semibold text-text-primary">{title}</h2>
       {badge !== undefined && Number(badge) > 0 && (
         <Badge variant={badgeVariant ?? "neutral"}>{badge}</Badge>
       )}
@@ -110,20 +102,12 @@ export function TripSheetCoordinatorDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
-              <PackageCheck className="h-5 w-5" />
-            </span>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Yard Supervisor</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Sheet collection status across all closed trips</p>
-          </div>
-        </div>
+        <DashboardHero illustration="yard" title="Yard Supervisor" description="Sheet collection status across all closed trips" />
         <div className="flex flex-wrap items-center gap-3">
           {!loading && pending.length > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-              <AlertCircle className="h-4 w-4 text-amber-500" />
-              <span className="text-xs font-semibold text-amber-700">{pending.length} trip{pending.length > 1 ? "s" : ""} awaiting collection</span>
+            <div className="flex items-center gap-2 rounded-xl border border-warning-border bg-warning-surface px-3 py-2">
+              <AlertCircle className="h-4 w-4 text-warning-text" />
+              <span className="text-caption-1-semibold text-warning-text">{pending.length} trip{pending.length > 1 ? "s" : ""} awaiting collection</span>
             </div>
           )}
         </div>
@@ -168,11 +152,11 @@ export function TripSheetCoordinatorDashboard() {
 
       {/* Quick Access */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Quick Access</h2>
+        <h2 className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
         <div className="grid grid-cols-1 gap-3 sm:max-w-xs">
           {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
             <Link key={href} href={href}
-              className={`flex items-center gap-3 rounded-xl border px-5 py-4 text-sm font-semibold transition-all hover:-translate-y-1 hover:shadow-md ${color}`}
+              className={`flex items-center gap-3 rounded-xl border px-5 py-4 text-body-semibold transition hover:shadow-md ${color}`}
             >
               <Icon className="h-5 w-5" />
               {label}
@@ -191,13 +175,13 @@ export function TripSheetCoordinatorDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold text-gray-800">Awaiting Collection</h2>
+                <h2 className="text-body-semibold text-text-primary">Awaiting Collection</h2>
                 {!loading && pending.length > 0 && (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-amber-700">{pending.length}</span>
+                  <span className="rounded-full bg-warning-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-warning-text">{pending.length}</span>
                 )}
               </div>
               {pending.length > 0 && (
-                <Link href="/trips/sheet-collection" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+                <Link href="/trips/sheet-collection" className="text-caption-1-semibold text-accent-text transition-colors hover:text-accent-text-strong">
                   View all →
                 </Link>
               )}
@@ -206,26 +190,26 @@ export function TripSheetCoordinatorDashboard() {
               <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
             ) : urgentPending.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm font-medium text-gray-600">All sheets collected</p>
-                <p className="text-xs text-gray-400">No pending trips</p>
+                <CheckCircle2 className="h-8 w-8 text-success-text" />
+                <p className="text-body-medium text-text-secondary">All sheets collected</p>
+                <p className="text-xs text-text-tertiary">No pending trips</p>
               </div>
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+              <ul className="max-h-72 divide-y divide-separator-border overflow-y-auto pr-1">
                 {urgentPending.map((trip) => {
                   const waiting = trip.scheduledDate
                     ? Math.max(0, Math.floor((Date.parse(todayIST) - Date.parse(trip.scheduledDate.slice(0, 10))) / 86400000))
                     : null;
                   return (
                     <li key={trip.id} className="flex items-center gap-4 py-2.5">
-                      <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
-                      <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
-                        {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+                      <p className="w-24 shrink-0 text-body-semibold tabular-nums text-text-primary">{trip.tripId}</p>
+                      <p className="min-w-0 flex-1 truncate text-xs uppercase text-text-secondary">
+                        {trip.origin} <span className="px-1 text-text-tertiary">→</span> {trip.destination}
                       </p>
                       <div className="shrink-0 text-right">
-                        <p className="text-xs font-medium tabular-nums text-gray-700">{trip.scheduledDate ?? "—"}</p>
+                        <p className="text-caption-1-medium tabular-nums text-text-primary">{trip.scheduledDate ?? "—"}</p>
                         {waiting !== null && (
-                          <p className={`text-[11px] ${waiting > 30 ? "font-medium text-red-600" : waiting > 7 ? "text-amber-600" : "text-gray-400"}`}>
+                          <p className={`text-caption-2-medium ${waiting > 30 ? " text-danger-text" : waiting > 7 ? "text-warning-text" : "text-text-tertiary"}`}>
                             {waiting === 0 ? "today" : `${waiting}d waiting`}
                           </p>
                         )}
@@ -242,9 +226,9 @@ export function TripSheetCoordinatorDashboard() {
         <Card>
           <CardContent className="p-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <h2 className="text-sm font-semibold text-gray-800">Recently Delivered</h2>
+              <h2 className="text-body-semibold text-text-primary">Recently Delivered</h2>
               {!loading && deliveredToday.length > 0 && (
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-emerald-700">
+                <span className="rounded-full bg-success-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-success-text">
                   {deliveredToday.length} today
                 </span>
               )}
@@ -252,20 +236,17 @@ export function TripSheetCoordinatorDashboard() {
             {loading ? (
               <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
             ) : recentDelivered.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <ClipboardList className="h-8 w-8 text-gray-300" />
-                <p className="text-sm text-gray-400">No sheets delivered yet</p>
-              </div>
+              <EmptyState size="compact" illustration="no-data" title="No sheets delivered yet" />
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+              <ul className="max-h-72 divide-y divide-separator-border overflow-y-auto pr-1">
                 {recentDelivered.map((trip) => (
                   <li key={trip.id} className="flex items-center gap-4 py-2.5">
-                    <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
-                    <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
-                      {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+                    <p className="w-24 shrink-0 text-body-semibold tabular-nums text-text-primary">{trip.tripId}</p>
+                    <p className="min-w-0 flex-1 truncate text-xs uppercase text-text-secondary">
+                      {trip.origin} <span className="px-1 text-text-tertiary">→</span> {trip.destination}
                     </p>
-                    <span className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums text-gray-500">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums text-text-secondary">
+                      <span className="h-1.5 w-1.5 rounded-full bg-success-solid" />
                       {trip.tripSheetCollectedAt ? fmtIST(trip.tripSheetCollectedAt) : "—"}
                     </span>
                   </li>

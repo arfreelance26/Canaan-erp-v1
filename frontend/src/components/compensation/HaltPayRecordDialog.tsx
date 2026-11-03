@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Eye, Loader2 } from "lucide-react";
+import { RiBookOpenLine as BookOpen, RiEyeLine as Eye, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
 import { tripsApi } from "@/lib/api";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { haltPayFromClosure } from "@/lib/halt-pay";
 import { cn } from "@/lib/utils";
 import type { Trip } from "@/types/trip";
@@ -15,6 +15,7 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Truck } from "@/types/truck";
 import type { CompensationPerson } from "./CompensationTable";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -205,10 +206,10 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
 
   const pill = (active: boolean) =>
     cn(
-      "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-      active ? "bg-brand-navy text-white shadow-sm" : "border border-gray-300 bg-white text-gray-600 hover:bg-gray-50",
+      "rounded-full px-3 py-1 text-caption-1-semibold transition-colors",
+      active ? "bg-accent-solid text-on-solid shadow-sm" : "border border-border-button-default bg-background-primary-default text-text-secondary hover:bg-fill-2",
     );
-  const thClass = "px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 whitespace-nowrap text-left";
+  const thClass = "px-3 py-2.5 text-caption-2-semibold text-text-secondary whitespace-nowrap text-left";
   const thRClass = `${thClass} text-right`;
 
   return (
@@ -222,7 +223,7 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
         <button
           type="button"
           onClick={onShowGuide}
-          className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+          className="flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary transition-colors hover:border-border-button-default hover:bg-fill-2 hover:text-text-primary"
         >
           <BookOpen className="h-3.5 w-3.5" />
           Full guide
@@ -238,11 +239,11 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
           {filterMode === "custom" && (
             <div className="flex items-center gap-2 text-sm">
               <DatePickerInput value={customFrom} onChange={setCustomFrom} />
-              <span className="text-gray-400">→</span>
+              <span className="text-text-tertiary">→</span>
               <DatePickerInput value={customTo} onChange={setCustomTo} />
             </div>
           )}
-          <span className="mx-1 h-5 w-px bg-gray-200" />
+          <span className="mx-1 h-5 w-px bg-fill-3" />
           {(["All", "Company", "Party"] as TypeFilter[]).map((t) => (
             <button key={t} type="button" onClick={() => setTypeFilter(t)} className={pill(typeFilter === t)}>
               {t === "All" ? "All Halts" : `${t} Halt`}
@@ -255,7 +256,7 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
             type="button"
             onClick={openPreview}
             disabled={rows.length === 0 || preparing}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           >
             {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
             {preparing ? "Preparing…" : "View"}
@@ -264,17 +265,17 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
       </div>
 
       {loading ? (
-        <div className="py-10 text-center text-sm text-gray-500">Loading halt data…</div>
+        <div className="py-10 text-center text-sm text-text-secondary">Loading halt data…</div>
       ) : allRows.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-500">No halts recorded on this driver&apos;s closed trips.</div>
+        <EmptyState size="compact" illustration="logistics" title="No halts recorded on this driver&apos;s closed trips" />
       ) : rows.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-500">No halts match the selected filters.</div>
+        <EmptyState size="compact" illustration="not-found" title="No halts match the selected filters" />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="max-h-[calc(90vh-300px)] overflow-auto rounded-lg border border-gray-200">
+          <div className="max-h-[calc(90vh-300px)] overflow-auto rounded-lg border border-separator-border">
             <table className="w-full border-collapse whitespace-nowrap text-left text-xs">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
+                <tr className="border-b border-separator-border bg-fill-1">
                   <th className={thClass}>Trip ID</th>
                   <th className={thClass}>Completed</th>
                   <th className={thClass}>Truck Reg</th>
@@ -288,29 +289,29 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
                   <th className={thRClass}>Amount Owed</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {rows.map((r) => (
-                  <tr key={r.key} className="hover:bg-gray-50" title={r.remarks ? `Halt remarks: ${r.remarks}` : undefined}>
-                    <td className="px-3 py-2.5 font-medium text-brand-navy">{r.tripId}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{fmtDate(r.completedDate)}</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-700">{r.truckReg}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{r.truckBranch}</td>
-                    <td className="max-w-[140px] truncate px-3 py-2.5 text-gray-600">{r.containerSpec}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{r.tripCategory}</td>
-                    <td className="max-w-[220px] truncate px-3 py-2.5 text-gray-700" title={r.route}>{r.route}</td>
+                  <tr key={r.key} className="hover:bg-fill-2" title={r.remarks ? `Halt remarks: ${r.remarks}` : undefined}>
+                    <td className="px-3 py-2.5 font-medium text-accent-text-strong">{r.tripId}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{fmtDate(r.completedDate)}</td>
+                    <td className="px-3 py-2.5 font-mono text-text-primary">{r.truckReg}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{r.truckBranch}</td>
+                    <td className="max-w-[140px] truncate px-3 py-2.5 text-text-secondary">{r.containerSpec}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{r.tripCategory}</td>
+                    <td className="max-w-[220px] truncate px-3 py-2.5 text-text-primary" title={r.route}>{r.route}</td>
                     <td className="px-3 py-2.5">
                       {r.haltType === "Company" ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Company</span>
+                        <span className="rounded-full bg-fill-2 px-2 py-0.5 text-caption-2-semibold text-text-secondary">Company</span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">Party</span>
-                          <span className="text-[10px] text-amber-600">recoverable from customer</span>
+                          <span className="rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">Party</span>
+                          <span className="text-[10px] text-warning-text">recoverable from customer</span>
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{r.days}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{fmtCur(r.ratePerDay)}</td>
-                    <td className="px-3 py-2.5 text-right font-bold tabular-nums text-brand-navy">{fmtCur(r.amount)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-text-primary">{r.days}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(r.ratePerDay)}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-accent-text-strong">{fmtCur(r.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -319,19 +320,19 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
 
           {/* Summary */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Company Halt</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-slate-800">{fmtCur(companyTotal)}</p>
+            <div className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+              <p className="text-caption-2-semibold text-text-tertiary">Company Halt</p>
+              <p className="mt-1 text-title-3-semibold tabular-nums text-text-primary">{fmtCur(companyTotal)}</p>
             </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">Party Halt · recoverable from customer</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-amber-700">{fmtCur(partyTotal)}</p>
+            <div className="rounded-xl border border-warning-border bg-warning-surface/60 px-4 py-3">
+              <p className="text-caption-2-semibold text-warning-text">Party Halt · recoverable from customer</p>
+              <p className="mt-1 text-title-3-semibold tabular-nums text-warning-text">{fmtCur(partyTotal)}</p>
             </div>
-            <div className="rounded-xl bg-brand-navy px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">
+            <div className="rounded-xl bg-accent-solid px-4 py-3">
+              <p className="text-caption-2-semibold text-on-solid/60">
                 Total Owed to Driver · {totalDays} day{totalDays === 1 ? "" : "s"}
               </p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-white">{fmtCur(totalOwed)}</p>
+              <p className="mt-1 text-title-3-semibold tabular-nums text-on-solid">{fmtCur(totalOwed)}</p>
             </div>
           </div>
 
@@ -339,7 +340,7 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-border-button-default px-4 py-2 text-body-semibold text-text-primary hover:bg-fill-2"
             >
               Close
             </button>

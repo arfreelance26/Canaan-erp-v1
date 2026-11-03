@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronDown, Gauge, Info, Loader2, Truck as TruckIcon, User, Users, Wallet } from "lucide-react";
+import { RiArrowDownSLine as ChevronDown, RiDashboard3Line as Gauge, RiInformationLine as Info, RiLoader4Line as Loader2, RiTruckLine as TruckIcon, RiUserLine as User, RiGroupLine as Users, RiWallet3Line as Wallet } from "@remixicon/react";
 import {
   tripsApi, financeApi,
   type RouteInsights, type RouteInsightTrip, type RouteInsightRank, type ProfitLevel,
@@ -35,16 +35,16 @@ type TabId = (typeof TABS)[number]["id"];
 const SHOW_N = 5;
 
 const STATUS_STYLE: Record<string, string> = {
-  "Available": "bg-emerald-50 text-emerald-700",
-  "On a trip": "bg-amber-50 text-amber-700",
-  "No driver": "bg-gray-100 text-gray-600",
+  "Available": "bg-success-surface text-success-text",
+  "On a trip": "bg-warning-surface text-warning-text",
+  "No driver": "bg-fill-2 text-text-secondary",
 };
 
 function Section({ title, count, note, children }: { title: string; count: number; note?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-        {title} <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-500">{count}</span>
+      <p className="flex items-center gap-1.5 text-caption-2-semibold text-text-secondary">
+        {title} <span className="rounded-full bg-fill-2 px-1.5 py-0.5 text-[9px] text-text-secondary">{count}</span>
       </p>
       {note}
       {children}
@@ -54,13 +54,13 @@ function Section({ title, count, note, children }: { title: string; count: numbe
 
 function Empty({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-center text-[11px] text-gray-400">{children}</p>
+    <p className="rounded-lg border border-dashed border-separator-border bg-fill-1 p-3 text-center text-[11px] text-text-tertiary">{children}</p>
   );
 }
 
 function OtherCustomersNote({ origin, destination }: { origin: string; destination: string }) {
   return (
-    <p className="flex items-start gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-2 text-[10px] leading-relaxed text-blue-800">
+    <p className="flex items-start gap-1.5 rounded-lg border border-accent-border bg-accent-surface px-2.5 py-2 text-[10px] leading-relaxed text-accent-text-strong">
       <Users className="mt-0.5 h-3 w-3 shrink-0" />
       <span>From <span className="font-semibold">other customers</span>&apos; trips on the same road ({origin} → {destination}) — shown for comparison, not this customer&apos;s own history.</span>
     </p>
@@ -74,7 +74,7 @@ function ShowAll<T>({ rows, render }: { rows: T[]; render: (row: T, i: number) =
     <>
       {shown.map(render)}
       {rows.length > SHOW_N && (
-        <button type="button" onClick={() => setAll((a) => !a)} className="self-start text-[11px] font-semibold text-blue-600 hover:underline">
+        <button type="button" onClick={() => setAll((a) => !a)} className="self-start text-caption-2-semibold text-accent-text hover:underline">
           {all ? "Show less" : `Show all ${rows.length}`}
         </button>
       )}
@@ -85,33 +85,33 @@ function ShowAll<T>({ rows, render }: { rows: T[]; render: (row: T, i: number) =
 // Profit is shown as a colour, not money (only Admin also sees ₹) — see the
 // backend's profit_level. Fixed hex colours so they read the same in both themes.
 const LEVELS: Record<ProfitLevel, { label: string; badge: string; edge: string; rule: string }> = {
-  top:        { label: "Top profit",    badge: "bg-[#047857] text-white",     edge: "border-l-[#047857]", rule: "margin 40% or more" },
-  strong:     { label: "Strong profit", badge: "bg-[#10b981] text-white",     edge: "border-l-[#10b981]", rule: "margin 25–40%" },
-  good:       { label: "Good profit",   badge: "bg-[#6ee7b7] text-[#064e3b]", edge: "border-l-[#6ee7b7]", rule: "margin 10–25%" },
-  thin:       { label: "Thin profit",   badge: "bg-[#d1fae5] text-[#065f46]", edge: "border-l-[#a7f3d0]", rule: "margin under 10%" },
-  zero:       { label: "Break-even",    badge: "bg-[#3b82f6] text-white",     edge: "border-l-[#3b82f6]", rule: "₹0" },
-  small_loss: { label: "Small loss",    badge: "bg-[#fbbf24] text-[#78350f]", edge: "border-l-[#fbbf24]", rule: "loss under ₹500" },
-  mid_loss:   { label: "Medium loss",   badge: "bg-[#f97316] text-white",     edge: "border-l-[#f97316]", rule: "loss ₹500 – ₹2,500" },
-  big_loss:   { label: "Big loss",      badge: "bg-[#dc2626] text-white",     edge: "border-l-[#dc2626]", rule: "loss over ₹2,500" },
+  top:        { label: "Top profit",    badge: "bg-success-solid text-on-solid",     edge: "border-l-success-solid", rule: "margin 40% or more" },
+  strong:     { label: "Strong profit", badge: "bg-success-solid text-on-solid",     edge: "border-l-success-solid", rule: "margin 25–40%" },
+  good:       { label: "Good profit",   badge: "bg-success-solid text-success-text-strong", edge: "border-l-success-solid", rule: "margin 10–25%" },
+  thin:       { label: "Thin profit",   badge: "bg-success-surface-strong text-success-text-strong", edge: "border-l-success-border", rule: "margin under 10%" },
+  zero:       { label: "Break-even",    badge: "bg-accent-solid text-on-solid",     edge: "border-l-accent-solid", rule: "₹0" },
+  small_loss: { label: "Small loss",    badge: "bg-gold-solid text-orange-text-strong", edge: "border-l-gold-solid", rule: "loss under ₹500" },
+  mid_loss:   { label: "Medium loss",   badge: "bg-orange-solid text-on-solid",     edge: "border-l-orange-solid", rule: "loss ₹500 – ₹2,500" },
+  big_loss:   { label: "Big loss",      badge: "bg-danger-solid text-on-solid",     edge: "border-l-danger-solid", rule: "loss over ₹2,500" },
 };
 
 const COST_BAND: Record<"low" | "mid" | "high", { label: string; cls: string }> = {
-  low:  { label: "Cheapest to run", cls: "bg-[#d1fae5] text-[#065f46]" },
-  mid:  { label: "Average to run",  cls: "bg-[#e0e7ff] text-[#3730a3]" },
-  high: { label: "Costly to run",   cls: "bg-[#ffedd5] text-[#9a3412]" },
+  low:  { label: "Cheapest to run", cls: "bg-success-surface-strong text-success-text-strong" },
+  mid:  { label: "Average to run",  cls: "bg-accent-surface-strong text-accent-text" },
+  high: { label: "Costly to run",   cls: "bg-orange-surface-strong text-danger-text" },
 };
 
 function LevelBadge({ level, prefix }: { level: ProfitLevel | null; prefix?: string }) {
   if (!level) {
     return (
-      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500" title="No Advanced-mode Cost/KM (with diesel) for this truck yet">
+      <span className="rounded-full bg-fill-2 px-2 py-0.5 text-caption-2-semibold text-text-secondary" title="No Advanced-mode Cost/KM (with diesel) for this truck yet">
         Not enough data
       </span>
     );
   }
   const l = LEVELS[level];
   return (
-    <span className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold", l.badge)} title={l.rule}>
+    <span className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-caption-2-semibold", l.badge)} title={l.rule}>
       {prefix}{l.label}
     </span>
   );
@@ -132,7 +132,7 @@ function ColourKey() {
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-1.5">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-gray-700">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-caption-2-semibold text-text-secondary hover:text-text-primary">
         <span className="flex gap-0.5">
           {(Object.keys(LEVELS) as ProfitLevel[]).map((k) => (
             <span key={k} className={cn("h-2 w-2 rounded-full", LEVELS[k].badge.split(" ")[0])} />
@@ -142,16 +142,16 @@ function ColourKey() {
         <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="mt-2 flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+        <div className="mt-2 flex flex-col gap-2 rounded-lg border border-separator-border bg-background-primary-default px-3 py-2.5">
           {KEY_GROUPS.map((g) => (
             <div key={g.title}>
-              <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-gray-400">{g.title}</p>
+              <p className="mb-1 text-[9px] font-semibold text-text-tertiary">{g.title}</p>
               <div className="flex flex-col gap-1">
                 {g.levels.map((k) => (
                   <div key={k} className="flex items-center gap-2 text-[11px]">
                     <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", LEVELS[k].badge.split(" ")[0])} />
-                    <span className="whitespace-nowrap font-semibold text-gray-700">{LEVELS[k].label}</span>
-                    <span className="ml-auto whitespace-nowrap tabular-nums text-gray-400">{KEY_RULE[k]}</span>
+                    <span className="whitespace-nowrap font-semibold text-text-primary">{LEVELS[k].label}</span>
+                    <span className="ml-auto whitespace-nowrap tabular-nums text-text-tertiary">{KEY_RULE[k]}</span>
                   </div>
                 ))}
               </div>
@@ -169,32 +169,32 @@ function TripCard({ t, i, showCustomer }: { t: RouteInsightTrip; i: number; show
     ? `Hire ${fmtCurrency(t.revenue)} − Trip Expenses ${fmtCurrency(t.trip_expense)} − ${t.km.toLocaleString("en-IN")} km × ₹${t.cost_per_km.toFixed(2)}/km`
     : undefined;
   return (
-    <div className={cn("flex gap-3 rounded-xl border border-l-4 border-gray-200 bg-white px-3.5 py-3", t.profit_level && LEVELS[t.profit_level].edge)} title={how}>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-[11px] font-bold text-amber-600">#{i + 1}</span>
+    <div className={cn("flex gap-3 rounded-xl border border-l-4 border-separator-border bg-background-primary-default px-3.5 py-3", t.profit_level && LEVELS[t.profit_level].edge)} title={how}>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-warning-surface text-caption-2-semibold text-warning-text">#{i + 1}</span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-[11px] font-semibold text-gray-500">{t.trip_id_str}</span>
+          <span className="truncate text-caption-2-semibold text-text-secondary">{t.trip_id_str}</span>
           <span className="flex shrink-0 items-center gap-1.5">
             {t.final_profit != null && (
-              <span className={cn("text-xs font-bold", t.final_profit >= 0 ? "text-emerald-700" : "text-red-600")}>{fmtCurrency(t.final_profit)}</span>
+              <span className={cn("text-caption-1-semibold", t.final_profit >= 0 ? "text-success-text" : "text-danger-text")}>{fmtCurrency(t.final_profit)}</span>
             )}
             <LevelBadge level={t.profit_level} />
           </span>
         </div>
-        {showCustomer && t.customer_name && <p className="mt-0.5 truncate text-[10px] font-medium text-blue-700">{t.customer_name}</p>}
+        {showCustomer && t.customer_name && <p className="mt-0.5 truncate text-caption-2-medium text-accent-text">{t.customer_name}</p>}
         <div className="mt-1.5 flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
-            <User className="h-3 w-3 shrink-0 text-gray-400" />
+          <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+            <User className="h-3 w-3 shrink-0 text-text-tertiary" />
             <span className="truncate font-medium">{t.driver_name}</span>
-            {t.driver_left && <span className="rounded bg-gray-100 px-1 text-[9px] font-semibold text-gray-500">Left</span>}
+            {t.driver_left && <span className="rounded bg-fill-2 px-1 text-[9px] font-semibold text-text-secondary">Left</span>}
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
-            <TruckIcon className="h-3 w-3 shrink-0 text-gray-400" />
+          <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+            <TruckIcon className="h-3 w-3 shrink-0 text-text-tertiary" />
             <span className="truncate font-medium">{t.truck_registration}</span>
-            {t.truck_removed && <span className="rounded bg-gray-100 px-1 text-[9px] font-semibold text-gray-500">{t.truck_removed}</span>}
+            {t.truck_removed && <span className="rounded bg-fill-2 px-1 text-[9px] font-semibold text-text-secondary">{t.truck_removed}</span>}
           </div>
         </div>
-        <p className="mt-1.5 text-[10px] text-gray-400">
+        <p className="mt-1.5 text-[10px] text-text-tertiary">
           {t.date ? formatDate(t.date) : "—"}
           {t.margin_pct != null && ` · ${t.margin_pct.toFixed(0)}% margin`}
           {` · ${t.km.toLocaleString("en-IN")} km`}
@@ -206,23 +206,23 @@ function TripCard({ t, i, showCustomer }: { t: RouteInsightTrip; i: number; show
 
 function RankCard({ s, i, tone, extra }: { s: RouteInsightRank; i: number; tone: "emerald" | "violet"; extra?: ReactNode }) {
   return (
-    <div className={cn("rounded-xl border border-l-4 border-gray-200 bg-white px-3.5 py-3", s.profit_level && LEVELS[s.profit_level].edge)}>
+    <div className={cn("rounded-xl border border-l-4 border-separator-border bg-background-primary-default px-3.5 py-3", s.profit_level && LEVELS[s.profit_level].edge)}>
       <div className="flex items-center gap-3">
-        <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold",
-          tone === "emerald" ? "bg-emerald-50 text-emerald-600" : "bg-violet-50 text-violet-600")}>#{i + 1}</span>
+        <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-caption-2-semibold",
+          tone === "emerald" ? "bg-success-surface text-success-text" : "bg-purple-surface text-purple-text")}>#{i + 1}</span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[12px] font-semibold text-gray-900">{s.name}</p>
-          <p className="truncate text-[10px] text-gray-400">
+          <p className="truncate text-[12px] font-semibold text-text-primary">{s.name}</p>
+          <p className="truncate text-[10px] text-text-tertiary">
             {s.trip_count} trip{s.trip_count !== 1 ? "s" : ""}
-            {s.profit_trips > 0 && <span className="text-emerald-600"> · {s.profit_trips} profit</span>}
-            {s.loss_trips > 0 && <span className="text-red-500"> · {s.loss_trips} loss</span>}
+            {s.profit_trips > 0 && <span className="text-success-text"> · {s.profit_trips} profit</span>}
+            {s.loss_trips > 0 && <span className="text-danger-text"> · {s.loss_trips} loss</span>}
             {s.avg_margin_pct != null && ` · ${s.avg_margin_pct.toFixed(0)}% avg margin`}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5">
           <LevelBadge level={s.profit_level} />
-          <p className="text-[9px] text-gray-400">
-            {s.avg_profit != null && <span className={cn("font-bold", s.avg_profit >= 0 ? "text-emerald-700" : "text-red-600")}>{fmtCurrency(s.avg_profit)} </span>}
+          <p className="text-[9px] text-text-tertiary">
+            {s.avg_profit != null && <span className={cn("font-semibold", s.avg_profit >= 0 ? "text-success-text" : "text-danger-text")}>{fmtCurrency(s.avg_profit)} </span>}
             avg / trip
           </p>
         </div>
@@ -278,20 +278,20 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
   const noOwnHistory = "No trips for this customer on this route yet.";
 
   return (
-    <div className={cn("flex w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl", className)}>
-      <div className="shrink-0 border-b border-gray-100 bg-gray-50/60 px-4 py-3.5">
-        <p className="text-sm font-bold text-gray-900">Customer Insights</p>
-        <p className="mt-0.5 truncate text-[11px] text-gray-400">Route: {r && r.origin ? `${r.origin} → ${r.destination}` : route}</p>
-        <p className="mt-1 flex items-center gap-1 text-[10px] text-gray-500" title="Each colour is the trip's Final Profit — after trip expenses, diesel and the truck's running costs (Advanced mode)">
-          <Info className="h-3 w-3 text-gray-400" /> Colour = how profitable, after all costs
+    <div className={cn("flex w-full flex-col overflow-hidden rounded-xl border border-separator-border bg-background-primary-default shadow-xl", className)}>
+      <div className="shrink-0 border-b border-separator-border bg-fill-1 px-4 py-3.5">
+        <p className="text-body-semibold text-text-primary">Customer Insights</p>
+        <p className="mt-0.5 truncate text-[11px] text-text-tertiary">Route: {r && r.origin ? `${r.origin} → ${r.destination}` : route}</p>
+        <p className="mt-1 flex items-center gap-1 text-[10px] text-text-secondary" title="Each colour is the trip's Final Profit — after trip expenses, diesel and the truck's running costs (Advanced mode)">
+          <Info className="h-3 w-3 text-text-tertiary" /> Colour = how profitable, after all costs
         </p>
         <ColourKey />
       </div>
 
       {/* Sliding tab selector */}
-      <div className="relative mx-4 mt-3 flex shrink-0 rounded-full border border-gray-200 bg-gray-100 p-1">
+      <div className="relative mx-4 mt-3 flex shrink-0 rounded-full border border-separator-border bg-fill-2 p-1">
         <span
-          className="absolute inset-y-1 left-1 rounded-full bg-blue-600 shadow-sm transition-transform duration-200 ease-out"
+          className="absolute inset-y-1 left-1 rounded-full bg-accent-solid shadow-sm transition-transform duration-200 ease-out"
           style={{ width: `calc(25% - 2px)`, transform: `translateX(${activeIndex * 100}%)` }}
         />
         {TABS.map((t) => (
@@ -300,8 +300,8 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
             type="button"
             onClick={() => setTab(t.id)}
             title={t.label}
-            className={`relative z-10 flex-1 rounded-full px-1 py-2 text-[9px] font-bold leading-tight transition-colors ${
-              tab === t.id ? "text-white" : "text-gray-500 hover:text-gray-700"
+            className={`relative z-10 flex-1 rounded-full px-1 py-2 text-[9px] font-semibold leading-tight transition-colors ${
+              tab === t.id ? "text-on-solid" : "text-text-secondary hover:text-text-primary"
             }`}
           >
             {t.label}
@@ -312,7 +312,7 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
       <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-4 w-4 animate-spin text-gray-300" />
+            <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
           </div>
         ) : !data ? (
           <div className="px-4 py-3.5"><Empty>Couldn&apos;t load insights for this route.</Empty></div>
@@ -333,10 +333,10 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
                 )}
                 {data.trips.other_routes.length > 0 && (
                   <Section title="This customer · other routes" count={data.trips.other_routes.length}
-                    note={<p className="text-[10px] text-gray-400">Different roads — for reference only.</p>}>
+                    note={<p className="text-[10px] text-text-tertiary">Different roads — for reference only.</p>}>
                     <ShowAll rows={data.trips.other_routes} render={(t, i) => (
                       <div key={t.trip_id}>
-                        <p className="mb-1 truncate text-[10px] font-medium text-gray-500">{t.origin} → {t.destination}</p>
+                        <p className="mb-1 truncate text-caption-2-medium text-text-secondary">{t.origin} → {t.destination}</p>
                         <TripCard t={t} i={i} />
                       </div>
                     )} />
@@ -350,17 +350,17 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
               const group = tab === "trucks" ? data.trucks : data.drivers;
               const tone = tab === "trucks" ? "emerald" : "violet";
               const extra = (s: RouteInsightRank) => tab !== "drivers" ? undefined : (
-                <div className="mt-2 flex items-center gap-1.5 border-t border-gray-100 pt-2 text-[11px] text-gray-600">
-                  <Wallet className="h-3 w-3 shrink-0 text-gray-400" />
+                <div className="mt-2 flex items-center gap-1.5 border-t border-separator-border pt-2 text-[11px] text-text-secondary">
+                  <Wallet className="h-3 w-3 shrink-0 text-text-tertiary" />
                   <span>Net payable this month:</span>
-                  <span className="font-semibold text-gray-800">
+                  <span className="font-semibold text-text-primary">
                     {!(s.id in monthlyNetByDriver) ? "…" : monthlyNetByDriver[s.id] === null ? "—" : fmtCurrency(monthlyNetByDriver[s.id] as number)}
                   </span>
                 </div>
               );
               return (
                 <>
-                  <p className="text-[10px] leading-relaxed text-gray-400">
+                  <p className="text-[10px] leading-relaxed text-text-tertiary">
                     Ranked by average profit per trip over <span className="font-semibold">all</span> their trips on this route; the colour is that average.
                     {tab === "trucks" ? " Sold or removed trucks aren't recommended." : " Drivers who've left aren't recommended."}
                   </p>
@@ -385,16 +385,16 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
             {tab === "cost" && (
               <>
                 <div className="flex items-center gap-1.5">
-                  <Gauge className="h-3.5 w-3.5 text-blue-500" />
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Cheapest to run first · Advanced</p>
+                  <Gauge className="h-3.5 w-3.5 text-accent-text" />
+                  <p className="text-caption-2-semibold text-text-secondary">Cheapest to run first · Advanced</p>
                 </div>
-                <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-[10px] leading-relaxed text-gray-600">
+                <div className="rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-[10px] leading-relaxed text-text-secondary">
                   {r?.est_km ? (
                     <>
                       This route: <span className="font-semibold" title={r.km_source ?? ""}>~{r.est_km.toLocaleString("en-IN")} km</span>
                       {r.est_hire != null && <> · hire <span className="font-semibold" title={r.hire_source ?? ""}>{fmtCurrency(r.est_hire)}</span></>}
                       {r.est_expense != null && <> · trip expenses ~<span className="font-semibold" title={r.expense_source ?? ""}>{fmtCurrency(r.est_expense)}</span></>}
-                      <p className="mt-0.5 text-gray-400">The colour is each truck&apos;s estimated result on this route, after all costs.</p>
+                      <p className="mt-0.5 text-text-tertiary">The colour is each truck&apos;s estimated result on this route, after all costs.</p>
                     </>
                   ) : "No distance known for this route yet, so only Cost/KM is shown."}
                 </div>
@@ -403,29 +403,29 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
                 ) : (
                   <div className="flex flex-col gap-2.5">
                     <ShowAll rows={data.cost_trucks} render={(c, i) => (
-                      <div key={c.truck_id} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3.5 py-3">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[11px] font-bold text-blue-600">#{i + 1}</span>
+                      <div key={c.truck_id} className="flex items-center gap-3 rounded-xl border border-separator-border bg-background-primary-default px-3.5 py-3">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-surface text-caption-2-semibold text-accent-text">#{i + 1}</span>
                         <div className="min-w-0 flex-1">
-                          <p className="flex items-center gap-1.5 truncate text-[12px] font-semibold text-gray-900">
+                          <p className="flex items-center gap-1.5 truncate text-[12px] font-semibold text-text-primary">
                             {c.registration_number}
-                            <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold", STATUS_STYLE[c.status])}>{c.status}</span>
+                            <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", STATUS_STYLE[c.status])}>{c.status}</span>
                           </p>
-                          <p className="truncate text-[10px] text-gray-400">
+                          <p className="truncate text-[10px] text-text-tertiary">
                             {c.driver_name ? c.driver_name : c.manufacturer}
                             {c.est_cost != null && ` · run cost ${fmtCurrency(c.est_cost)}`}
                           </p>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
                           {c.cost_per_km != null ? (
-                            <p className="text-[12px] font-bold text-blue-700">₹{c.cost_per_km.toFixed(2)}/km</p>
+                            <p className="text-[12px] font-semibold text-accent-text">₹{c.cost_per_km.toFixed(2)}/km</p>
                           ) : (
-                            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", COST_BAND[c.cost_band].cls)}>{COST_BAND[c.cost_band].label}</span>
+                            <span className={cn("rounded-full px-2 py-0.5 text-caption-2-semibold", COST_BAND[c.cost_band].cls)}>{COST_BAND[c.cost_band].label}</span>
                           )}
                           {r?.est_km != null && r.est_hire != null && (
                             <LevelBadge level={c.profit_level} prefix="Est. " />
                           )}
                           {c.est_profit != null && (
-                            <p className={cn("text-[10px] font-semibold", c.est_profit >= 0 ? "text-emerald-600" : "text-red-600")}>
+                            <p className={cn("text-caption-2-semibold", c.est_profit >= 0 ? "text-success-text" : "text-danger-text")}>
                               {fmtCurrency(c.est_profit)}
                             </p>
                           )}
@@ -435,7 +435,7 @@ export function CustomerInsightsPanel({ customerId, route, routeId, className }:
                   </div>
                 )}
                 {data.trucks_without_cost > 0 && (
-                  <p className="text-[10px] text-gray-400">
+                  <p className="text-[10px] text-text-tertiary">
                     {data.trucks_without_cost} truck{data.trucks_without_cost !== 1 ? "s aren't" : " isn't"} listed — no Advanced-mode Cost/KM with diesel (no fuel logs yet).
                   </p>
                 )}

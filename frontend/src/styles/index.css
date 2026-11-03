@@ -1,0 +1,21 @@
+/* ---------------------------------------------------------------------------
+ * The ONE stylesheet entry, imported by app/layout.tsx. Order matters:
+ *
+ *   globals.css    BoardUI: Tailwind v4 + theme tokens + type scale (generated
+ *                  by `npx boardui init`; avoid hand edits so updates apply)
+ *   brand.css      Canaan accent (navy), gold, tinted neutrals, page ground
+ *   tones.css      semantic tones: {accent,success,warning,…}-{surface,text,solid…}
+ *   shadcn.css     shadcn variable bridge → BoardUI tokens
+ *   layers.css     named z-index layers (z-overlay, z-confirm, z-toast)
+ *   motion.css     overlay mount animations (modal, scrim, pop)
+ *   components.css shared hand-drawn surfaces (seg-track, seg-thumb)
+ *   legacy.css     pre-redesign overrides; shrinks as modules migrate
+ * --------------------------------------------------------------------------- */
+@import "./globals.css";
+@import "./brand.css";
+@import "./tones.css";
+@import "./shadcn.css";
+@import "./layers.css";
+@import "./motion.css";
+@import "./components.css";
+@import "./legacy.css";

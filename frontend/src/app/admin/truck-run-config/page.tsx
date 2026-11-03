@@ -5,12 +5,13 @@ import { createPortal } from "react-dom";
 import { trucksApi, type TruckRunConfigEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { Truck as TruckIcon, LayoutGrid, Settings2, X, Info, Gauge, History, Save } from "lucide-react";
+import { RiTruckLine as TruckIcon, RiLayoutGridLine as LayoutGrid, RiSettings3Line as Settings2, RiCloseLine as X, RiInformationLine as Info, RiDashboard3Line as Gauge, RiHistoryLine as History, RiSave3Line as Save } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { formatDateTime } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 export const RUN_CONFIG_STORAGE_KEY = "erp_truck_run_config";
 
 function fmtReg(reg: string) {
@@ -78,25 +79,25 @@ function ConfigDialog({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-4">
+      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-background-primary-default shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-separator-border bg-fill-1 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-solid text-on-solid">
               <Settings2 className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-gray-900">Set Run Configuration</h2>
-              <p className="text-xs text-gray-400">Define monthly and daily km targets per tyre layout</p>
+              <h2 className="text-headline-semibold text-text-primary">Set Run Configuration</h2>
+              <p className="text-xs text-text-tertiary">Define monthly and daily km targets per tyre layout</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-fill-3 hover:text-text-secondary"
           >
             <X className="h-4 w-4" />
           </button>
@@ -106,21 +107,21 @@ function ConfigDialog({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
           {/* Formula note card */}
-          <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-            <div className="text-xs text-blue-800 space-y-1">
-              <p className="font-bold">Formula Reference</p>
+          <div className="flex gap-3 rounded-xl border border-accent-border bg-accent-surface px-4 py-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-text" />
+            <div className="text-xs text-accent-text-strong space-y-1">
+              <p className="font-semibold">Formula Reference</p>
               <p><span className="font-semibold">Km/Day</span> = Km/Month ÷ 26</p>
               <p><span className="font-semibold">Km/Month</span> = Km/Day × 26</p>
-              <p className="text-blue-500 mt-1">Based on 26 effective working days per month. Editing either field auto-calculates the other.</p>
+              <p className="text-accent-text mt-1">Based on 26 effective working days per month. Editing either field auto-calculates the other.</p>
             </div>
           </div>
 
           {/* Column headers */}
           <div className="grid grid-cols-[1fr_180px_180px] items-center gap-4 px-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Tyre Layout</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Km / Month</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Km / Day</span>
+            <span className="text-caption-2-semibold text-text-tertiary">Tyre Layout</span>
+            <span className="text-caption-2-semibold text-text-tertiary">Km / Month</span>
+            <span className="text-caption-2-semibold text-text-tertiary">Km / Day</span>
           </div>
 
           {/* Per-layout rows */}
@@ -128,14 +129,14 @@ function ConfigDialog({
             {layouts.map((layout) => (
               <div
                 key={layout}
-                className="grid grid-cols-[1fr_180px_180px] items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"
+                className="grid grid-cols-[1fr_180px_180px] items-center gap-4 rounded-xl border border-separator-border bg-fill-1 px-4 py-3"
               >
                 {/* Layout name */}
                 <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-surface-strong text-accent-text">
                     <LayoutGrid className="h-3.5 w-3.5" />
                   </div>
-                  <span className="text-sm font-semibold text-gray-800">{layout}</span>
+                  <span className="text-body-semibold text-text-primary">{layout}</span>
                 </div>
 
                 {/* Km / Month */}
@@ -146,9 +147,9 @@ function ConfigDialog({
                     placeholder="e.g. 6500"
                     value={config[layout]?.month ?? ""}
                     onChange={(e) => onMonthChange(layout, e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-10 text-sm font-semibold text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                    className="w-full rounded-lg border border-separator-border bg-background-primary-default py-2 pl-3 pr-10 text-body-semibold text-text-primary outline-none focus:border-accent-border-strong focus:ring-2 focus:ring-accent-border transition"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">km</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-caption-2-semibold text-text-tertiary">km</span>
                 </div>
 
                 {/* Km / Day */}
@@ -159,9 +160,9 @@ function ConfigDialog({
                     placeholder="e.g. 250"
                     value={config[layout]?.day ?? ""}
                     onChange={(e) => onDayChange(layout, e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-10 text-sm font-semibold text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                    className="w-full rounded-lg border border-separator-border bg-background-primary-default py-2 pl-3 pr-10 text-body-semibold text-text-primary outline-none focus:border-accent-border-strong focus:ring-2 focus:ring-accent-border transition"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">km</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-caption-2-semibold text-text-tertiary">km</span>
                 </div>
               </div>
             ))}
@@ -169,11 +170,11 @@ function ConfigDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-separator-border bg-fill-1 px-6 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md"
+            className="flex h-10 items-center whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-6 text-body-medium text-text-secondary shadow-sm transition duration-300 hover:shadow-md"
           >
             Cancel
           </button>
@@ -194,7 +195,7 @@ function ConfigDialog({
               setSaving(false);
               onClose();
             }}
-            className="flex h-10 items-center whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
+            className="flex h-10 items-center whitespace-nowrap rounded-full bg-accent-solid px-6 text-body-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save Configuration"}
           </button>
@@ -207,33 +208,33 @@ function ConfigDialog({
 
 function TruckCard({ truck }: { truck: Truck }) {
   return (
-    <div className="flex items-center gap-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <div className="w-1 self-stretch shrink-0 bg-blue-500" />
-      <div className="flex shrink-0 items-center justify-center bg-blue-50 px-4 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+    <div className="flex items-center gap-0 overflow-hidden rounded-xl border border-separator-border bg-background-primary-default shadow-sm transition-shadow hover:shadow-md">
+      <div className="w-1 self-stretch shrink-0 bg-accent-solid" />
+      <div className="flex shrink-0 items-center justify-center bg-accent-surface px-4 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-solid text-on-solid shadow-sm">
           <TruckIcon className="h-4 w-4" />
         </div>
       </div>
-      <div className="flex shrink-0 flex-col justify-center border-r border-gray-100 px-5 py-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Registration No.</span>
-        <span className="mt-0.5 text-sm font-bold tracking-wide text-gray-900">{fmtReg(truck.registrationNumber)}</span>
+      <div className="flex shrink-0 flex-col justify-center border-r border-separator-border px-5 py-3">
+        <span className="text-[9px] font-semibold text-text-tertiary">Registration No.</span>
+        <span className="mt-0.5 text-body-semibold text-text-primary">{fmtReg(truck.registrationNumber)}</span>
       </div>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3">
         <div>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Manufacturer</span>
-          <p className="text-xs font-semibold text-gray-700">{truck.manufacturer || "—"}</p>
+          <span className="text-[9px] font-semibold text-text-tertiary">Manufacturer</span>
+          <p className="text-caption-1-semibold text-text-primary">{truck.manufacturer || "—"}</p>
         </div>
         <div>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Model</span>
-          <p className="text-xs font-semibold text-gray-700">{truck.modelName || "—"}</p>
+          <span className="text-[9px] font-semibold text-text-tertiary">Model</span>
+          <p className="text-caption-1-semibold text-text-primary">{truck.modelName || "—"}</p>
         </div>
         <div>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Type</span>
-          <p className="text-xs font-semibold text-gray-700">{truck.truckType || "—"}</p>
+          <span className="text-[9px] font-semibold text-text-tertiary">Type</span>
+          <p className="text-caption-1-semibold text-text-primary">{truck.truckType || "—"}</p>
         </div>
         <div>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Branch</span>
-          <p className="text-xs font-semibold text-gray-700">{truck.branchRegisteredTo || "—"}</p>
+          <span className="text-[9px] font-semibold text-text-tertiary">Branch</span>
+          <p className="text-caption-1-semibold text-text-primary">{truck.branchRegisteredTo || "—"}</p>
         </div>
       </div>
     </div>
@@ -304,12 +305,12 @@ export default function TruckRunConfigPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
             <Gauge className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Run Configuration</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Truck Run Configuration</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               {trucks.length} truck{trucks.length !== 1 ? "s" : ""} across {groups.size} tyre layout{groups.size !== 1 ? "s" : ""}
             </p>
           </div>
@@ -320,7 +321,7 @@ export default function TruckRunConfigPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -329,7 +330,7 @@ export default function TruckRunConfigPage() {
           <button
             type="button"
             onClick={() => setShowConfig(true)}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Settings2 className="h-4 w-4" />
             Set Run Configuration
@@ -338,9 +339,7 @@ export default function TruckRunConfigPage() {
       </div>
 
       {trucks.length === 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
-          No trucks found.
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No trucks found" />
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -348,7 +347,7 @@ export default function TruckRunConfigPage() {
       </div>
 
       {trucks.length > 0 && visibleGroups.length === 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-10 text-center text-sm text-text-tertiary">
           No results match &ldquo;{search}&rdquo;.
         </div>
       )}
@@ -357,26 +356,26 @@ export default function TruckRunConfigPage() {
         {visibleGroups.map(([layout, layoutTrucks]) => (
           <div key={layout}>
             <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-surface-strong text-accent-text">
                 <LayoutGrid className="h-3.5 w-3.5" />
               </div>
-              <h2 className="text-sm font-bold text-gray-800">{layout}</h2>
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">
+              <h2 className="text-body-semibold text-text-primary">{layout}</h2>
+              <span className="rounded-full bg-accent-surface px-2 py-0.5 text-caption-2-semibold text-accent-text">
                 {layoutTrucks.length} truck{layoutTrucks.length !== 1 ? "s" : ""}
               </span>
-              <div className="flex-1 border-t border-gray-200" />
+              <div className="flex-1 border-t border-separator-border" />
 
               {/* Run config stats */}
               {runConfigMap[layout]?.month ? (
-                <span className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
+                <span className="flex items-center gap-1 rounded-full border border-separator-border bg-fill-1 px-2.5 py-0.5 text-caption-2-semibold tabular-nums text-text-secondary">
                   {Number(runConfigMap[layout].month).toLocaleString("en-IN")} km
-                  <span className="font-normal text-slate-400">/ mo</span>
+                  <span className="font-normal text-text-tertiary">/ mo</span>
                 </span>
               ) : null}
               {runConfigMap[layout]?.day ? (
-                <span className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
+                <span className="flex items-center gap-1 rounded-full border border-separator-border bg-fill-1 px-2.5 py-0.5 text-caption-2-semibold tabular-nums text-text-secondary">
                   {Number(runConfigMap[layout].day).toLocaleString("en-IN")} km
-                  <span className="font-normal text-slate-400">/ day</span>
+                  <span className="font-normal text-text-tertiary">/ day</span>
                 </span>
               ) : null}
 
@@ -420,38 +419,36 @@ export default function TruckRunConfigPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch || ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[420px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => (
                       <tr key={ev.id}>
                         <td className="px-3 py-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">
                             <Save className="h-3 w-3" /> {ev.event}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-gray-600">
+                        <td className="px-3 py-2 text-text-secondary">
                           {ev.actorName}
-                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -18,11 +18,12 @@ import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { computeHaltPay, haltRatesFor } from "@/lib/halt-pay";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
+import { RiErrorWarningLine as WarnIcon } from "@remixicon/react";
 const readonlyClass =
-  "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
+  "w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm text-text-primary cursor-not-allowed";
 
 const sectionHeadingClass =
-  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+  "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 function emptyForm(tripId: string): TripClosureData {
   return {
@@ -310,7 +311,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 {paymentLockedToCredit ? (
                   <>
                     <input readOnly disabled value="Credit" className={readonlyClass} />
-                    <span className="mt-1 text-xs text-blue-600">
+                    <span className="mt-1 text-xs text-accent-text">
                       {isSelfCustomer ? "Locked to Credit for Self customer" : "Locked to Credit — Bill To is SELF/CGI"}
                     </span>
                   </>
@@ -325,7 +326,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                       ]}
                     />
                     {paymentTypeValue === "To Be Paid" && (
-                      <span className="mt-1 text-xs font-medium text-purple-600">
+                      <span className="mt-1 text-caption-1-medium text-purple-text">
                         This trip&apos;s invoice will be waived automatically when it&apos;s verified.
                       </span>
                     )}
@@ -377,30 +378,30 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                     placeholder="e.g. Delayed at port due to documentation issues"
                   />
                 </Field>
-                <div className="sm:col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex flex-col gap-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                <div className="sm:col-span-2 rounded-lg border border-accent-border bg-accent-surface px-4 py-3 flex flex-col gap-1.5">
+                  <p className="text-caption-1-semibold text-accent-text">
                     Halt Compensation Summary · {haltRates.sizeLabel} · {truckBranch?.name ?? "Branch"}
                   </p>
                   {halt.companyDays > 0 && (
-                    <div className="flex items-center justify-between text-sm text-blue-800">
+                    <div className="flex items-center justify-between text-sm text-accent-text-strong">
                       <span>Company Halt — {halt.companyDays} day{halt.companyDays !== 1 ? "s" : ""} × ₹{halt.companyRate.toLocaleString("en-IN")}</span>
                       <span className="font-semibold">₹{halt.companyPay.toLocaleString("en-IN")}</span>
                     </div>
                   )}
                   {halt.partyDays > 0 && (
-                    <div className="flex items-center justify-between text-sm text-blue-800">
-                      <span>Customer Halt — {halt.partyDays} day{halt.partyDays !== 1 ? "s" : ""} × ₹{halt.partyRate.toLocaleString("en-IN")} <span className="text-xs text-blue-500">(billed to customer)</span></span>
+                    <div className="flex items-center justify-between text-sm text-accent-text-strong">
+                      <span>Customer Halt — {halt.partyDays} day{halt.partyDays !== 1 ? "s" : ""} × ₹{halt.partyRate.toLocaleString("en-IN")} <span className="text-xs text-accent-text">(billed to customer)</span></span>
                       <span className="font-semibold">₹{halt.partyPay.toLocaleString("en-IN")}</span>
                     </div>
                   )}
-                  <div className="mt-1 flex items-center justify-between border-t border-blue-200 pt-1.5 text-sm font-bold text-blue-900">
+                  <div className="mt-1 flex items-center justify-between border-t border-accent-border pt-1.5 text-body-semibold text-accent-text-strong">
                     <span>Driver Halt Compensation</span>
                     <span>₹{halt.total.toLocaleString("en-IN")}</span>
                   </div>
                   {haltWarnings.length > 0 && (
-                    <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      {haltWarnings.map((w) => <p key={w}>⚠ {w}</p>)}
-                      <p className="mt-0.5 text-amber-700">Set it in Branch Management, then reopen this dialog.</p>
+                    <div className="mt-1.5 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning-text-strong">
+                      {haltWarnings.map((w) => <p key={w} className="flex items-start gap-1.5"><WarnIcon className="mt-0.5 size-3.5 shrink-0" />{w}</p>)}
+                      <p className="mt-0.5 text-warning-text">Set it in Branch Management, then reopen this dialog.</p>
                     </div>
                   )}
                 </div>
@@ -423,11 +424,11 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
           </Field>
         </section>
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+        <div className="flex justify-end gap-3 border-t border-separator-border pt-4">
           <button
             type="button"
             onClick={() => { clearFormDraft(draftKey); onClose(); }}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2"
           >
             Cancel
           </button>
@@ -435,7 +436,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
             type="submit"
             disabled={paymentTypeMissing}
             title={paymentTypeMissing ? "Select a Payment Type first" : undefined}
-            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-success-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-success-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             Close Trip
           </button>

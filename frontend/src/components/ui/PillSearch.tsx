@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { RiSearchLine as Search } from "@remixicon/react";
 
 type Props = {
   value: string;
@@ -34,17 +34,17 @@ export function PillSearch({ value, onChange, placeholder = "Search…", size = 
   const z = SIZE[size];
   return (
     <label
-      className={`group flex ${z.box} shrink-0 cursor-text items-center justify-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md dark:border-gray-300/30 dark:bg-gray-200 ${
+      className={`group flex ${z.box} shrink-0 cursor-text items-center justify-center gap-2 overflow-hidden rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition duration-300 hover:shadow-md focus-within:scale-105 focus-within:border-accent-border-strong focus-within:shadow-md ${
         value ? z.open : z.closed
       }`}
     >
-      <Search className={`${z.icon} shrink-0 text-gray-500`} />
+      <Search className={`${z.icon} shrink-0 text-text-secondary`} />
       <input
         type="text"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full min-w-0 bg-transparent ${z.text} text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-950`}
+        className={`w-full min-w-0 bg-transparent ${z.text} text-text-primary outline-none placeholder:text-text-placeholder `}
       />
     </label>
   );

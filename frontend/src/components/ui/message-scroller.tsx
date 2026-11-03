@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowDown } from "lucide-react";
+import { RiArrowDownLine as ArrowDown } from "@remixicon/react";
 
 /* ── Context ───────────────────────────────────────────────────────── */
 
@@ -123,9 +123,9 @@ function MessageScrollerButton({ className, ...props }: React.HTMLAttributes<HTM
       onClick={scrollToBottom}
       className={cn(
         "absolute bottom-3 left-1/2 -translate-x-1/2 z-10",
-        "flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5",
-        "text-xs font-medium text-gray-600 shadow-md",
-        "transition-all hover:bg-gray-50",
+        "flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5",
+        "text-caption-1-medium text-text-secondary shadow-md",
+        "transition hover:bg-fill-2",
         className,
       )}
       {...props}

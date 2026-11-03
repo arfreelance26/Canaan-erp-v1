@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 // scale inverts + bg-white is overridden). Do NOT add `dark:` variants here —
 // they resolve against the inverted scale and produce dark text on dark surfaces.
 export const inputClass =
-  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 focus:border-blue-500 focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] focus:outline-none hover:border-gray-300 hover:bg-white/90 uppercase placeholder:normal-case placeholder:text-gray-400";
+  "w-full rounded-lg border border-separator-border px-3 py-2 text-sm text-text-primary bg-background-primary-default transition duration-200 focus:border-accent-solid focus:bg-background-primary-default shadow-md focus:outline-none hover:border-border-button-default hover:bg-fill-2 uppercase placeholder:normal-case placeholder:text-text-placeholder";
 
 export const inputClassLower =
-  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 focus:border-blue-500 focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] focus:outline-none hover:border-gray-300 hover:bg-white/90 placeholder:normal-case placeholder:text-gray-400 input-no-transform";
+  "w-full rounded-lg border border-separator-border px-3 py-2 text-sm text-text-primary bg-background-primary-default transition duration-200 focus:border-accent-solid focus:bg-background-primary-default shadow-md focus:outline-none hover:border-border-button-default hover:bg-fill-2 placeholder:normal-case placeholder:text-text-placeholder input-no-transform";
 
 type FieldProps = {
   label: string;
@@ -19,9 +19,9 @@ type FieldProps = {
 export function Field({ label, children, className, required }: FieldProps) {
   return (
     <label className={cn("flex flex-col gap-1.5", className)}>
-      <span className="text-sm font-medium text-gray-700">
+      <span className="text-body-medium text-text-primary">
         {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
+        {required && <span className="text-danger-text ml-1">*</span>}
       </span>
       {children}
     </label>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, Loader2, X } from "lucide-react";
+import { RiDownloadLine as Download, RiLoader4Line as Loader2, RiCloseLine as X } from "@remixicon/react";
 
 // Phone/scanner formats most browsers can't draw — offered as Download instead.
 const NO_PREVIEW_IMAGES = new Set(["image/heic", "image/heif", "image/tiff"]);
@@ -94,19 +94,19 @@ export function FileViewer({ open, onClose, url, title, filename, load }: Props)
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[10050] flex flex-col bg-black/85 backdrop-blur-sm"
+      className="fixed inset-0 z-[10050] flex flex-col bg-scrim/85"
       onClick={onClose}
       role="dialog"
       aria-label={title}
     >
       <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <p className="truncate text-sm font-semibold text-white">{title}</p>
+        <p className="truncate text-body-semibold text-on-solid">{title}</p>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={download}
             disabled={!file}
-            className="flex h-9 items-center gap-1.5 rounded-full bg-white/15 px-4 text-sm font-medium text-white transition hover:bg-white/25 disabled:opacity-60"
+            className="flex h-9 items-center gap-1.5 rounded-full bg-on-solid/15 px-4 text-body-medium text-on-solid transition hover:bg-on-solid/25 disabled:opacity-60"
           >
             <Download className="h-4 w-4" />
             Download
@@ -115,7 +115,7 @@ export function FileViewer({ open, onClose, url, title, filename, load }: Props)
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-on-solid/15 text-on-solid transition hover:bg-on-solid/25"
           >
             <X className="h-5 w-5" />
           </button>
@@ -123,17 +123,17 @@ export function FileViewer({ open, onClose, url, title, filename, load }: Props)
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center p-4 pt-0">
         {failed ? (
-          <p className="rounded-lg bg-white/10 px-4 py-3 text-sm text-white/80" onClick={(e) => e.stopPropagation()}>
+          <p className="rounded-lg bg-on-solid/10 px-4 py-3 text-sm text-on-solid/80" onClick={(e) => e.stopPropagation()}>
             This file couldn&apos;t be loaded.
           </p>
         ) : !file ? (
-          <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+          <Loader2 className="h-8 w-8 animate-spin text-on-solid/70" />
         ) : file.type === "application/pdf" ? (
           <iframe
             src={file.href}
             title={title}
             onClick={(e) => e.stopPropagation()}
-            className="h-full w-full max-w-5xl rounded-lg bg-white shadow-2xl"
+            className="h-full w-full max-w-5xl rounded-lg bg-background-primary-default shadow-2xl"
           />
         ) : file.type.startsWith("image/") && !NO_PREVIEW_IMAGES.has(file.type) ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -145,7 +145,7 @@ export function FileViewer({ open, onClose, url, title, filename, load }: Props)
             className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
           />
         ) : (
-          <p className="rounded-lg bg-white/10 px-4 py-3 text-sm text-white/80" onClick={(e) => e.stopPropagation()}>
+          <p className="rounded-lg bg-on-solid/10 px-4 py-3 text-sm text-on-solid/80" onClick={(e) => e.stopPropagation()}>
             This file can&apos;t be previewed here — use Download.
           </p>
         )}

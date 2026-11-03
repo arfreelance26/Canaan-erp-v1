@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { Gauge, IndianRupee, CalendarDays } from "lucide-react";
+import { RiDashboard3Line as Gauge, RiMoneyRupeeCircleLine as IndianRupee, RiCalendar2Line as CalendarDays } from "@remixicon/react";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { trucksApi, maintenanceApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -87,121 +87,121 @@ export function TruckStatusDialog({ open, onClose, truckDbId, records, tyreLayou
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
         {/* Truck info card */}
-        <div className="flex flex-col gap-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+        <div className="flex flex-col gap-0 overflow-hidden rounded-xl border border-separator-border bg-fill-1">
           <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200">
-              <Gauge className="h-4 w-4 text-slate-500" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-fill-3">
+              <Gauge className="h-4 w-4 text-text-secondary" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Truck ID</p>
-              <p className="text-base font-bold leading-tight text-slate-800">{truck.truckId}</p>
+              <p className="text-caption-2-semibold text-text-tertiary">Truck ID</p>
+              <p className="text-headline-semibold leading-tight text-text-primary">{truck.truckId}</p>
             </div>
           </div>
 
-          <div className="mx-4 border-t border-slate-200" />
+          <div className="mx-4 border-t border-separator-border" />
 
           {/* Row 1: Odometer */}
           <div className="px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Odometer</p>
-            <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700">
+            <p className="text-caption-2-semibold text-text-tertiary">Odometer</p>
+            <p className="mt-0.5 text-body-semibold tabular-nums text-text-primary">
               {odometer.toLocaleString("en-IN")} km
             </p>
           </div>
 
           {/* Row 2: Tyre Layout + Km/Day */}
-          <div className="mx-4 border-t border-slate-200" />
-          <div className="grid grid-cols-2 divide-x divide-slate-200 px-4 py-3">
+          <div className="mx-4 border-t border-separator-border" />
+          <div className="grid grid-cols-2 divide-x divide-separator-border px-4 py-3">
             <div className="pr-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Tyre Layout</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-700">
-                {tyreLayout ?? <span className="italic text-slate-400">—</span>}
+              <p className="text-caption-2-semibold text-text-tertiary">Tyre Layout</p>
+              <p className="mt-0.5 text-body-semibold text-text-primary">
+                {tyreLayout ?? <span className="italic text-text-tertiary">—</span>}
               </p>
             </div>
             <div className="pl-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Km / Day</p>
-              <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700">
+              <p className="text-caption-2-semibold text-text-tertiary">Km / Day</p>
+              <p className="mt-0.5 text-body-semibold tabular-nums text-text-primary">
                 {kmPerDay !== null
-                  ? <>{kmPerDay.toLocaleString("en-IN")} <span className="text-xs font-normal text-slate-400">km</span></>
-                  : <span className="italic text-slate-400">Not set</span>}
+                  ? <>{kmPerDay.toLocaleString("en-IN")} <span className="text-caption-1-regular text-text-tertiary">km</span></>
+                  : <span className="italic text-text-tertiary">Not set</span>}
               </p>
             </div>
           </div>
         </div>
 
         {/* Cost stats card */}
-        <div className="flex flex-col gap-0 overflow-hidden rounded-xl border border-blue-200 bg-blue-50">
+        <div className="flex flex-col gap-0 overflow-hidden rounded-xl border border-accent-border bg-accent-surface">
           {/* Card header */}
           <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-200">
-              <IndianRupee className="h-4 w-4 text-blue-600" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-surface-strong">
+              <IndianRupee className="h-4 w-4 text-accent-text" />
             </div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-500">
+            <p className="text-caption-2-semibold text-accent-text">
               Maintenance Costs
             </p>
           </div>
 
-          <div className="mx-4 border-t border-blue-200" />
+          <div className="mx-4 border-t border-accent-border" />
 
           {/* 2×2 stat grid */}
-          <div className="flex flex-col divide-y divide-blue-200 px-4">
+          <div className="flex flex-col divide-y divide-accent-border px-4">
             {/* Row 1: 12-Mo Total | Avg/Month */}
-            <div className="grid grid-cols-2 divide-x divide-blue-200 py-3">
+            <div className="grid grid-cols-2 divide-x divide-accent-border py-3">
               <div className="pr-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Total (last 12 mo)</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-slate-800">
-                  {yearTotal > 0 ? fmt(yearTotal) : <span className="text-slate-400">—</span>}
+                <p className="text-caption-2-semibold text-accent-text">Total (last 12 mo)</p>
+                <p className="mt-1 text-body-semibold tabular-nums text-text-primary">
+                  {yearTotal > 0 ? fmt(yearTotal) : <span className="text-text-tertiary">—</span>}
                 </p>
               </div>
               <div className="pl-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Avg / Month</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-blue-700">
-                  {yearTotal > 0 ? fmt(avgMonthlyCost) : <span className="text-slate-400">—</span>}
+                <p className="text-caption-2-semibold text-accent-text">Avg / Month</p>
+                <p className="mt-1 text-body-semibold tabular-nums text-accent-text">
+                  {yearTotal > 0 ? fmt(avgMonthlyCost) : <span className="text-text-tertiary">—</span>}
                 </p>
               </div>
             </div>
 
             {/* Row 2: Avg/Day | Cost/Km (Basic) | Cost/Km (Advanced) */}
-            <div className="grid grid-cols-3 divide-x divide-blue-200 py-3">
+            <div className="grid grid-cols-3 divide-x divide-accent-border py-3">
               <div className="pr-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Avg / Day</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-blue-700">
-                  {yearTotal > 0 ? fmt(avgDailyCost) : <span className="text-slate-400">—</span>}
+                <p className="text-caption-2-semibold text-accent-text">Avg / Day</p>
+                <p className="mt-1 text-body-semibold tabular-nums text-accent-text">
+                  {yearTotal > 0 ? fmt(avgDailyCost) : <span className="text-text-tertiary">—</span>}
                 </p>
               </div>
               <div className="px-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Cost / Km (Basic)</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-emerald-600">
+                <p className="text-caption-2-semibold text-accent-text">Cost / Km (Basic)</p>
+                <p className="mt-1 text-body-semibold tabular-nums text-success-text">
                   {costPerKm !== null
                     ? `₹${costPerKm.toFixed(4)}`
-                    : <span className="text-slate-400">—</span>}
+                    : <span className="text-text-tertiary">—</span>}
                 </p>
               </div>
               <div className="pl-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Cost / Km (Advanced)</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-indigo-600">
+                <p className="text-caption-2-semibold text-accent-text">Cost / Km (Advanced)</p>
+                <p className="mt-1 text-body-semibold tabular-nums text-purple-text">
                   {costPerKmAdvanced !== null
                     ? `₹${costPerKmAdvanced.toFixed(6)}`
-                    : <span className="text-slate-400">—</span>}
+                    : <span className="text-text-tertiary">—</span>}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Formula note */}
-          <div className="mx-4 mb-4 rounded-lg border border-blue-200 bg-white/60 px-3 py-2.5">
+          <div className="mx-4 mb-4 rounded-lg border border-accent-border bg-background-primary-default px-3 py-2.5">
             <div className="mb-1.5 flex items-center gap-1.5">
-              <CalendarDays className="h-3 w-3 text-blue-400" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Period</span>
+              <CalendarDays className="h-3 w-3 text-accent-text" />
+              <span className="text-caption-2-semibold text-accent-text">Period</span>
             </div>
-            <p className="text-[11px] font-medium tabular-nums text-blue-600">
+            <p className="text-caption-2-medium tabular-nums text-accent-text">
               {periodFrom} → {periodTo}
             </p>
-            <div className="mt-2 flex flex-col gap-0.5 border-t border-blue-100 pt-2">
-              <p className="text-[10px] text-blue-400">
+            <div className="mt-2 flex flex-col gap-0.5 border-t border-accent-border pt-2">
+              <p className="text-[10px] text-accent-text">
                 Avg/month = total ÷ months on record{monthsCovered > 0 ? ` (${monthsCovered.toFixed(1)} months, up to 12)` : " (up to 12)"}
               </p>
-              <p className="text-[10px] text-blue-400">Avg/day = Avg/month ÷ 26 working days</p>
-              <p className="text-[10px] text-blue-400">
+              <p className="text-[10px] text-accent-text">Avg/day = Avg/month ÷ 26 working days</p>
+              <p className="text-[10px] text-accent-text">
                 Cost/km (Basic) = Avg/day ÷ km/day
                 {tyreLayout && kmPerDay !== null
                   ? ` (${tyreLayout} · ${kmPerDay} km/day)`
@@ -209,23 +209,23 @@ export function TruckStatusDialog({ open, onClose, truckDbId, records, tyreLayou
                   ? ` — km/day not configured for ${tyreLayout}`
                   : ""}
               </p>
-              <p className="text-[10px] text-blue-400">
+              <p className="text-[10px] text-accent-text">
                 Cost/km (Advanced) = Avg/day × 26 ÷ Monthly Distance Average
                 {runStats.monthlyAvg > 0
                   ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
                   : " — no trip run history for this truck yet"}
-                {missingSheetsNote(runStats) && <span className="block text-amber-600">{missingSheetsNote(runStats)}</span>}
+                {missingSheetsNote(runStats) && <span className="block text-warning-text">{missingSheetsNote(runStats)}</span>}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
+      <div className="mt-4 flex justify-end border-t border-separator-border pt-4">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+          className="rounded-lg bg-fill-2 px-4 py-2 text-body-medium text-text-primary hover:bg-fill-3"
         >
           Close
         </button>

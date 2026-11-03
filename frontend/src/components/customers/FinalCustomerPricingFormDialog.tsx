@@ -205,10 +205,10 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
             // Route is locked once a final price is created — shown
             // read-only, not as a grid of every-other-card-disabled options.
             <Field label="Route">
-              <p className="mb-2 block text-xs text-gray-400">
+              <p className="mb-2 block text-xs text-text-tertiary">
                 The route is locked once a final price is created — delete and re-add to change it.
               </p>
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="rounded-2xl border border-separator-border bg-fill-1 p-4">
                 <RouteDiagram
                   compact
                   originState={linkedDestination.originState}
@@ -224,12 +224,12 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
             // destination id — its old text label matched more than one
             // route, so pick which one this entry actually belongs to.
             <Field label="Confirm Route" required>
-              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="mb-2 rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning-text">
                 This final price predates route linking and matches more than one destination named
                 &quot;{initialData.customerDestination}&quot;. Pick which route it&apos;s actually for.
               </p>
               {legacyCandidateRoutes.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+                <p className="rounded-lg border border-dashed border-separator-border bg-fill-1 p-4 text-center text-xs text-text-tertiary">
                   No matching destinations found — the original route may have been deleted.
                 </p>
               ) : (
@@ -243,10 +243,10 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
                         type="button"
                         onClick={() => resolveLegacyRoute(d.id, label)}
                         className={[
-                          "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                          "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition duration-200",
                           selected
-                            ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
-                            : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                            ? "border-accent-solid bg-accent-surface/60 ring-2 ring-accent-solid/30 shadow-md"
+                            : "border-separator-border bg-background-primary-default hover:border-accent-border hover:bg-accent-surface-strong/20 hover:shadow-md",
                         ].join(" ")}
                       >
                         <RouteDiagram
@@ -258,7 +258,7 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
                           approxDistanceKm={d.approxDistanceKm}
                         />
                         {selected && (
-                          <span className="mt-3 self-end text-[11px] font-semibold text-blue-600">Selected</span>
+                          <span className="mt-3 self-end text-caption-2-semibold text-accent-text">Selected</span>
                         )}
                       </button>
                     );
@@ -269,11 +269,11 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
           )
         ) : (
           <Field label="Available Routes" required>
-            <span className="mb-2 block text-xs text-gray-400">
+            <span className="mb-2 block text-xs text-text-tertiary">
               Routes with a Hire Amount configured in Customer Pricing. Select one to auto-fill Actual Hire Amount below. A route already carrying a final price can&apos;t be picked again.
             </span>
             {unlinkedLegacyFinalPricing.length > 0 && (
-              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="mb-2 rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning-text">
                 {unlinkedLegacyFinalPricing.length} existing final {unlinkedLegacyFinalPricing.length === 1 ? "price" : "prices"} for
                 this customer ({unlinkedLegacyFinalPricing.map((fp) => `"${fp.customerDestination}"`).join(", ")}) {unlinkedLegacyFinalPricing.length === 1 ? "hasn't" : "haven't"} been
                 matched to a specific route yet. Edit {unlinkedLegacyFinalPricing.length === 1 ? "it" : "them"} first to confirm
@@ -281,11 +281,11 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
               </p>
             )}
             {!customerId ? (
-              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              <p className="rounded-lg border border-dashed border-separator-border bg-fill-1 p-4 text-center text-xs text-text-tertiary">
                 Select a customer first
               </p>
             ) : routeOptions.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              <p className="rounded-lg border border-dashed border-separator-border bg-fill-1 p-4 text-center text-xs text-text-tertiary">
                 {hasUnlinkedCustomerPricing
                   ? "This customer's Customer Pricing entries haven't been matched to a specific route yet — edit them in Customer Pricing first."
                   : "No priced routes for this customer yet — add one in Customer Pricing"}
@@ -303,13 +303,13 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
                       onClick={() => selectRoute(opt, alreadyPriced)}
                       disabled={disabled}
                       className={[
-                        "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                        "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition duration-200",
                         disabled ? "cursor-not-allowed opacity-50" : "",
                         selected
-                          ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
+                          ? "border-accent-solid bg-accent-surface/60 ring-2 ring-accent-solid/30 shadow-md"
                           : disabled
-                            ? "border-gray-200 bg-gray-50"
-                            : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                            ? "border-separator-border bg-fill-1"
+                            : "border-separator-border bg-background-primary-default hover:border-accent-border hover:bg-accent-surface-strong/20 hover:shadow-md",
                       ].join(" ")}
                     >
                       {opt.destination ? (
@@ -322,17 +322,17 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
                           approxDistanceKm={opt.destination.approxDistanceKm}
                         />
                       ) : (
-                        <span className="text-sm font-semibold text-gray-800">{opt.label}</span>
+                        <span className="text-body-semibold text-text-primary">{opt.label}</span>
                       )}
-                      <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                      <div className="mt-3 flex items-center justify-between border-t border-separator-border pt-3">
+                        <span className="rounded-full bg-success-surface px-2.5 py-1 text-caption-2-semibold text-success-text">
                           ₹{Number(opt.rate).toLocaleString("en-IN")}
                         </span>
                         {selected && (
-                          <span className="text-[11px] font-semibold text-blue-600">Selected</span>
+                          <span className="text-caption-2-semibold text-accent-text">Selected</span>
                         )}
                         {alreadyPriced && (
-                          <span className="text-[11px] font-semibold text-gray-500">Already priced</span>
+                          <span className="text-caption-2-semibold text-text-secondary">Already priced</span>
                         )}
                       </div>
                     </button>
@@ -344,14 +344,14 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
         )}
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-gray-700">Actual Hire Amount (₹)</span>
+          <span className="text-body-medium text-text-primary">Actual Hire Amount (₹)</span>
           <input
             type="number"
             min="0"
             step="0.01"
             value={actualHireAmount}
             readOnly
-            className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-600`}
+            className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
             placeholder="Select a route above to auto-populate"
           />
         </div>
@@ -373,14 +373,14 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving || !customerId || !accountsHireAmount || !selectedRoute}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid hover:bg-accent-solid-hover disabled:opacity-50"
           >
             {saving ? "Saving…" : initialData ? "Save Changes" : "Add Final Pricing"}
           </button>

@@ -5,17 +5,15 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import React, { useEffect, useMemo, useState } from "react";
 import { Segmented } from "@/components/ui/Segmented";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import {
-  Users, TrendingUp, IndianRupee, Trophy,
-  ChevronDown, ChevronUp, BarChart2, AlertCircle,
-} from "lucide-react";
+import { RiGroupLine as Users, RiArrowRightUpLine as TrendingUp, RiMoneyRupeeCircleLine as IndianRupee, RiTrophyLine as Trophy, RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp, RiBarChart2Line as BarChart2, RiErrorWarningLine as AlertCircle } from "@remixicon/react";
 import { tripsApi, type CustomerProfitabilityData, type CostMode } from "@/lib/api";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { cn } from "@/lib/utils";
 import { COST_INPUT_RESOURCES, onRevalidated } from "@/lib/api-cache";
 import { usePollWhenOffline } from "@/hooks/usePollWhenOffline";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -86,13 +84,13 @@ function median(values: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** "⚠ 3" — trips counted at ₹0 cost because their truck has no figure. */
+/** "<warning icon> 3" — trips counted at ₹0 cost because their truck has no figure. */
 function IncompleteMark({ n, mode }: { n: number; mode: CostMode }) {
   if (!n) return null;
   return (
     <span
       title={`${n} trip${n === 1 ? "" : "s"} on a truck with no diesel / Cost/KM figure in ${mode} mode — counted as ₹0 cost, so this profit is overstated.`}
-      className="ml-1 inline-flex cursor-help items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-px text-[9px] font-bold text-amber-700 align-middle"
+      className="ml-1 inline-flex cursor-help items-center gap-0.5 rounded-full bg-warning-surface-strong px-1.5 py-px text-[9px] font-semibold text-warning-text align-middle"
     >
       <AlertCircle className="h-2.5 w-2.5" /> {n}
     </span>
@@ -104,7 +102,7 @@ function CustomTag({ c }: { c: CustomerProfitabilityData }) {
   return (
     <span
       title={c.customer_id === "none" ? "Trips with no customer recorded (e.g. return trips)" : "Customer typed in by name on the trip — not in Our Customers"}
-      className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-gray-500 align-middle"
+      className="ml-1.5 rounded-full bg-fill-2 px-1.5 py-px text-[9px] font-semibold text-text-secondary align-middle"
     >
       {c.customer_id === "none" ? "no customer" : "custom"}
     </span>
@@ -128,14 +126,14 @@ function fmtINR(n: number, compact = false): string {
 }
 
 function profitColor(n: number): string {
-  return n >= 0 ? "text-emerald-700" : "text-red-600";
+  return n >= 0 ? "text-success-text" : "text-danger-text";
 }
 
 function marginBg(pct: number): string {
-  if (pct >= 20) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (pct >= 10) return "bg-amber-50 text-amber-700 border-amber-200";
-  if (pct >= 0)  return "bg-orange-50 text-orange-700 border-orange-200";
-  return "bg-red-50 text-red-600 border-red-200";
+  if (pct >= 20) return "bg-success-surface text-success-text border-success-border";
+  if (pct >= 10) return "bg-warning-surface text-warning-text border-warning-border";
+  if (pct >= 0)  return "bg-orange-surface text-orange-text border-orange-border";
+  return "bg-danger-surface text-danger-text border-danger-border";
 }
 
 // ---------------------------------------------------------------------------
@@ -206,26 +204,26 @@ function InfoModal({
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-scrim/20" />
 
       {/* Panel — slides in from right */}
       <div
-        className="relative z-10 flex h-full w-full max-w-sm flex-col bg-white shadow-2xl"
+        className="relative z-10 flex h-full w-full max-w-sm flex-col bg-background-primary-default shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
+        <div className="flex items-center gap-3 border-b border-separator-border px-5 py-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">
+            <p className="text-caption-2-semibold text-text-tertiary mb-0.5">
               {MODES.find(m => m.id === mode)?.label} mode
             </p>
-            <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+            <h2 className="text-body-semibold text-text-primary">{title}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
           >
             <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
           </button>
@@ -236,21 +234,21 @@ function InfoModal({
           {isCalc
             ? (items as { heading: string; body: string }[]).map(item => (
                 <div key={item.heading} className="flex flex-col gap-1">
-                  <p className="text-xs font-semibold text-gray-800">{item.heading}</p>
-                  <p className="text-[11px] text-gray-500 leading-relaxed">{item.body}</p>
+                  <p className="text-caption-1-semibold text-text-primary">{item.heading}</p>
+                  <p className="text-[11px] text-text-secondary leading-relaxed">{item.body}</p>
                 </div>
               ))
             : (items as { step: string; body: string }[]).map((item, i) => (
                 <div key={i} className="flex gap-3">
                   <span
-                    className="flex shrink-0 items-center justify-center rounded-full bg-blue-50 text-[9px] font-bold text-blue-600"
+                    className="flex shrink-0 items-center justify-center rounded-full bg-accent-surface text-[9px] font-semibold text-accent-text"
                     style={{ minWidth: "1.25rem", height: "1.25rem", marginTop: "1px" }}
                   >
                     {i + 1}
                   </span>
                   <div className="flex flex-col gap-0.5">
-                    <p className="text-xs font-semibold text-gray-800">{item.step}</p>
-                    <p className="text-[11px] text-gray-500 leading-relaxed">{item.body}</p>
+                    <p className="text-caption-1-semibold text-text-primary">{item.step}</p>
+                    <p className="text-[11px] text-text-secondary leading-relaxed">{item.body}</p>
                   </div>
                 </div>
               ))
@@ -275,10 +273,10 @@ function ModeSlider({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   const idx = MODES.findIndex((m) => m.id === mode);
 
   return (
-    <div className="dk-seg relative inline-flex rounded-full p-1 shrink-0">
+    <div className="seg-track relative inline-flex rounded-full p-1 shrink-0">
       {/* Sliding pill */}
       <div
-        className="dk-seg-active pointer-events-none absolute top-1 bottom-1 rounded-full"
+        className="seg-thumb pointer-events-none absolute top-1 bottom-1 rounded-full"
         style={{
           width: `calc((100% - 8px) / 3)`,
           left: `calc(4px + ${idx} * (100% - 8px) / 3)`,
@@ -296,13 +294,13 @@ function ModeSlider({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             className="relative z-10 flex flex-col items-center rounded-full px-6 py-1.5"
           >
             <span
-              className={`text-xs whitespace-nowrap transition-all ${active ? "font-semibold text-gray-900" : "font-medium text-gray-500"}`}
+              className={`text-xs whitespace-nowrap transition ${active ? "font-semibold text-text-primary" : "font-medium text-text-secondary"}`}
               style={{ lineHeight: 1.4 }}
             >
               {m.label}
             </span>
             <span
-              className={`text-[9px] tracking-[0.04em] transition-colors ${active ? "text-gray-500" : "text-gray-400"}`}
+              className={`text-[9px] transition-colors ${active ? "text-text-secondary" : "text-text-tertiary"}`}
             >
               {m.sub}
             </span>
@@ -318,11 +316,11 @@ function ModeSlider({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
 // ---------------------------------------------------------------------------
 
 function RankBadge({ rank }: { rank: number }) {
-  const base = "flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-extrabold text-white shadow-sm";
-  if (rank === 1) return <span className={`${base} bg-amber-400`}>1</span>;
-  if (rank === 2) return <span className={`${base} bg-slate-400`}>2</span>;
-  if (rank === 3) return <span className={`${base} bg-orange-400`}>3</span>;
-  return <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-500">{rank}</span>;
+  const base = "flex h-6 w-6 items-center justify-center rounded-full text-caption-2-semibold text-on-solid shadow-sm";
+  if (rank === 1) return <span className={`${base} bg-warning-solid`}>1</span>;
+  if (rank === 2) return <span className={`${base} bg-fill-4`}>2</span>;
+  if (rank === 3) return <span className={`${base} bg-orange-solid`}>3</span>;
+  return <span className="flex h-6 w-6 items-center justify-center rounded-full bg-fill-2 text-caption-2-semibold text-text-secondary">{rank}</span>;
 }
 
 function BasicView({ data, search, level, mode }: { data: ViewCustomer[]; search: string; level: ProfitLevel; mode: CostMode }) {
@@ -352,43 +350,43 @@ function BasicView({ data, search, level, mode }: { data: ViewCustomer[]; search
       {/* KPI summary */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: "Total Customers",   value: String(data.length),          accent: "text-blue-500",   icon: <Users className="h-4 w-4" />       },
-          { label: "Total Revenue",     value: fmtINR(totalRevenue, true),   accent: "text-indigo-400", icon: <IndianRupee className="h-4 w-4" /> },
-          { label: `Total ${LEVELS[level].label}`, value: fmtINR(totalProfit, true), accent: totalProfit >= 0 ? "text-emerald-500" : "text-red-400", icon: <TrendingUp className="h-4 w-4" />, profitVal: true, n: totalProfit },
-          { label: "Overall Margin",    value: `${avgMargin.toFixed(1)}%`,   accent: "text-amber-500",  icon: <BarChart2 className="h-4 w-4" />   },
+          { label: "Total Customers",   value: String(data.length),          accent: "text-accent-text",   icon: <Users className="h-4 w-4" />       },
+          { label: "Total Revenue",     value: fmtINR(totalRevenue, true),   accent: "text-purple-text", icon: <IndianRupee className="h-4 w-4" /> },
+          { label: `Total ${LEVELS[level].label}`, value: fmtINR(totalProfit, true), accent: totalProfit >= 0 ? "text-success-text" : "text-danger-text", icon: <TrendingUp className="h-4 w-4" />, profitVal: true, n: totalProfit },
+          { label: "Overall Margin",    value: `${avgMargin.toFixed(1)}%`,   accent: "text-warning-text",  icon: <BarChart2 className="h-4 w-4" />   },
         ].map(({ label, value, accent, icon, profitVal, n }) => (
-          <div key={label} className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+          <div key={label} className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3 shadow-sm">
             <div className="flex items-center gap-2 mb-1">
               <span className={`${accent}`}>{icon}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
+              <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
             </div>
-            <p className={`text-xl font-semibold tabular-nums ${profitVal ? profitColor(n ?? 0) : "text-gray-900"}`}>{value}</p>
+            <p className={`text-title-2-semibold tabular-nums ${profitVal ? profitColor(n ?? 0) : "text-text-primary"}`}>{value}</p>
           </div>
         ))}
       </div>
       {incomplete > 0 && (
-        <p className="-mt-2 flex items-center gap-1.5 text-[11px] text-amber-700">
+        <p className="-mt-2 flex items-center gap-1.5 text-[11px] text-warning-text">
           <AlertCircle className="h-3.5 w-3.5" />
-          {incomplete} trip{incomplete === 1 ? "" : "s"} on trucks with no {level === "gross" ? "diesel" : "Cost/KM"} figure in {mode} mode are counted at ₹0 — those customers&apos; {LEVELS[level].label} is overstated (marked ⚠).
+          {incomplete} trip{incomplete === 1 ? "" : "s"} on trucks with no {level === "gross" ? "diesel" : "Cost/KM"} figure in {mode} mode are counted at ₹0 — those customers&apos; {LEVELS[level].label} is overstated (marked with a warning icon).
         </p>
       )}
 
       {/* Leaderboard table */}
-      <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-3">
-          <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
-          <h2 className="text-sm font-bold text-gray-800 shrink-0">Customer Leaderboard</h2>
-          <span className="ml-auto shrink-0 text-xs text-gray-400">
+      <div className="rounded-xl border border-separator-border bg-background-primary-default shadow-sm overflow-hidden">
+        <div className="border-b border-separator-border bg-fill-1 px-4 py-2.5 flex items-center gap-3">
+          <Trophy className="h-4 w-4 text-warning-text shrink-0" />
+          <h2 className="text-body-semibold text-text-primary shrink-0">Customer Leaderboard</h2>
+          <span className="ml-auto shrink-0 text-xs text-text-tertiary">
             {search.trim() ? `${filtered.length} of ${data.length}` : `${data.length} customers`}
           </span>
         </div>
 
         <div className="overflow-auto max-h-[70vh]">
           <table className="w-full text-left min-w-[720px]">
-            <thead className="sticky top-0 z-10 bg-gray-50">
-              <tr className="border-b border-gray-100 bg-gray-50/60">
+            <thead className="sticky top-0 z-10 bg-fill-1">
+              <tr className="border-b border-separator-border bg-fill-1">
                 {["#", "Customer", "Trips", "Revenue", "Expenses", LEVELS[level].label, "Margin", ""].map((h, i) => (
-                  <th key={i} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 2 && i <= 6 ? "text-right" : ""} ${i === 7 ? "w-8" : ""} ${i === 0 ? "w-12" : ""}`}>
+                  <th key={i} className={`px-4 py-2 text-caption-2-semibold text-text-tertiary ${i >= 2 && i <= 6 ? "text-right" : ""} ${i === 7 ? "w-8" : ""} ${i === 0 ? "w-12" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -397,7 +395,7 @@ function BasicView({ data, search, level, mode }: { data: ViewCustomer[]; search
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-text-tertiary">
                     No customers match &quot;{search}&quot;.
                   </td>
                 </tr>
@@ -407,52 +405,52 @@ function BasicView({ data, search, level, mode }: { data: ViewCustomer[]; search
                 return (
                   <React.Fragment key={c.customer_id}>
                     <tr
-                      className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="border-b border-separator-border hover:bg-fill-2 cursor-pointer transition-colors"
                       onClick={() => toggle(c.customer_id)}
                     >
                       <td className="px-4 py-3"><RankBadge rank={data.indexOf(c) + 1} /></td>
                       <td className="px-4 py-3">
-                        <p className="text-sm font-bold text-gray-900">{c.customer_name}<CustomTag c={c} /></p>
-                        <p className="text-[10px] text-gray-400">{c.total_km.toFixed(0)} km · {c.routes.length} route{c.routes.length !== 1 ? "s" : ""}</p>
+                        <p className="text-body-semibold text-text-primary">{c.customer_name}<CustomTag c={c} /></p>
+                        <p className="text-[10px] text-text-tertiary">{c.total_km.toFixed(0)} km · {c.routes.length} route{c.routes.length !== 1 ? "s" : ""}</p>
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">
+                      <td className="px-4 py-3 text-right text-body-semibold text-text-primary tabular-nums">
                         {c.trip_count}
                         {c.flagged_trip_count > 0 && (
                           <span
                             title={`${c.flagged_trip_count} trip(s) under review — excluded from this customer's totals`}
-                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 align-middle"
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-warning-text align-middle"
                           >
                             <AlertCircle className="h-2.5 w-2.5" /> {c.flagged_trip_count}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">{fmtINR(c.total_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">{fmtINR(c.total_expense)}</td>
-                      <td className={`px-4 py-3 text-right text-sm font-semibold tabular-nums ${profitColor(c.total_profit)}`}>
+                      <td className="px-4 py-3 text-right text-body-semibold text-text-primary tabular-nums">{fmtINR(c.total_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-body-semibold text-text-primary tabular-nums">{fmtINR(c.total_expense)}</td>
+                      <td className={`px-4 py-3 text-right text-body-semibold tabular-nums ${profitColor(c.total_profit)}`}>
                         {c.total_profit >= 0 ? "+" : ""}{fmtINR(c.total_profit)}
                         <IncompleteMark n={c.incomplete} mode={mode} />
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium tabular-nums ${marginBg(c.profit_margin_pct)}`}>
+                        <span className={`inline-block rounded-full border px-2 py-0.5 text-caption-2-medium tabular-nums ${marginBg(c.profit_margin_pct)}`}>
                           {c.profit_margin_pct.toFixed(1)}%
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-400">
+                      <td className="px-4 py-3 text-center text-text-tertiary">
                         {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                       </td>
                     </tr>
 
                     {isOpen && (
                       <tr>
-                        <td colSpan={8} className="bg-blue-50/30 px-6 py-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Route Breakdown</p>
+                        <td colSpan={8} className="bg-accent-surface/30 px-6 py-3">
+                          <p className="text-caption-2-semibold text-text-tertiary mb-2">Route Breakdown</p>
                           <div className="flex flex-col gap-1.5">
                             {c.routes.map((r: RouteBreakdown) => (
-                              <div key={r.route} className="flex items-center gap-3 rounded-lg bg-white border border-gray-100 px-3 py-2 shadow-sm">
-                                <span className="flex-1 text-xs font-semibold text-gray-800 truncate min-w-0">{r.route}</span>
-                                <span className="text-[10px] text-gray-400 shrink-0">{r.trip_count} trip{r.trip_count !== 1 ? "s" : ""}</span>
-                                <span className="text-[11px] font-semibold text-gray-600 tabular-nums w-28 text-right shrink-0">{fmtINR(r.revenue)}</span>
-                                <span className={`text-[11px] font-semibold tabular-nums w-28 text-right shrink-0 ${profitColor(r.profit)}`}>
+                              <div key={r.route} className="flex items-center gap-3 rounded-lg bg-background-primary-default border border-separator-border px-3 py-2 shadow-sm">
+                                <span className="flex-1 text-caption-1-semibold text-text-primary truncate min-w-0">{r.route}</span>
+                                <span className="text-[10px] text-text-tertiary shrink-0">{r.trip_count} trip{r.trip_count !== 1 ? "s" : ""}</span>
+                                <span className="text-caption-2-semibold text-text-secondary tabular-nums w-28 text-right shrink-0">{fmtINR(r.revenue)}</span>
+                                <span className={`text-caption-2-semibold tabular-nums w-28 text-right shrink-0 ${profitColor(r.profit)}`}>
                                   {r.profit >= 0 ? "+" : ""}{fmtINR(r.profit)}
                                 </span>
                                 <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums shrink-0 ${marginBg(r.margin_pct)}`}>
@@ -502,7 +500,7 @@ function IntermediateView({ data, search, level, mode }: { data: ViewCustomer[];
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const q = search.trim().toLowerCase();
 
-  if (data.length === 0) return <p className="py-20 text-center text-sm text-gray-400">No data.</p>;
+  if (data.length === 0) return <EmptyState size="compact" illustration="no-data" title="No data" />;
 
   const revenues = data.map(d => d.total_revenue);
   const margins  = data.map(d => d.profit_margin_pct);
@@ -525,13 +523,13 @@ function IntermediateView({ data, search, level, mode }: { data: ViewCustomer[];
   return (
     <div className="flex flex-col gap-4">
       {q && (
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-text-tertiary">
           {BOARD_ORDER.reduce((n, qq) => n + groups[qq].filter((c) => c.customer_name.toLowerCase().includes(q)).length, 0)} match{" "}of {data.length}
         </p>
       )}
 
       {/* 2×2 Matrix board */}
-      <div className="grid grid-cols-2 gap-px rounded-2xl overflow-hidden border border-gray-200 bg-gray-200 shadow-sm">
+      <div className="grid grid-cols-2 gap-px rounded-2xl overflow-hidden border border-separator-border bg-fill-3 shadow-sm">
         {BOARD_ORDER.map((quad) => {
           const m       = QUADRANT_META[quad];
           const group   = groups[quad];
@@ -542,7 +540,7 @@ function IntermediateView({ data, search, level, mode }: { data: ViewCustomer[];
           return (
             <div
               key={quad}
-              className="flex flex-col gap-0 bg-white"
+              className="flex flex-col gap-0 bg-background-primary-default"
               style={{ minHeight: 260 }}
             >
               {/* Quadrant header strip — translucent tint adapts to light & dark */}
@@ -551,25 +549,25 @@ function IntermediateView({ data, search, level, mode }: { data: ViewCustomer[];
                 style={{ background: m.color + "1f" }}
               >
                 <div className="h-2 w-2 rounded-full shrink-0" style={{ background: m.color }} />
-                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: m.color }}>
+                <span className="text-caption-2-semibold" style={{ color: m.color }}>
                   {m.label}
                 </span>
-                <span className="ml-auto text-[10px] font-medium" style={{ color: m.color + "bb" }}>
+                <span className="ml-auto text-caption-2-medium" style={{ color: m.color + "bb" }}>
                   {q ? `${visible.length} of ${group.length}` : `${group.length} customer${group.length !== 1 ? "s" : ""}`}
                 </span>
               </div>
 
               {/* Description + aggregate stats */}
-              <div className="px-4 pt-2.5 pb-2 border-b border-gray-50">
-                <p className="text-[11px] text-gray-500 leading-relaxed mb-2">{m.desc}</p>
+              <div className="px-4 pt-2.5 pb-2 border-b border-separator-border">
+                <p className="text-[11px] text-text-secondary leading-relaxed mb-2">{m.desc}</p>
                 <div className="flex items-center gap-5">
                   <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">Total Revenue</p>
-                    <p className="text-sm font-semibold text-gray-900 tabular-nums">{fmtINR(rev, true)}</p>
+                    <p className="text-[9px] font-semibold text-text-tertiary">Total Revenue</p>
+                    <p className="text-body-semibold text-text-primary tabular-nums">{fmtINR(rev, true)}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">{LEVELS[level].label}</p>
-                    <p className={`text-sm font-semibold tabular-nums ${profitColor(profit)}`}>
+                    <p className="text-[9px] font-semibold text-text-tertiary">{LEVELS[level].label}</p>
+                    <p className={`text-body-semibold tabular-nums ${profitColor(profit)}`}>
                       {profit >= 0 ? "+" : ""}{fmtINR(profit, true)}
                     </p>
                   </div>
@@ -579,10 +577,10 @@ function IntermediateView({ data, search, level, mode }: { data: ViewCustomer[];
               {/* Customer cards */}
               <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-1.5" style={{ maxHeight: 280 }}>
                 {group.length === 0 && (
-                  <p className="py-6 text-center text-[11px] text-gray-300 italic">No customers here yet.</p>
+                  <p className="py-6 text-center text-[11px] text-text-tertiary">No customers here yet.</p>
                 )}
                 {group.length > 0 && visible.length === 0 && (
-                  <p className="py-6 text-center text-[11px] text-gray-300 italic">No match in this quadrant.</p>
+                  <p className="py-6 text-center text-[11px] text-text-tertiary">No match in this quadrant.</p>
                 )}
                 {visible.map((c) => {
                   const isOpen = expandedId === c.customer_id;
@@ -591,33 +589,33 @@ function IntermediateView({ data, search, level, mode }: { data: ViewCustomer[];
                       <button
                         type="button"
                         onClick={() => setExpandedId(isOpen ? null : c.customer_id)}
-                        className="w-full text-left rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 hover:bg-gray-100 transition-colors"
+                        className="w-full text-left rounded-lg border border-separator-border bg-fill-1 px-3 py-2 hover:bg-fill-3 transition-colors"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{c.customer_name}<CustomTag c={c} /><IncompleteMark n={c.incomplete} mode={mode} /></span>
+                          <span className="flex-1 text-caption-1-semibold text-text-primary truncate">{c.customer_name}<CustomTag c={c} /><IncompleteMark n={c.incomplete} mode={mode} /></span>
                           <span
                             className="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums"
                             style={{ borderColor: m.color + "50", color: m.color, background: m.color + "1f" }}
                           >
                             {c.profit_margin_pct.toFixed(1)}%
                           </span>
-                          <span className="shrink-0 text-[10px] font-semibold text-gray-700 tabular-nums">
+                          <span className="shrink-0 text-caption-2-semibold text-text-primary tabular-nums">
                             {fmtINR(c.total_revenue, true)}
                           </span>
                         </div>
                         {/* Expanded detail */}
                         {isOpen && (
-                          <div className="mt-2 pt-2 border-t border-gray-100 grid grid-cols-3 gap-x-3 gap-y-1">
+                          <div className="mt-2 pt-2 border-t border-separator-border grid grid-cols-3 gap-x-3 gap-y-1">
                             {[
-                              ["Expenses", fmtINR(c.total_expense, true), "text-gray-600"],
+                              ["Expenses", fmtINR(c.total_expense, true), "text-text-secondary"],
                               ["Profit",   (c.total_profit >= 0 ? "+" : "") + fmtINR(c.total_profit, true), profitColor(c.total_profit)],
-                              ["Trips",    String(c.trip_count) + " trips", "text-blue-600"],
-                              ["Distance", c.total_km.toFixed(0) + " km",   "text-gray-600"],
-                              ["Routes",   String(c.routes.length),          "text-gray-600"],
+                              ["Trips",    String(c.trip_count) + " trips", "text-accent-text"],
+                              ["Distance", c.total_km.toFixed(0) + " km",   "text-text-secondary"],
+                              ["Routes",   String(c.routes.length),          "text-text-secondary"],
                             ].map(([k, v, cls]) => (
                               <div key={k}>
-                                <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-400">{k}</p>
-                                <p className={`text-[10px] font-semibold tabular-nums ${cls}`}>{v}</p>
+                                <p className="text-[8px] font-semibold text-text-tertiary">{k}</p>
+                                <p className={`text-caption-2-semibold tabular-nums ${cls}`}>{v}</p>
                               </div>
                             ))}
                           </div>
@@ -646,7 +644,7 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
   const list     = data.filter(d => d.customer_name.toLowerCase().includes(search.toLowerCase()));
   const selected = data.find(d => d.customer_id === selectedId) ?? data[0];
 
-  if (!selected) return <p className="py-20 text-center text-sm text-gray-400">No customer data available.</p>;
+  if (!selected) return <EmptyState size="compact" illustration="no-data" title="No customer data available" />;
 
   const bestRoute  = selected.routes[0];
   const worstRoute = [...selected.routes].sort((a, b) => a.profit - b.profit)[0];
@@ -656,12 +654,12 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
       <div className="grid grid-cols-4 gap-4 items-start">
       {/* Customer list sidebar */}
       <div className="col-span-1 flex flex-col gap-2">
-        <p className="px-1 text-[10px] font-medium text-gray-400">
+        <p className="px-1 text-caption-2-medium text-text-tertiary">
           {search.trim() ? `${list.length} of ${data.length} customers` : `${data.length} customers`}
         </p>
         <div className="flex flex-col gap-1 max-h-[100vh] overflow-y-auto">
           {list.length === 0 && (
-            <p className="px-3 py-6 text-center text-[11px] text-gray-400">No customers match &quot;{search}&quot;.</p>
+            <p className="px-3 py-6 text-center text-[11px] text-text-tertiary">No customers match &quot;{search}&quot;.</p>
           )}
           {list.map((c) => {
             const active = selectedId === c.customer_id;
@@ -670,18 +668,18 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
                 key={c.customer_id}
                 type="button"
                 onClick={() => setSelectedId(c.customer_id)}
-                className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all ${
+                className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition ${
                   active
-                    ? "bg-blue-600 shadow-sm"
-                    : "bg-white border border-gray-100 hover:bg-gray-50 shadow-sm"
+                    ? "bg-accent-solid shadow-sm"
+                    : "bg-background-primary-default border border-separator-border hover:bg-fill-2 shadow-sm"
                 }`}
               >
-                <span className={`text-[10px] font-semibold w-4 shrink-0 tabular-nums ${active ? "text-blue-200" : "text-gray-300"}`}>
+                <span className={`text-caption-2-semibold w-4 shrink-0 tabular-nums ${active ? "text-on-solid/80" : "text-text-tertiary"}`}>
                   {data.indexOf(c) + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className={`text-xs font-bold truncate ${active ? "text-white" : "text-gray-800"}`}>{c.customer_name}</p>
-                  <p className={`text-[9px] ${active ? "text-blue-200" : "text-gray-400"}`}>
+                  <p className={`text-caption-1-semibold truncate ${active ? "text-on-solid" : "text-text-primary"}`}>{c.customer_name}</p>
+                  <p className={`text-[9px] ${active ? "text-on-solid/80" : "text-text-tertiary"}`}>
                     {c.trip_count} trips · {c.profit_margin_pct.toFixed(1)}%
                   </p>
                 </div>
@@ -694,15 +692,15 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
       {/* Scorecard panel */}
       <div className="col-span-3 flex flex-col gap-4">
         {/* Header + KPIs */}
-        <div className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
+        <div className="rounded-xl border border-separator-border bg-background-primary-default px-5 py-4 shadow-sm">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{selected.customer_name}<CustomTag c={selected} /></h2>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <h2 className="text-title-3-semibold text-text-primary">{selected.customer_name}<CustomTag c={selected} /></h2>
+              <p className="text-xs text-text-tertiary mt-0.5">
                 {selected.trip_count} completed trips · {selected.total_km.toFixed(0)} km total
               </p>
             </div>
-            <span className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${marginBg(selected.profit_margin_pct)}`}>
+            <span className={`inline-block rounded-full border px-3 py-1 text-caption-1-medium ${marginBg(selected.profit_margin_pct)}`}>
               {selected.profit_margin_pct.toFixed(1)}% margin
             </span>
           </div>
@@ -716,17 +714,17 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
               { label: "Worst Route",    value: worstRoute?.route ?? "—",               profitVal: false, n: 0, small: true },
               { label: "Total Distance", value: `${selected.total_km.toFixed(0)} km`,   profitVal: false, n: 0 },
             ].map(({ label, value, profitVal, n, small }) => (
-              <div key={label} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{label}</p>
-                <p className={`font-semibold tabular-nums ${profitVal ? profitColor(n) : "text-gray-900"} ${small ? "text-xs truncate" : "text-base"}`}>{value}</p>
+              <div key={label} className="rounded-lg border border-separator-border bg-fill-1 px-3 py-2.5">
+                <p className="text-[9px] font-semibold text-text-tertiary mb-0.5">{label}</p>
+                <p className={`font-semibold tabular-nums ${profitVal ? profitColor(n) : "text-text-primary"} ${small ? "text-xs truncate" : "text-base"}`}>{value}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* All three profit levels, whichever is selected above */}
-        <div className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        <div className="rounded-xl border border-separator-border bg-background-primary-default px-5 py-4 shadow-sm">
+          <p className="mb-3 text-caption-2-semibold text-text-tertiary">
             Profit step by step <span className="font-medium normal-case tracking-normal">· Cost/KM: {mode} mode</span>
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -735,44 +733,44 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
               const active = lv === level;
               return (
                 <div key={lv} title={LEVELS[lv].hint}
-                  className={cn("rounded-lg border px-3 py-2.5", active ? "border-blue-300 bg-blue-50/60 ring-1 ring-blue-200" : "border-gray-100 bg-gray-50")}>
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-                    {i > 0 && <span className="text-gray-300">→ </span>}{LEVELS[lv].label}
+                  className={cn("rounded-lg border px-3 py-2.5", active ? "border-accent-border-strong bg-accent-surface/60 ring-1 ring-accent-border" : "border-separator-border bg-fill-1")}>
+                  <p className="text-[9px] font-semibold text-text-tertiary">
+                    {i > 0 && <span className="text-text-tertiary">→ </span>}{LEVELS[lv].label}
                   </p>
-                  <p className={cn("text-base font-semibold tabular-nums", profitColor(v))}>{v >= 0 ? "+" : ""}{fmtINR(v)}</p>
-                  <p className="text-[10px] tabular-nums text-gray-400">{pctOf(v, selected.total_revenue).toFixed(1)}% margin</p>
+                  <p className={cn("text-headline-semibold tabular-nums", profitColor(v))}>{v >= 0 ? "+" : ""}{fmtINR(v)}</p>
+                  <p className="text-[10px] tabular-nums text-text-tertiary">{pctOf(v, selected.total_revenue).toFixed(1)}% margin</p>
                 </div>
               );
             })}
           </div>
-          <p className="mt-2 text-[10px] text-gray-400">
+          <p className="mt-2 text-[10px] text-text-tertiary">
             Gross = Trip − diesel ({fmtINR(selected.diesel[mode])}) · Final = Trip − km × Cost/KM ({fmtINR(selected.truck_cost[mode])})
           </p>
         </div>
 
         {/* Route breakdown table */}
-        <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-          <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-2">
-            <h3 className="text-sm font-bold text-gray-800">Route Breakdown</h3>
-            <span className="ml-auto text-xs text-gray-400">{selected.routes.length} route{selected.routes.length !== 1 ? "s" : ""}</span>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default shadow-sm overflow-hidden">
+          <div className="border-b border-separator-border bg-fill-1 px-4 py-2.5 flex items-center gap-2">
+            <h3 className="text-body-semibold text-text-primary">Route Breakdown</h3>
+            <span className="ml-auto text-xs text-text-tertiary">{selected.routes.length} route{selected.routes.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="overflow-auto max-h-[70vh]">
             <table className="w-full text-left min-w-[600px]">
-              <thead className="sticky top-0 z-10 bg-gray-50">
-                <tr className="border-b border-gray-50 bg-gray-50/40">
+              <thead className="sticky top-0 z-10 bg-fill-1">
+                <tr className="border-b border-separator-border bg-fill-1">
                   {["Route", "Trips", "Revenue", "Expenses", LEVELS[level].label, "Margin", "Avg KM"].map((h, i) => (
-                    <th key={h} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 1 ? "text-right" : ""}`}>{h}</th>
+                    <th key={h} className={`px-4 py-2 text-caption-2-semibold text-text-tertiary ${i >= 1 ? "text-right" : ""}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-separator-border">
                 {selected.routes.map((r: RouteBreakdown) => (
-                  <tr key={r.route} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-2.5 text-xs font-semibold text-gray-800 max-w-[200px] truncate">{r.route}</td>
-                    <td className="px-4 py-2.5 text-right text-xs text-gray-500">{r.trip_count}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-gray-700 tabular-nums">{fmtINR(r.revenue)}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-gray-700 tabular-nums">{fmtINR(r.expense)}</td>
-                    <td className={`px-4 py-2.5 text-right text-xs font-semibold tabular-nums ${profitColor(r.profit)}`}>
+                  <tr key={r.route} className="hover:bg-fill-2 transition-colors">
+                    <td className="px-4 py-2.5 text-caption-1-semibold text-text-primary max-w-[200px] truncate">{r.route}</td>
+                    <td className="px-4 py-2.5 text-right text-xs text-text-secondary">{r.trip_count}</td>
+                    <td className="px-4 py-2.5 text-right text-caption-1-semibold text-text-primary tabular-nums">{fmtINR(r.revenue)}</td>
+                    <td className="px-4 py-2.5 text-right text-caption-1-semibold text-text-primary tabular-nums">{fmtINR(r.expense)}</td>
+                    <td className={`px-4 py-2.5 text-right text-caption-1-semibold tabular-nums ${profitColor(r.profit)}`}>
                       {r.profit >= 0 ? "+" : ""}{fmtINR(r.profit)}
                       <IncompleteMark n={(r as { incomplete?: number }).incomplete ?? 0} mode={mode} />
                     </td>
@@ -781,7 +779,7 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
                         {r.margin_pct.toFixed(1)}%
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right text-xs text-gray-400 tabular-nums">{r.avg_km.toFixed(0)} km</td>
+                    <td className="px-4 py-2.5 text-right text-xs text-text-tertiary tabular-nums">{r.avg_km.toFixed(0)} km</td>
                   </tr>
                 ))}
               </tbody>
@@ -791,42 +789,42 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
 
         {/* Recent trips table */}
         {selected.recent_trips.length > 0 && (
-          <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-2">
-              <h3 className="text-sm font-bold text-gray-800">Recent Trips</h3>
-              <span className="text-xs text-gray-400">last {selected.recent_trips.length}</span>
+          <div className="rounded-xl border border-separator-border bg-background-primary-default shadow-sm overflow-hidden">
+            <div className="border-b border-separator-border bg-fill-1 px-4 py-2.5 flex items-center gap-2">
+              <h3 className="text-body-semibold text-text-primary">Recent Trips</h3>
+              <span className="text-xs text-text-tertiary">last {selected.recent_trips.length}</span>
             </div>
             <div className="overflow-auto max-h-[45vh]">
               <table className="w-full text-left min-w-[560px]">
-                <thead className="sticky top-0 z-10 bg-gray-50">
-                  <tr className="border-b border-gray-50 bg-gray-50/40">
+                <thead className="sticky top-0 z-10 bg-fill-1">
+                  <tr className="border-b border-separator-border bg-fill-1">
                     {["Trip ID", "Date", "Route", "Revenue", LEVELS[level].label, "Margin"].map((h, i) => (
-                      <th key={h} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 3 ? "text-right" : ""}`}>{h}</th>
+                      <th key={h} className={`px-4 py-2 text-caption-2-semibold text-text-tertiary ${i >= 3 ? "text-right" : ""}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-separator-border">
                   {selected.recent_trips.map((t: RecentTrip) => (
-                    <tr key={t.trip_id} className={cn("hover:bg-gray-50 transition-colors", t.excluded_from_totals && "bg-amber-50/60 hover:bg-amber-50")}>
-                      <td className="px-4 py-2 text-xs font-mono font-semibold text-blue-600">
+                    <tr key={t.trip_id} className={cn("hover:bg-fill-2 transition-colors", t.excluded_from_totals && "bg-warning-surface/60 hover:bg-warning-surface-strong")}>
+                      <td className="px-4 py-2 text-caption-1-semibold font-mono text-accent-text">
                         {t.trip_id}
                         {t.flagged_for_recheck && (
                           <span
                             title={t.flagged_remark ? `Flagged for recheck: ${t.flagged_remark}` : "Flagged for recheck"}
-                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-warning-text"
                           >
                             <AlertCircle className="h-2.5 w-2.5" /> Under Review
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-xs text-gray-500 tabular-nums">{t.date ?? "—"}</td>
-                      <td className="px-4 py-2 text-xs text-gray-700 max-w-[180px] truncate">{t.route}</td>
-                      <td className={cn("px-4 py-2 text-right text-xs font-semibold tabular-nums", t.excluded_from_totals ? "text-gray-400" : "text-gray-700")}>{fmtINR(t.revenue)}</td>
+                      <td className="px-4 py-2 text-xs text-text-secondary tabular-nums">{t.date ?? "—"}</td>
+                      <td className="px-4 py-2 text-xs text-text-primary max-w-[180px] truncate">{t.route}</td>
+                      <td className={cn("px-4 py-2 text-right text-caption-1-semibold tabular-nums", t.excluded_from_totals ? "text-text-tertiary" : "text-text-primary")}>{fmtINR(t.revenue)}</td>
                       {t.excluded_from_totals ? (
-                        <td className="px-4 py-2 text-right text-[11px] text-gray-400" colSpan={2}>Excluded *</td>
+                        <td className="px-4 py-2 text-right text-[11px] text-text-tertiary" colSpan={2}>Excluded *</td>
                       ) : (
                         <>
-                          <td className={`px-4 py-2 text-right text-xs font-semibold tabular-nums ${profitColor(t.profit)}`}>
+                          <td className={`px-4 py-2 text-right text-caption-1-semibold tabular-nums ${profitColor(t.profit)}`}>
                             {t.profit >= 0 ? "+" : ""}{fmtINR(t.profit)}
                             <IncompleteMark n={(t as { incomplete?: boolean }).incomplete ? 1 : 0} mode={mode} />
                           </td>
@@ -843,7 +841,7 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
               </table>
             </div>
             {selected.flagged_trip_count > 0 && (
-              <p className="border-t border-gray-100 bg-amber-50/40 px-4 py-2 text-[11px] text-amber-700">
+              <p className="border-t border-separator-border bg-warning-surface/40 px-4 py-2 text-[11px] text-warning-text">
                 * {selected.flagged_trip_count} trip{selected.flagged_trip_count !== 1 ? "s" : ""} flagged for recheck by Audit — excluded from this customer&apos;s totals until resolved.
               </p>
             )}
@@ -923,12 +921,12 @@ export default function CustomerProfitabilityPage() {
   if (loading) {
     return (
       <div className="flex flex-col gap-6">
-        <div className="h-8 w-72 animate-pulse rounded-lg bg-gray-200" />
-        <div className="h-28 animate-pulse rounded-xl bg-gray-100" />
+        <div className="h-8 w-72 animate-pulse rounded-lg bg-fill-3" />
+        <div className="h-28 animate-pulse rounded-xl bg-fill-2" />
         <div className="grid grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-gray-100" />)}
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-fill-2" />)}
         </div>
-        <div className="h-64 animate-pulse rounded-xl bg-gray-100" />
+        <div className="h-64 animate-pulse rounded-xl bg-fill-2" />
       </div>
     );
   }
@@ -953,12 +951,12 @@ export default function CustomerProfitabilityPage() {
         {/* Page header */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-border bg-teal-surface text-teal-text shadow-sm">
             <Users className="h-5 w-5" />
           </span>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Customer Profitability Analytics</h1>
-              <p className="mt-0.5 text-sm text-gray-500">
+              <h1 className="text-title-1-semibold tracking-tight text-text-primary">Customer Profitability Analytics</h1>
+              <p className="mt-0.5 text-sm text-text-secondary">
                 Revenue and profit — at the trip, after diesel, or after the truck&apos;s full running cost — across your customers&apos; completed trips.
               </p>
             </div>
@@ -967,14 +965,14 @@ export default function CustomerProfitabilityPage() {
             <button
               type="button"
               onClick={() => setActivePanel(p => p === "calc" ? null : "calc")}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md"
             >
               How is this Calculated?
             </button>
             <button
               type="button"
               onClick={() => setActivePanel(p => p === "guide" ? null : "guide")}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md"
             >
               Quick Start Guide
             </button>
@@ -982,8 +980,8 @@ export default function CustomerProfitabilityPage() {
         </div>
 
         {/* Profit level + Cost/KM mode + date range */}
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Profit</span>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-separator-border bg-background-primary-default px-4 py-3 shadow-sm">
+          <span className="text-caption-2-semibold text-text-tertiary">Profit</span>
           <div title={LEVELS[level].hint}>
             <Segmented<ProfitLevel>
               label="Profit level"
@@ -995,7 +993,7 @@ export default function CustomerProfitabilityPage() {
           </div>
           {level !== "trip" && (
             <>
-              <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Cost/KM</span>
+              <span className="ml-1 text-caption-2-semibold text-text-tertiary">Cost/KM</span>
               <Segmented<CostMode>
                 label="Cost/KM mode"
                 size="md"
@@ -1009,10 +1007,10 @@ export default function CustomerProfitabilityPage() {
             <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
             {(dateFrom || dateTo) && (
               <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
-                className="text-xs font-semibold text-blue-600 hover:underline">All time</button>
+                className="text-caption-1-semibold text-accent-text hover:underline">All time</button>
             )}
           </div>
-          <p className="basis-full text-[11px] text-gray-400">{LEVELS[level].hint}</p>
+          <p className="basis-full text-[11px] text-text-tertiary">{LEVELS[level].hint}</p>
         </div>
 
         {/* Toolbar: search on the left, analysis mode + View on the right */}
@@ -1034,11 +1032,7 @@ export default function CustomerProfitabilityPage() {
 
         {/* Content */}
         {data.length === 0 ? (
-          <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white py-24 text-sm text-gray-400">
-            {dateFrom || dateTo
-              ? "No completed trips with trip sheets in this date range."
-              : "No completed trips with trip sheets found. Complete and sheet some trips to see analytics here."}
-          </div>
+          <EmptyState size="compact" illustration="logistics" title={dateFrom || dateTo ? "No completed trips with trip sheets in this date range" : "No completed trips with trip sheets found. Complete and sheet some trips to see analytics here"} />
         ) : (
           <div key={transitionKey} className="mode-content-enter">
             {mode === "basic" ? (

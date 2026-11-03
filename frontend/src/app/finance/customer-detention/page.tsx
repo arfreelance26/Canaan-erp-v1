@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Paperclip, Timer, Undo2, Upload, X } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiLoader4Line as Loader2, RiAttachment2 as Paperclip, RiTimerLine as Timer, RiArrowGoBackLine as Undo2, RiUploadLine as Upload, RiCloseLine as X } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { detentionApi, type DetentionRow, type DetentionStatus, type DetentionTotals } from "@/lib/api";
 import { Dialog } from "@/components/ui/Dialog";
@@ -15,20 +15,21 @@ import { FileViewer } from "@/components/ui/FileViewer";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate, formatDateTime, inDateRange, todayIst } from "@/lib/format-date";
-import { confirmAction, showError, showSuccess } from "@/lib/swal";
+import { confirmAction, showError, showSuccess } from "@/lib/feedback";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { cn } from "@/lib/utils";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 /** Who can open the page (backend: routers/party_halt.py ROLES, plus Admin). */
 const ALLOWED_ROLES = ["Admin", "Accounts"];
 const MAX_PROOF_BYTES = 15 * 1024 * 1024;
 const STATUSES: DetentionStatus[] = ["Not billed", "Missed on invoice", "Billed", "Paid", "Invoice waived"];
 const STATUS_STYLE: Record<DetentionStatus, string> = {
-  "Not billed": "bg-gray-100 text-gray-700",
-  "Missed on invoice": "bg-red-100 text-red-700",
-  "Invoice waived": "bg-purple-100 text-purple-700",
-  Billed: "bg-blue-100 text-blue-700",
-  Paid: "bg-emerald-100 text-emerald-700",
+  "Not billed": "bg-fill-2 text-text-primary",
+  "Missed on invoice": "bg-danger-surface-strong text-danger-text",
+  "Invoice waived": "bg-purple-surface-strong text-purple-text",
+  Billed: "bg-accent-surface-strong text-accent-text",
+  Paid: "bg-success-surface-strong text-success-text",
 };
 
 function money(v: number): string {
@@ -136,21 +137,21 @@ export default function CustomerDetentionPage() {
   if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={4} columns={8} />;
 
   const tiles = totals ? [
-    { label: "To recover", value: money(totals.outstandingAmount), sub: `${totals.outstandingTrips} trip${totals.outstandingTrips === 1 ? "" : "s"}`, tone: "text-amber-600", filter: "All" as const },
-    { label: "Missed on invoice", value: String(totals.missedOnInvoice), sub: "invoiced without halting charges", tone: totals.missedOnInvoice ? "text-red-600" : "text-gray-900", filter: "Missed on invoice" as const },
-    { label: "Billed, awaiting payment", value: String(totals.billedTrips), sub: money(totals.billedAmount), tone: "text-blue-600", filter: "Billed" as const },
-    { label: "Paid this month", value: money(totals.paidThisMonth), sub: `${money(totals.paidAmount)} in all`, tone: "text-emerald-600", filter: "Paid" as const },
+    { label: "To recover", value: money(totals.outstandingAmount), sub: `${totals.outstandingTrips} trip${totals.outstandingTrips === 1 ? "" : "s"}`, tone: "text-warning-text", filter: "All" as const },
+    { label: "Missed on invoice", value: String(totals.missedOnInvoice), sub: "invoiced without halting charges", tone: totals.missedOnInvoice ? "text-danger-text" : "text-text-primary", filter: "Missed on invoice" as const },
+    { label: "Billed, awaiting payment", value: String(totals.billedTrips), sub: money(totals.billedAmount), tone: "text-accent-text", filter: "Billed" as const },
+    { label: "Paid this month", value: money(totals.paidThisMonth), sub: `${money(totals.paidAmount)} in all`, tone: "text-success-text", filter: "Paid" as const },
   ] : [];
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
           <Timer className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Customer Detention</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Party halt the driver is paid for, to be recovered from the customer</p>
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Customer Detention</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Party halt the driver is paid for, to be recovered from the customer</p>
         </div>
       </div>
 
@@ -160,11 +161,11 @@ export default function CustomerDetentionPage() {
             key={t.label}
             type="button"
             onClick={() => setStatus(t.filter)}
-            className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm transition-colors hover:border-gray-300"
+            className="rounded-2xl border border-separator-border bg-background-primary-default px-5 py-4 text-left shadow-sm transition-colors hover:border-border-button-default"
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.label}</p>
-            <p className={cn("mt-1 text-2xl font-bold tabular-nums", t.tone)}>{t.value}</p>
-            <p className="mt-0.5 text-xs text-gray-500">{t.sub}</p>
+            <p className="text-caption-1-semibold text-text-tertiary">{t.label}</p>
+            <p className={cn("mt-1 text-title-1-semibold tabular-nums", t.tone)}>{t.value}</p>
+            <p className="mt-0.5 text-xs text-text-secondary">{t.sub}</p>
           </button>
         ))}
       </div>
@@ -193,66 +194,64 @@ export default function CustomerDetentionPage() {
             key={s}
             type="button"
             onClick={() => setStatus(s)}
-            className={cn("rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
-              status === s ? "bg-blue-600 text-white" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50")}
+            className={cn("rounded-full px-3.5 py-1.5 text-caption-1-semibold transition-colors",
+              status === s ? "bg-accent-solid text-on-solid" : "border border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2")}
           >
             {s} <span className="ml-1 opacity-70">{counts[s] ?? 0}</span>
           </button>
         ))}
         {(dateFrom || dateTo) && (
-          <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }} className="ml-2 text-xs font-medium text-blue-600 hover:text-blue-700">
+          <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }} className="ml-2 text-caption-1-medium text-accent-text hover:text-accent-text">
             Clear dates
           </button>
         )}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          {rows.length === 0 ? "No trips have party halt yet." : "No detention matches these filters."}
-        </div>
+        <EmptyState size="compact" illustration={rows.length === 0 ? "logistics" : "not-found"} title={rows.length === 0 ? "No trips have party halt yet" : "No detention matches these filters"} />
       ) : (
-        <div className="overflow-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-auto rounded-xl border border-separator-border bg-background-primary-default">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
+              <tr className="border-b border-separator-border bg-fill-1">
                 {["Trip", "Customer", "Completed", "Days", "Amount", "Invoice", "Status", ""].map((h, i) => (
-                  <th key={i} className={cn("px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400", (i === 3 || i === 4) && "text-right")}>{h}</th>
+                  <th key={i} className={cn("px-4 py-2.5 text-caption-2-semibold text-text-tertiary", (i === 3 || i === 4) && "text-right")}>{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-separator-border">
               {filtered.map((r) => (
-                <tr key={r.tripDbId} className="align-top hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-semibold text-gray-900">{r.tripId}</td>
-                  <td className="max-w-[220px] px-4 py-3 text-gray-700">{r.customer}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-500">{formatDate(r.completedDate)}</td>
-                  <td className="px-4 py-3 text-right text-gray-700">{r.partyDays}</td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{money(r.amount)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                <tr key={r.tripDbId} className="align-top hover:bg-fill-2">
+                  <td className="px-4 py-3 font-semibold text-text-primary">{r.tripId}</td>
+                  <td className="max-w-[220px] px-4 py-3 text-text-primary">{r.customer}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-text-secondary">{formatDate(r.completedDate)}</td>
+                  <td className="px-4 py-3 text-right text-text-primary">{r.partyDays}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-text-primary">{money(r.amount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-text-secondary">
                     {r.invoiceNo ?? "—"}
-                    {r.invoiceNo && r.billedAmount > 0 && <span className="block text-[11px] text-gray-400">Halt on invoice {money(r.billedAmount)}</span>}
+                    {r.invoiceNo && r.billedAmount > 0 && <span className="block text-[11px] text-text-tertiary">Halt on invoice {money(r.billedAmount)}</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide", STATUS_STYLE[r.status])}>
+                    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-caption-2-semibold", STATUS_STYLE[r.status])}>
                       {r.status === "Paid" && r.paidAmount !== null && r.paidAmount < r.amount ? "Part paid" : r.status}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     {r.status === "Paid" ? (
-                      <div className="flex flex-col items-end gap-1 text-right text-xs text-gray-500">
-                        <span className="flex items-center gap-1 font-semibold text-emerald-700">
+                      <div className="flex flex-col items-end gap-1 text-right text-xs text-text-secondary">
+                        <span className="flex items-center gap-1 font-semibold text-success-text">
                           <CheckCircle2 className="h-3.5 w-3.5" /> {money(r.paidAmount ?? 0)} on {formatDate(r.paidOn)}
                         </span>
-                        <span>Saved by <span className="font-medium text-gray-700">{r.paidBy ?? "—"}</span> · {formatDateTime(r.paidSavedAt)}</span>
+                        <span>Saved by <span className="font-medium text-text-primary">{r.paidBy ?? "—"}</span> · {formatDateTime(r.paidSavedAt)}</span>
                         {r.paidNote && <span className="italic">“{r.paidNote}”</span>}
                         <span className="flex items-center gap-3">
                           {r.proofFileName && (
-                            <button type="button" onClick={() => setViewing(r)} className="flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700">
+                            <button type="button" onClick={() => setViewing(r)} className="flex items-center gap-1 font-semibold text-accent-text hover:text-accent-text">
                               <Paperclip className="h-3.5 w-3.5" /> Proof
                             </button>
                           )}
                           {isAdmin && (
-                            <button type="button" onClick={() => undoPaid(r)} className="flex items-center gap-1 font-semibold text-gray-500 hover:text-red-600">
+                            <button type="button" onClick={() => undoPaid(r)} className="flex items-center gap-1 font-semibold text-text-secondary hover:text-danger-text">
                               <Undo2 className="h-3.5 w-3.5" /> Undo
                             </button>
                           )}
@@ -263,7 +262,7 @@ export default function CustomerDetentionPage() {
                         <button
                           type="button"
                           onClick={() => openPay(r)}
-                          className="whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                          className="whitespace-nowrap rounded-lg bg-success-solid px-3 py-1.5 text-caption-1-semibold text-on-solid shadow-sm hover:bg-success-solid-hover"
                         >
                           Mark as Paid
                         </button>
@@ -280,7 +279,7 @@ export default function CustomerDetentionPage() {
       <Dialog open={paying !== null} onClose={() => !saving && setPaying(null)} title={`Mark ${paying?.tripId ?? ""} as Paid`} className="sm:max-w-md">
         {paying && (
           <form onSubmit={savePaid} className="flex flex-col gap-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <div className="rounded-xl border border-success-border bg-success-surface px-4 py-3 text-sm text-success-text-strong">
               <p className="font-semibold">{paying.customer}</p>
               <p className="mt-0.5">{paying.partyDays} party halt day{paying.partyDays === 1 ? "" : "s"} · {money(paying.amount)}{paying.invoiceNo ? ` · ${paying.invoiceNo}` : ""}</p>
             </div>
@@ -298,7 +297,7 @@ export default function CustomerDetentionPage() {
                 className={inputClass}
               />
               {Number(form.amount) > 0 && Number(form.amount) < paying.amount && (
-                <span className="mt-1 text-xs text-amber-700">Part payment: {money(paying.amount - Number(form.amount))} less than the detention.</span>
+                <span className="mt-1 text-xs text-warning-text">Part payment: {money(paying.amount - Number(form.amount))} less than the detention.</span>
               )}
             </Field>
             <Field label="Note">
@@ -306,23 +305,23 @@ export default function CustomerDetentionPage() {
             </Field>
             <Field label="Proof of payment (optional)">
               {form.proof ? (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-2 text-gray-700"><Paperclip className="h-4 w-4 shrink-0" /><span className="truncate">{form.proof.name}</span></span>
-                  <button type="button" onClick={() => setForm((f) => ({ ...f, proof: null }))} aria-label="Remove file" className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-separator-border px-3 py-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 text-text-primary"><Paperclip className="h-4 w-4 shrink-0" /><span className="truncate">{form.proof.name}</span></span>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, proof: null }))} aria-label="Remove file" className="text-text-tertiary hover:text-text-secondary"><X className="h-4 w-4" /></button>
                 </div>
               ) : (
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-500 hover:bg-gray-50">
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border-button-default px-3 py-3 text-sm text-text-secondary hover:bg-fill-2">
                   <Upload className="h-4 w-4" /> Choose a PDF or image (max 15 MB)
                   <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => pickProof(e.target.files?.[0])} />
                 </label>
               )}
             </Field>
-            <p className="text-xs text-gray-400">Your name and the date and time are saved with the payment.</p>
+            <p className="text-xs text-text-tertiary">Your name and the date and time are saved with the payment.</p>
             <div className="flex justify-end gap-3 pt-1">
-              <button type="button" onClick={() => setPaying(null)} disabled={saving} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+              <button type="button" onClick={() => setPaying(null)} disabled={saving} className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2 disabled:opacity-50">
                 Cancel
               </button>
-              <button type="submit" disabled={saving || !form.receivedOn || !(Number(form.amount) > 0)} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="submit" disabled={saving || !form.receivedOn || !(Number(form.amount) > 0)} className="flex items-center gap-2 rounded-lg bg-success-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-success-solid-hover disabled:cursor-not-allowed disabled:opacity-50">
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {saving ? "Saving…" : "Save payment"}
               </button>

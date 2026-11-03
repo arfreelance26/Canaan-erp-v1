@@ -2,19 +2,14 @@
 
 import { Fragment, useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { COST_INPUT_RESOURCES } from "@/lib/api-cache";
-import {
-  TrendingUp, TrendingDown,
-  Loader2, BarChart3, ArrowRight, Eye,
-  DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, X, ShieldCheck, ChevronDown,
-  Calculator, Compass, Route, FileText, Fuel, MousePointerClick, SlidersHorizontal, Info,
-} from "lucide-react";
+import { RiArrowRightUpLine as TrendingUp, RiArrowRightDownLine as TrendingDown, RiLoader4Line as Loader2, RiBarChartBoxLine as BarChart3, RiArrowRightLine as ArrowRight, RiEyeLine as Eye, RiMoneyDollarCircleLine as DollarSign, RiToolsLine as Wrench, RiBankLine as Landmark, RiErrorWarningLine as AlertCircle, RiCalendar2Line as CalendarDays, RiCloseLine as X, RiShieldCheckLine as ShieldCheck, RiArrowDownSLine as ChevronDown, RiCalculatorLine as Calculator, RiCompass3Line as Compass, RiRouteLine as Route, RiFileTextLine as FileText, RiGasStationLine as Fuel, RiCursorLine as MousePointerClick, RiEqualizerLine as SlidersHorizontal, RiInformationLine as Info, RiErrorWarningLine as WarnIcon } from "@remixicon/react";
 import { problemFromMessage, reportProblem } from "@/lib/connection-problem";
 import { fetchExcel, plSummaryApi, type PlComputed, type PlComputedTrip, type PlComputedTruck, type PlTruckMoney, type TruckPLEntry } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Segmented } from "@/components/ui/Segmented";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { cn } from "@/lib/utils";
@@ -71,9 +66,9 @@ function StatCard({ label, value, sub, icon, color, onClick, active }: {
   onClick?: () => void;
   active?: boolean;
 }) {
-  const ring = { blue: "border-blue-200 bg-blue-50", emerald: "border-emerald-200 bg-emerald-50", red: "border-red-200 bg-red-50", amber: "border-amber-200 bg-amber-50", purple: "border-purple-200 bg-purple-50", slate: "border-slate-200 bg-slate-50" };
-  const activeRing = { blue: "ring-2 ring-blue-400", emerald: "ring-2 ring-emerald-400", red: "ring-2 ring-red-400", amber: "ring-2 ring-amber-400", purple: "ring-2 ring-purple-400", slate: "ring-2 ring-slate-400" };
-  const txt  = { blue: "text-blue-700", emerald: "text-emerald-700", red: "text-red-700", amber: "text-amber-700", purple: "text-purple-700", slate: "text-slate-700" };
+  const ring = { blue: "border-accent-border bg-accent-surface", emerald: "border-success-border bg-success-surface", red: "border-danger-border bg-danger-surface", amber: "border-warning-border bg-warning-surface", purple: "border-purple-border bg-purple-surface", slate: "border-separator-border bg-fill-1" };
+  const activeRing = { blue: "ring-2 ring-accent-border-strong", emerald: "ring-2 ring-success-border-strong", red: "ring-2 ring-danger-border-strong", amber: "ring-2 ring-warning-border-strong", purple: "ring-2 ring-purple-border-strong", slate: "ring-2 ring-border-button-default" };
+  const txt  = { blue: "text-accent-text", emerald: "text-success-text", red: "text-danger-text", amber: "text-warning-text", purple: "text-purple-text", slate: "text-text-primary" };
   return (
     <div
       role={onClick ? "button" : undefined}
@@ -88,9 +83,9 @@ function StatCard({ label, value, sub, icon, color, onClick, active }: {
     >
       <div className={`flex items-center gap-2 mb-2 ${txt[color]}`}>
         {icon}
-        <span className="text-xs font-semibold uppercase tracking-wider opacity-70">{label}</span>
+        <span className="text-caption-1-semibold opacity-70">{label}</span>
       </div>
-      <p className={`text-xl font-bold ${txt[color]}`}>{value}</p>
+      <p className={`text-title-2-semibold ${txt[color]}`}>{value}</p>
       {sub && <p className={`mt-0.5 text-xs ${txt[color]} opacity-60`}>{sub}</p>}
     </div>
   );
@@ -98,10 +93,10 @@ function StatCard({ label, value, sub, icon, color, onClick, active }: {
 
 function PlBadge({ value, size = "sm" }: { value: number; size?: "sm" | "lg" }) {
   const p = value >= 0;
-  const base = p ? "bg-emerald-100 text-emerald-700 dark:text-emerald-900" : "bg-red-100 text-red-600 dark:text-red-900";
+  const base = p ? "bg-success-surface-strong text-success-text" : "bg-danger-surface-strong text-danger-text";
   const cls  = size === "lg"
-    ? `inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold ${base}`
-    : `inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${base}`;
+    ? `inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-body-semibold ${base}`
+    : `inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-caption-1-semibold ${base}`;
   return (
     <span className={cls}>
       {p ? <TrendingUp className="h-3.5 w-3.5 shrink-0" /> : <TrendingDown className="h-3.5 w-3.5 shrink-0" />}
@@ -117,7 +112,7 @@ function SortTh({ label, col, current, dir, onSort, hint }: {
   const active = current === col;
   return (
     <th
-      className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 cursor-pointer select-none hover:text-blue-600 whitespace-nowrap"
+      className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary cursor-pointer select-none hover:text-accent-text whitespace-nowrap"
       onClick={() => onSort(col)}
     >
       {label}{active ? (dir === "asc" ? " ▲" : " ▼") : ""}
@@ -129,7 +124,7 @@ function SortTh({ label, col, current, dir, onSort, hint }: {
 /** A small ⓘ on a column header — hover for a one-line definition. */
 function HintIcon({ text }: { text: string }) {
   return (
-    <span title={text} className="ml-1 inline-flex cursor-help align-middle text-gray-300 hover:text-blue-500">
+    <span title={text} className="ml-1 inline-flex cursor-help align-middle text-text-tertiary hover:text-accent-text">
       <Info className="h-3 w-3" />
     </span>
   );
@@ -137,7 +132,7 @@ function HintIcon({ text }: { text: string }) {
 
 function HintTh({ label, hint }: { label: string; hint: string }) {
   return (
-    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">
+    <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary whitespace-nowrap">
       {label}<HintIcon text={hint} />
     </th>
   );
@@ -146,25 +141,25 @@ function HintTh({ label, hint }: { label: string; hint: string }) {
 // ── Guide modal shell ────────────────────────────────────────────────────────────
 type GuideTab = "Overview" | "Manual" | "Basic" | "Advanced";
 const GUIDE_TABS: GuideTab[] = ["Overview", "Manual", "Basic", "Advanced"];
-const MODE_DOT: Record<GuideTab, string> = { Overview: "bg-blue-500", Manual: "bg-amber-400", Basic: "bg-teal-500", Advanced: "bg-violet-500" };
+const MODE_DOT: Record<GuideTab, string> = { Overview: "bg-accent-solid", Manual: "bg-warning-solid", Basic: "bg-teal-solid", Advanced: "bg-purple-solid" };
 
 function ModalShell({ title, subtitle, icon, onClose, tabBar, children }: {
   title: string; subtitle?: string; icon: React.ReactNode; onClose: () => void;
   tabBar?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-4">
+      <div className="bg-background-primary-default rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-separator-border shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="rounded-lg bg-blue-50 p-2 text-blue-600 shrink-0">{icon}</div>
+            <div className="rounded-lg bg-accent-surface p-2 text-accent-text shrink-0">{icon}</div>
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-              {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+              <h2 className="text-title-3-semibold text-text-primary">{title}</h2>
+              {subtitle && <p className="text-xs text-text-tertiary mt-0.5">{subtitle}</p>}
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-fill-3 hover:text-text-primary">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -188,7 +183,7 @@ function ModeTabBar({ active, onChange }: { active: GuideTab; onChange: (t: Guid
 
 function Formula({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-[#0f172a] px-4 py-3 font-mono text-[11px] leading-relaxed text-[#f1f5f9] overflow-x-auto dark:bg-[#070a12]">
+    <div className="rounded-lg bg-accent-solid px-4 py-3 font-mono text-[11px] leading-relaxed text-on-solid/90 overflow-x-auto">
       {children}
     </div>
   );
@@ -197,10 +192,10 @@ function Formula({ children }: { children: React.ReactNode }) {
 function GuideSection({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-5 last:mb-0">
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
+      <p className="mb-2 flex items-center gap-1.5 text-caption-1-semibold text-text-tertiary">
         {icon}{title}
       </p>
-      <div className="space-y-2 text-sm text-gray-700 leading-relaxed">{children}</div>
+      <div className="space-y-2 text-sm text-text-primary leading-relaxed">{children}</div>
     </div>
   );
 }
@@ -220,7 +215,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
         <>
           <GuideSection title="Data source" icon={<FileText className="h-3.5 w-3.5" />}>
             <p>
-              Every figure comes from the backend <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px]">/pl-summary</code> endpoint
+              Every figure comes from the backend <code className="rounded bg-fill-2 px-1 py-0.5 text-[11px]">/pl-summary</code> endpoint
               for your selected date range. It pulls trip hire &amp; expenses, maintenance records, EMI loans, and document/compliance
               validity windows (RC, FC, Road Tax, Insurance, National/Local Permit, Pollution Certificate) — all pro-rated to the exact days
               that fall inside your period.
@@ -234,7 +229,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
             <Formula>Gross Profit&nbsp;&nbsp;=&nbsp;&nbsp;Trip Profit − Diesel Expenses</Formula>
             <Formula>Truck Expenses&nbsp;&nbsp;=&nbsp;&nbsp;Total KM × (Cost/KM − Mileage Cost/KM)&nbsp;&nbsp;— EMI, tyres, maintenance, documents</Formula>
             <Formula>Final Profit&nbsp;&nbsp;=&nbsp;&nbsp;Gross Profit − Truck Expenses</Formula>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-text-secondary">
               <b>Mileage Cost/KM</b> is the diesel part of the Running Cost Calculator (diesel price ÷ the truck&rsquo;s km/L) for the
               selected mode. It&rsquo;s already included in Cost/KM, so Gross Profit sits between Trip Profit and Final Profit — diesel
               is never counted twice.
@@ -248,7 +243,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
             <Formula>Running Costs&nbsp;&nbsp;=&nbsp;&nbsp;Tyres&nbsp;(KM × Tyre Charges per km) + Maintenance</Formula>
             <Formula>Fixed Costs&nbsp;&nbsp;=&nbsp;&nbsp;EMI share + Document share</Formula>
             <Formula>Net Profit&nbsp;&nbsp;=&nbsp;&nbsp;Gross Profit − Running Costs − Fixed Costs</Formula>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-text-secondary">
               Diesel and Tyres use the Running Cost Calculator&rsquo;s per-km figures for the selected mode; maintenance, EMI and
               documents come from real records. Costs over time stop at today, so a period running into the future never charges
               months that haven&rsquo;t happened. Click any truck row for the full step-by-step breakdown.
@@ -276,9 +271,9 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
           <GuideSection title="What that means here">
             <p>
               Truck Expenses = Total KM × the Cost/KM you manually entered for that truck under Manual mode. If you haven&rsquo;t set a
-              value for a truck yet, its Truck Expenses / Final Profit columns show <span className="text-gray-400">—</span>.
+              value for a truck yet, its Truck Expenses / Final Profit columns show <span className="text-text-tertiary">—</span>.
             </p>
-            <p className="text-xs text-gray-500">Best for: quick, rough what-if estimates without needing live fleet data.</p>
+            <p className="text-xs text-text-secondary">Best for: quick, rough what-if estimates without needing live fleet data.</p>
           </GuideSection>
         </>
       )}
@@ -297,7 +292,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
               Truck Expenses = Total KM × the Cost/KM computed under Basic mode for that truck. It updates automatically when the
               underlying fuel price or tyre configuration changes, but still needs a value to be present for each truck.
             </p>
-            <p className="text-xs text-gray-500">Best for: day-to-day estimates that track real fuel/tyre pricing without full per-truck automation.</p>
+            <p className="text-xs text-text-secondary">Best for: day-to-day estimates that track real fuel/tyre pricing without full per-truck automation.</p>
           </GuideSection>
         </>
       )}
@@ -306,7 +301,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
         <>
           <GuideSection title="How Advanced mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
             <p>Fully automatic and read-only — nothing is typed in. Every input is strictly fetched per truck:</p>
-            <ul className="ml-4 list-disc space-y-1 text-xs text-gray-600">
+            <ul className="ml-4 list-disc space-y-1 text-xs text-text-secondary">
               <li>Mileage — lifetime average (km/L) from Maintenance → Fuel History</li>
               <li>Tyre cost/km — Tyre Management → View Tyre Data</li>
               <li>Maintenance cost/km — Truck Maintenance → Full Status</li>
@@ -318,9 +313,9 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
             <p>
               Truck Expenses = Total KM × the Cost/KM computed under Advanced mode — the most accurate figure available, since it&rsquo;s
               built entirely from each truck&rsquo;s own live records rather than a shared estimate. A truck with incomplete records (e.g. no
-              Fuel History entries) may still show <span className="text-gray-400">—</span> for that field.
+              Fuel History entries) may still show <span className="text-text-tertiary">—</span> for that field.
             </p>
-            <p className="text-xs text-gray-500">Best for: final, audit-grade profitability figures once a truck&rsquo;s data is fully maintained.</p>
+            <p className="text-xs text-text-secondary">Best for: final, audit-grade profitability figures once a truck&rsquo;s data is fully maintained.</p>
           </GuideSection>
         </>
       )}
@@ -350,10 +345,10 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
             { n: 6, title: "Export a report", body: "Click \"View\" top-right to preview both Trip and Truck Profitability for the selected period/mode, then download as Excel or PDF." },
           ].map((s) => (
             <div key={s.n} className="flex gap-3">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{s.n}</div>
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text">{s.n}</div>
               <div>
-                <p className="text-sm font-semibold text-gray-800">{s.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{s.body}</p>
+                <p className="text-body-semibold text-text-primary">{s.title}</p>
+                <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">{s.body}</p>
               </div>
             </div>
           ))}
@@ -367,7 +362,7 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
             <p>2. Type in diesel price/litre, mileage, tyre cost, EMI and maintenance figures for a truck.</p>
             <p>3. Come back here, select the <b>Manual</b> mode pill next to the tab bar — Truck Expenses / Final Profit fill in immediately.</p>
           </GuideSection>
-          <p className="text-xs text-gray-500">Nothing here is fetched automatically, so revisit the Calculator whenever diesel prices or other costs change.</p>
+          <p className="text-xs text-text-secondary">Nothing here is fetched automatically, so revisit the Calculator whenever diesel prices or other costs change.</p>
         </div>
       )}
 
@@ -378,7 +373,7 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
             <p>2. Go to <b>Running Cost Calculator</b> → Basic tab — fuel/tyre pull in automatically; fill in the EMI fields if they&rsquo;re blank.</p>
             <p>3. Come back here and select the <b>Basic</b> mode pill — figures update to match.</p>
           </GuideSection>
-          <p className="text-xs text-gray-500">A lighter-touch option than Manual — most inputs stay current on their own.</p>
+          <p className="text-xs text-text-secondary">A lighter-touch option than Manual — most inputs stay current on their own.</p>
         </div>
       )}
 
@@ -389,7 +384,7 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
             <p>2. Go to <b>Running Cost Calculator</b> → Advanced tab to confirm every field is populated (it&rsquo;s read-only — nothing to type).</p>
             <p>3. Come back here and select the <b>Advanced</b> mode pill for the most accurate Truck Expenses / Final Profit figures.</p>
           </GuideSection>
-          <p className="text-xs text-gray-500">If a truck is missing source data, its Truck Expenses / Final Profit will show as &ldquo;—&rdquo; until that data exists.</p>
+          <p className="text-xs text-text-secondary">If a truck is missing source data, its Truck Expenses / Final Profit will show as &ldquo;—&rdquo; until that data exists.</p>
         </div>
       )}
     </ModalShell>
@@ -423,8 +418,8 @@ function DisposalChip({ disposal }: { disposal: string | null }) {
   return (
     <span
       title={`This truck has been ${disposal.toLowerCase()} — shown for its trips in this period`}
-      className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-        disposal === "Sold" ? "bg-sky-100 text-sky-700" : "bg-gray-200 text-gray-600")}
+      className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+        disposal === "Sold" ? "bg-teal-surface-strong text-teal-text" : "bg-fill-3 text-text-secondary")}
     >
       {disposal}
     </span>
@@ -517,7 +512,7 @@ function TripProfitabilityTab({
         <div className="flex items-center gap-2 text-xs">
           <span className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold",
-            profitFilter === "profitable" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+            profitFilter === "profitable" ? "bg-success-surface-strong text-success-text" : "bg-danger-surface-strong text-danger-text"
           )}>
             {profitFilter === "profitable" ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             Showing: {profitFilter === "profitable" ? "Profitable" : "Non-Profitable"} trips only
@@ -525,7 +520,7 @@ function TripProfitabilityTab({
           <button
             type="button"
             onClick={() => setProfitFilter("all")}
-            className="font-medium text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
+            className="font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
           >
             Clear
           </button>
@@ -534,32 +529,32 @@ function TripProfitabilityTab({
 
       {/* Table */}
       {sorted.length > 0 && (
-        <p className="-mb-2 flex items-center gap-1.5 px-1 text-xs text-gray-500">
-          <MousePointerClick className="h-3.5 w-3.5 text-blue-500" />
-          Click any trip to see how its numbers are worked out. Hover <Info className="inline h-3 w-3 text-gray-400" /> on a column for what it means.
+        <p className="-mb-2 flex items-center gap-1.5 px-1 text-xs text-text-secondary">
+          <MousePointerClick className="h-3.5 w-3.5 text-accent-text" />
+          Click any trip to see how its numbers are worked out. Hover <Info className="inline h-3 w-3 text-text-tertiary" /> on a column for what it means.
         </p>
       )}
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-separator-border bg-background-primary-default">
         {sorted.length === 0 ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-text-tertiary">
               {profitFilter === "all" ? "No trips found for this period." : "No trips match this filter."}
             </p>
           </div>
         ) : (
           <div className="overflow-auto max-h-[70vh]">
             <table className="w-full min-w-[1260px] text-sm">
-              <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-fill-1 border-b border-separator-border">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">Trip ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-blue-600 select-none"
+                  <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary whitespace-nowrap">Trip ID</th>
+                  <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary cursor-pointer hover:text-accent-text select-none"
                     onClick={() => toggleSort("date")}>
                     Date{sortKey === "date" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">Sheet / Booking</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Truck</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Route</th>
+                  <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary whitespace-nowrap">Sheet / Booking</th>
+                  <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Truck</th>
+                  <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Customer</th>
+                  <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Route</th>
                   <SortTh label="Hire"           col="hire"    current={sortKey} dir={sortDir} onSort={toggleSort}
                     hint="Hire on the trip sheet, less any commission on the customer's route." />
                   <SortTh label="Trip Expenses"  col="expense" current={sortKey} dir={sortDir} onSort={toggleSort}
@@ -571,114 +566,114 @@ function TripProfitabilityTab({
                   <HintTh label="Final Profit" hint="Gross Profit − Truck Expenses" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {sorted.map((t, i) => (
                   <tr
                     key={i}
                     onClick={() => t.tripId != null && setBreakdownTripId(t.tripId)}
                     title={t.tripId != null ? "Click to see how this trip's numbers are worked out" : undefined}
-                    className={cn("transition-colors", t.tripId != null ? "cursor-pointer hover:bg-blue-50/50" : "hover:bg-gray-50", t.excludedFromTotals && "bg-amber-50/60 hover:bg-amber-50")}
+                    className={cn("transition-colors", t.tripId != null ? "cursor-pointer hover:bg-accent-surface-strong/50" : "hover:bg-fill-2", t.excludedFromTotals && "bg-warning-surface/60 hover:bg-warning-surface-strong")}
                   >
-                    <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-blue-700">{t.tripCode || "—"}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(t.tripDate)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-caption-1-semibold text-accent-text">{t.tripCode || "—"}</td>
+                    <td className="px-4 py-3 text-xs text-text-secondary whitespace-nowrap">{fmtDate(t.tripDate)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <p className="text-xs font-medium text-gray-800">
+                      <p className="text-caption-1-medium text-text-primary">
                         {t.tripSheetNo || "—"}
                         {t.flaggedForRecheck && (
                           <span
                             title={t.flaggedRemark ? `Flagged for recheck: ${t.flaggedRemark}` : "Flagged for recheck"}
-                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-warning-text"
                           >
                             <AlertCircle className="h-2.5 w-2.5" /> Under Review
                           </span>
                         )}
                       </p>
-                      <p className="text-[11px] text-gray-400">{t.bookingReferenceNo || ""}</p>
+                      <p className="text-[11px] text-text-tertiary">{t.bookingReferenceNo || ""}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-xs font-semibold text-gray-800">{t.truckId}<DisposalChip disposal={t.disposal} /></p>
-                      <p className="text-[11px] text-gray-400">{t.registrationNumber}</p>
+                      <p className="text-caption-1-semibold text-text-primary">{t.truckId}<DisposalChip disposal={t.disposal} /></p>
+                      <p className="text-[11px] text-text-tertiary">{t.registrationNumber}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-xs text-gray-700">{t.customerName || "—"}</p>
+                      <p className="text-xs text-text-primary">{t.customerName || "—"}</p>
                       {t.cargoClassification && (
-                        <span className="inline-block mt-0.5 rounded-full bg-gray-100 px-2 py-0 text-[10px] font-medium text-gray-500">
+                        <span className="inline-block mt-0.5 rounded-full bg-fill-2 px-2 py-0 text-caption-2-medium text-text-secondary">
                           {shortLabel(t.cargoClassification)}
                         </span>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       {t.fromLocation && t.toLocation ? (
-                        <span className="flex items-center gap-1 text-xs text-gray-600">
+                        <span className="flex items-center gap-1 text-xs text-text-secondary">
                           <span>{t.fromLocation}</span>
-                          <ArrowRight className="h-3 w-3 text-gray-300 shrink-0" />
+                          <ArrowRight className="h-3 w-3 text-text-tertiary shrink-0" />
                           <span>{t.toLocation}</span>
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-text-tertiary">—</span>
                       )}
                       {t.totalKm > 0 && (
-                        <p className="text-[11px] text-gray-400">{t.totalKm.toLocaleString("en-IN")} km</p>
+                        <p className="text-[11px] text-text-tertiary">{t.totalKm.toLocaleString("en-IN")} km</p>
                       )}
                     </td>
-                    <td className={cn("px-4 py-3 text-right text-sm font-semibold", t.excludedFromTotals ? "text-gray-400" : "text-blue-700")}>{fmt(t.hireAmount)}</td>
-                    <td className={cn("px-4 py-3 text-right text-xs", t.excludedFromTotals ? "text-gray-400" : "text-gray-600")}>{fmt(t.totalExpense)}</td>
+                    <td className={cn("px-4 py-3 text-right text-body-semibold", t.excludedFromTotals ? "text-text-tertiary" : "text-accent-text")}>{fmt(t.hireAmount)}</td>
+                    <td className={cn("px-4 py-3 text-right text-xs", t.excludedFromTotals ? "text-text-tertiary" : "text-text-secondary")}>{fmt(t.totalExpense)}</td>
                     <td className="px-4 py-3 text-right">
-                      {t.excludedFromTotals ? <span className="text-[11px] text-gray-400">Excluded *</span> : <PlBadge value={t.money.tripProfit} />}
+                      {t.excludedFromTotals ? <span className="text-[11px] text-text-tertiary">Excluded *</span> : <PlBadge value={t.money.tripProfit} />}
                     </td>
-                    <td className="px-4 py-3 text-right text-xs text-gray-600">
-                      {t.excludedFromTotals ? <span className="text-gray-400">—</span> : (() => {
+                    <td className="px-4 py-3 text-right text-xs text-text-secondary">
+                      {t.excludedFromTotals ? <span className="text-text-tertiary">—</span> : (() => {
                         const { diesel, dieselRate } = t.money;
                         return diesel != null && dieselRate != null
                           ? <span title={`${t.totalKm.toLocaleString("en-IN")} km × ₹${dieselRate.toFixed(2)}/km`}>{fmt(diesel)}</span>
-                          : <span className="text-gray-400">—</span>;
+                          : <span className="text-text-tertiary">—</span>;
                       })()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {t.excludedFromTotals ? <span className="text-[11px] text-gray-400">Excluded *</span> : (
-                        t.money.gross != null ? <PlBadge value={t.money.gross} /> : <span className="text-gray-400 text-xs">—</span>
+                      {t.excludedFromTotals ? <span className="text-[11px] text-text-tertiary">Excluded *</span> : (
+                        t.money.gross != null ? <PlBadge value={t.money.gross} /> : <span className="text-text-tertiary text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right text-xs text-gray-600">
-                      {t.excludedFromTotals ? <span className="text-gray-400">—</span> : (() => {
+                    <td className="px-4 py-3 text-right text-xs text-text-secondary">
+                      {t.excludedFromTotals ? <span className="text-text-tertiary">—</span> : (() => {
                         const te = t.money.truckExpenses;
-                        if (te == null) return <span className="text-gray-400">—</span>;
+                        if (te == null) return <span className="text-text-tertiary">—</span>;
                         return t.money.truckExpensesIncludeDiesel ? (
                           <span title="Includes diesel — no diesel figure to split it out in this mode" className="cursor-help">
-                            <span className="mr-1 text-amber-500">⚠</span>{fmt(te)}
+                            <WarnIcon aria-label="Incomplete" className="mr-1 inline size-3.5 -translate-y-px text-warning-text" />{fmt(te)}
                           </span>
                         ) : fmt(te);
                       })()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {t.excludedFromTotals ? <span className="text-[11px] text-gray-400">Excluded *</span> : (
+                      {t.excludedFromTotals ? <span className="text-[11px] text-text-tertiary">Excluded *</span> : (
                         t.money.finalProfit != null
                           ? <PlBadge value={t.money.finalProfit} />
-                          : <span className="text-gray-400 text-xs">—</span>
+                          : <span className="text-text-tertiary text-xs">—</span>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td colSpan={6} className="px-4 py-3 text-xs font-semibold text-gray-600">
+                <tr className="border-t-2 border-separator-border bg-fill-1">
+                  <td colSpan={6} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                     Total ({totals.counted} of {totals.trips} trips)
                   </td>
-                  <td className="px-4 py-3 text-right text-sm font-bold text-blue-700">{fmt(totals.hire)}</td>
-                  <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">{fmt(totals.tripExpenses)}</td>
+                  <td className="px-4 py-3 text-right text-body-semibold text-accent-text">{fmt(totals.hire)}</td>
+                  <td className="px-4 py-3 text-right text-caption-1-semibold text-text-primary">{fmt(totals.tripExpenses)}</td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.tripProfit} /></td>
-                  <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">
-                    {totals.grossTrips ? fmt(totals.diesel) : <span className="text-gray-400">—</span>}
+                  <td className="px-4 py-3 text-right text-caption-1-semibold text-text-primary">
+                    {totals.grossTrips ? fmt(totals.diesel) : <span className="text-text-tertiary">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {totals.grossTrips ? <PlBadge value={totals.gross} /> : <span className="text-gray-400 text-xs">—</span>}
+                    {totals.grossTrips ? <PlBadge value={totals.gross} /> : <span className="text-text-tertiary text-xs">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">
-                    {totals.truckExpenses > 0 ? fmt(totals.truckExpenses) : <span className="text-gray-400">—</span>}
+                  <td className="px-4 py-3 text-right text-caption-1-semibold text-text-primary">
+                    {totals.truckExpenses > 0 ? fmt(totals.truckExpenses) : <span className="text-text-tertiary">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {totals.final != null ? <PlBadge value={totals.final} /> : <span className="text-gray-400 text-xs">—</span>}
+                    {totals.final != null ? <PlBadge value={totals.final} /> : <span className="text-text-tertiary text-xs">—</span>}
                   </td>
                 </tr>
               </tfoot>
@@ -693,7 +688,7 @@ function TripProfitabilityTab({
         mode={mode}
       />
       {flaggedCount > 0 && (
-        <p className="text-[11px] text-amber-600">
+        <p className="text-[11px] text-warning-text">
           * {flaggedCount} trip{flaggedCount !== 1 ? "s" : ""} flagged for recheck by Audit — excluded from the totals above until resolved.
         </p>
       )}
@@ -717,20 +712,20 @@ function WaterfallRow({ label, value, kind, detail, scale }: {
 }) {
   const isResult = kind === "result";
   const width = value == null ? 0 : Math.max(1, Math.min(100, (Math.abs(value) / scale) * 100));
-  const bar = kind === "out" ? "bg-red-300" : kind === "in" ? "bg-blue-400" : (value ?? 0) >= 0 ? "bg-emerald-400" : "bg-red-400";
-  const color = value == null ? "text-gray-400" : kind === "out" ? "text-red-600" : kind === "in" ? "text-blue-700" : value >= 0 ? "text-emerald-700" : "text-red-600";
+  const bar = kind === "out" ? "bg-danger-border" : kind === "in" ? "bg-accent-solid" : (value ?? 0) >= 0 ? "bg-success-solid" : "bg-danger-solid";
+  const color = value == null ? "text-text-tertiary" : kind === "out" ? "text-danger-text" : kind === "in" ? "text-accent-text" : value >= 0 ? "text-success-text" : "text-danger-text";
   return (
-    <div className={cn("rounded-lg px-3 py-2", isResult ? "bg-white ring-1 ring-gray-200" : "")}>
+    <div className={cn("rounded-lg px-3 py-2", isResult ? "bg-background-primary-default ring-1 ring-separator-border" : "")}>
       <div className="flex items-center gap-3">
-        <span className={cn("w-44 shrink-0 text-xs", isResult ? "font-bold text-gray-900" : "font-medium text-gray-700")}>{label}</span>
-        <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
+        <span className={cn("w-44 shrink-0 text-xs", isResult ? "font-semibold text-text-primary" : "font-medium text-text-primary")}>{label}</span>
+        <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-fill-2">
           {value != null && <span className={cn("absolute inset-y-0 left-0 rounded-full", bar)} style={{ width: `${width}%` }} />}
         </span>
-        <span className={cn("w-32 shrink-0 text-right text-xs tabular-nums", isResult ? "font-bold" : "font-semibold", color)}>
+        <span className={cn("w-32 shrink-0 text-right text-xs tabular-nums", isResult ? "font-semibold" : "font-semibold", color)}>
           {value == null ? "—" : kind === "out" ? `− ${fmt(value)}` : `${value < 0 ? "−" : ""}${fmt(value)}`}
         </span>
       </div>
-      {detail && <div className="mt-1 pl-[11.75rem] text-[11px] text-gray-500">{detail}</div>}
+      {detail && <div className="mt-1 pl-[11.75rem] text-[11px] text-text-secondary">{detail}</div>}
     </div>
   );
 }
@@ -747,8 +742,8 @@ function TripsReconcile({ money, entry, mode }: { money: TruckMoney; entry: Truc
   if (rc.tripsCounted > 0 && rc.tripsJudged === 0) {
     return (
       <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">Trips tab vs this total</p>
-        <p className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs text-gray-600">
+        <p className="mb-2 text-caption-1-semibold text-text-tertiary">Trips tab vs this total</p>
+        <p className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3 text-xs text-text-secondary">
           This truck&apos;s trips have no Final Profit in {mode} mode (no Cost/KM for it in the Running Cost Calculator), so they can&apos;t be compared.
         </p>
       </div>
@@ -783,34 +778,34 @@ function TripsReconcile({ money, entry, mode }: { money: TruckMoney; entry: Truc
   const same = lines.length === 0;
   return (
     <div>
-      <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">Trips tab vs this total</p>
-      <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white p-3 text-xs">
+      <p className="mb-2 text-caption-1-semibold text-text-tertiary">Trips tab vs this total</p>
+      <div className="flex flex-col gap-1 rounded-xl border border-separator-border bg-background-primary-default p-3 text-xs">
         <div className="flex items-center justify-between gap-3">
-          <span className="font-medium text-gray-700">
+          <span className="font-medium text-text-primary">
             Trips&apos; Final Profit ({rc.tripsJudged} trip{rc.tripsJudged !== 1 ? "s" : ""}, as on the Trips tab)
           </span>
-          <span className={cn("font-semibold tabular-nums", rc.tripsFinal >= 0 ? "text-emerald-700" : "text-red-600")}>
+          <span className={cn("font-semibold tabular-nums", rc.tripsFinal >= 0 ? "text-success-text" : "text-danger-text")}>
             {rc.tripsFinal < 0 ? "−" : ""}{fmt(Math.abs(rc.tripsFinal))}
           </span>
         </div>
         {lines.map((l) => (
           <div key={l.label}>
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-gray-700">{l.value < 0 ? "−" : "+"} {l.label}</span>
-              <span className={cn("font-semibold tabular-nums", l.value < 0 ? "text-red-600" : "text-emerald-700")}>
+              <span className="font-medium text-text-primary">{l.value < 0 ? "−" : "+"} {l.label}</span>
+              <span className={cn("font-semibold tabular-nums", l.value < 0 ? "text-danger-text" : "text-success-text")}>
                 {l.value < 0 ? "−" : "+"}{fmt(Math.abs(l.value))}
               </span>
             </div>
-            <p className="mt-0.5 text-[11px] text-gray-500">{l.detail}</p>
+            <p className="mt-0.5 text-[11px] text-text-secondary">{l.detail}</p>
           </div>
         ))}
-        <div className="mt-1 flex items-center justify-between gap-3 border-t border-gray-100 pt-2">
-          <span className="font-bold text-gray-900">= Net Profit (this tab)</span>
-          <span className={cn("font-bold tabular-nums", money.net >= 0 ? "text-emerald-700" : "text-red-600")}>
+        <div className="mt-1 flex items-center justify-between gap-3 border-t border-separator-border pt-2">
+          <span className="font-semibold text-text-primary">= Net Profit (this tab)</span>
+          <span className={cn("font-semibold tabular-nums", money.net >= 0 ? "text-success-text" : "text-danger-text")}>
             {money.net < 0 ? "−" : ""}{fmt(Math.abs(money.net))}
           </span>
         </div>
-        <p className="mt-1 text-[11px] text-gray-400">
+        <p className="mt-1 text-[11px] text-text-tertiary">
           {same
             ? "Both tabs agree for this truck."
             : `Both figures are right: this tab counts ${entry.registrationNumber || entry.truckId}'s actual costs for the whole period; the Trips tab charges each trip only for the km it drove.`}
@@ -850,21 +845,21 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
   })();
 
   return (
-    <div className="space-y-5 px-6 py-5 bg-gray-50/70">
+    <div className="space-y-5 px-6 py-5 bg-fill-1">
       {/* Plain-language summary */}
       <div className="space-y-1.5">
-        <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900">{summary}</p>
+        <p className="rounded-xl bg-accent-surface px-4 py-3 text-sm leading-relaxed text-accent-text-strong">{summary}</p>
         {lossReason && (
-          <p className="flex items-start gap-1.5 px-1 text-xs text-red-600"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Why a loss: {lossReason}</p>
+          <p className="flex items-start gap-1.5 px-1 text-xs text-danger-text"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Why a loss: {lossReason}</p>
         )}
         {money.incomplete.length > 0 && (
-          <p className="flex items-start gap-1.5 px-1 text-xs text-amber-700">
+          <p className="flex items-start gap-1.5 px-1 text-xs text-warning-text">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Net Profit is missing something: {money.incomplete.join("; ")}. Set it in the Running Cost Calculator.
           </p>
         )}
         {entry.documentShare === 0 && (
-          <p className="flex items-start gap-1.5 px-1 text-xs text-amber-700">
+          <p className="flex items-start gap-1.5 px-1 text-xs text-warning-text">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> No document costs (RC, FC, insurance, permits…) are recorded for this truck.
           </p>
         )}
@@ -872,8 +867,8 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
 
       {/* Waterfall */}
       <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">How Net Profit is worked out · {mode} mode</p>
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-gray-50 p-2">
+        <p className="mb-2 text-caption-1-semibold text-text-tertiary">How Net Profit is worked out · {mode} mode</p>
+        <div className="flex flex-col gap-1 rounded-xl border border-separator-border bg-fill-1 p-2">
           <WaterfallRow scale={scale} label={`Hire (${entry.tripCount} trip${entry.tripCount !== 1 ? "s" : ""})`} value={entry.totalHireAmount} kind="in"
             detail="From the trip sheets in this period, less any route commission." />
           <WaterfallRow scale={scale} label="Trip Expenses" value={entry.tripExpenses} kind="out" detail="Everything entered on those trip sheets." />
@@ -906,22 +901,22 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
       {/* EMI details */}
       {emiDetails.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+          <p className="mb-2 text-caption-1-semibold text-text-tertiary">
             EMI Loans — Period Share: {fmt(entry.emiShare)}
           </p>
           <div className="flex flex-wrap gap-2">
             {emiDetails.map((e, i) => (
-              <div key={i} className="rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 min-w-[220px]">
-                <p className="text-xs font-semibold text-purple-700">{e.emiName}</p>
-                {e.bankName && <p className="text-[10px] text-purple-400">{e.bankName}</p>}
+              <div key={i} className="rounded-lg border border-purple-border bg-purple-surface px-4 py-3 min-w-[220px]">
+                <p className="text-caption-1-semibold text-purple-text">{e.emiName}</p>
+                {e.bankName && <p className="text-[10px] text-purple-text">{e.bankName}</p>}
                 <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
                   <div>
-                    <p className="text-[10px] text-purple-400">Monthly EMI</p>
-                    <p className="text-sm font-semibold text-purple-600">{fmt(e.monthlyEmi)}</p>
+                    <p className="text-[10px] text-purple-text">Monthly EMI</p>
+                    <p className="text-body-semibold text-purple-text">{fmt(e.monthlyEmi)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-purple-400">Period Share</p>
-                    <p className="text-sm font-bold text-purple-800">{fmt(e.shareForPeriod)}</p>
+                    <p className="text-[10px] text-purple-text">Period Share</p>
+                    <p className="text-body-semibold text-purple-text-strong">{fmt(e.shareForPeriod)}</p>
                   </div>
                 </div>
               </div>
@@ -933,44 +928,44 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
       {/* Trip rows */}
       {tripRows.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+          <p className="mb-2 text-caption-1-semibold text-text-tertiary">
             Trips in Period ({tripRows.length})
           </p>
-          <div className="overflow-auto max-h-[50vh] rounded-lg border border-gray-200">
+          <div className="overflow-auto max-h-[50vh] rounded-lg border border-separator-border">
             <table className="w-full min-w-[680px] text-xs">
-              <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
+              <thead className="sticky top-0 bg-fill-1 border-b border-separator-border">
                 <tr>
                   {["Trip ID", "Date", "Sheet No", "Route", "Hire", "Expenses", "Trip Profit"].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-400">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left font-semibold text-text-tertiary">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {tripRows.map((t, i) => {
                   const tPl = t.tripProfit ?? 0;
                   return (
-                    <tr key={i} className={cn("hover:bg-gray-50", t.excludedFromTotals && "bg-amber-50/60 hover:bg-amber-50")}>
-                      <td className="px-3 py-2 whitespace-nowrap font-semibold text-blue-700">{t.tripCode || "—"}</td>
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(t.tripDate)}</td>
-                      <td className="px-3 py-2 font-medium text-gray-700">
+                    <tr key={i} className={cn("hover:bg-fill-2", t.excludedFromTotals && "bg-warning-surface/60 hover:bg-warning-surface-strong")}>
+                      <td className="px-3 py-2 whitespace-nowrap font-semibold text-accent-text">{t.tripCode || "—"}</td>
+                      <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{fmtDate(t.tripDate)}</td>
+                      <td className="px-3 py-2 font-medium text-text-primary">
                         {t.tripSheetNo || "—"}
                         {t.flaggedForRecheck && (
                           <span
                             title={t.flaggedRemark ? `Flagged for recheck: ${t.flaggedRemark}` : "Flagged for recheck"}
-                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-warning-text"
                           >
                             <AlertCircle className="h-2.5 w-2.5" /> Under Review
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-gray-600">
+                      <td className="px-3 py-2 text-text-secondary">
                         {t.fromLocation && t.toLocation ? `${t.fromLocation} → ${t.toLocation}` : "—"}
-                        {t.totalKm > 0 && <span className="ml-1.5 text-gray-400">({t.totalKm.toLocaleString("en-IN")} km)</span>}
+                        {t.totalKm > 0 && <span className="ml-1.5 text-text-tertiary">({t.totalKm.toLocaleString("en-IN")} km)</span>}
                       </td>
-                      <td className={cn("px-3 py-2 font-semibold", t.excludedFromTotals ? "text-gray-400" : "text-blue-700")}>{fmt(t.hireAmount)}</td>
-                      <td className={cn("px-3 py-2", t.excludedFromTotals ? "text-gray-400" : "text-gray-600")}>{fmt(t.totalExpense)}</td>
+                      <td className={cn("px-3 py-2 font-semibold", t.excludedFromTotals ? "text-text-tertiary" : "text-accent-text")}>{fmt(t.hireAmount)}</td>
+                      <td className={cn("px-3 py-2", t.excludedFromTotals ? "text-text-tertiary" : "text-text-secondary")}>{fmt(t.totalExpense)}</td>
                       <td className="px-3 py-2">
-                        {t.excludedFromTotals ? <span className="text-[11px] text-gray-400">Excluded *</span> : <PlBadge value={tPl} />}
+                        {t.excludedFromTotals ? <span className="text-[11px] text-text-tertiary">Excluded *</span> : <PlBadge value={tPl} />}
                       </td>
                     </tr>
                   );
@@ -979,7 +974,7 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
             </table>
           </div>
           {entry.flaggedTripCount > 0 && (
-            <p className="mt-1.5 text-[11px] text-amber-600">
+            <p className="mt-1.5 text-[11px] text-warning-text">
               * {entry.flaggedTripCount} trip{entry.flaggedTripCount !== 1 ? "s" : ""} flagged for recheck by Audit — excluded from the totals above until resolved.
             </p>
           )}
@@ -989,25 +984,25 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
       {/* Maintenance rows */}
       {maintRows.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+          <p className="mb-2 text-caption-1-semibold text-text-tertiary">
             Maintenance in Period ({maintRows.length} records · {fmt(entry.maintenanceExpenses)} total)
           </p>
-          <div className="overflow-auto max-h-[40vh] rounded-lg border border-gray-200">
+          <div className="overflow-auto max-h-[40vh] rounded-lg border border-separator-border">
             <table className="w-full min-w-[420px] text-xs">
-              <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
+              <thead className="sticky top-0 bg-fill-1 border-b border-separator-border">
                 <tr>
                   {["Date", "Type", "Description", "Cost"].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-400">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left font-semibold text-text-tertiary">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {maintRows.map((m, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(m.date)}</td>
-                    <td className="px-3 py-2 font-medium text-gray-700">{m.maintenanceType || "—"}</td>
-                    <td className="px-3 py-2 text-gray-500">{m.description || "—"}</td>
-                    <td className="px-3 py-2 font-semibold text-orange-700">{fmt(m.cost)}</td>
+                  <tr key={i} className="hover:bg-fill-2">
+                    <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{fmtDate(m.date)}</td>
+                    <td className="px-3 py-2 font-medium text-text-primary">{m.maintenanceType || "—"}</td>
+                    <td className="px-3 py-2 text-text-secondary">{m.description || "—"}</td>
+                    <td className="px-3 py-2 font-semibold text-orange-text">{fmt(m.cost)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1086,7 +1081,7 @@ function TruckProfitabilityTab({
 
       {/* Period / data warnings */}
       {(startsBeforeData || endsInFuture || incompleteCount > 0) && (
-        <div className="flex flex-col gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+        <div className="flex flex-col gap-1.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-xs text-warning-text-strong">
           {startsBeforeData && (
             <p className="flex items-start gap-1.5"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Trips are only recorded from {fmtDate(firstTripDate!)} — EMI and other costs before that date have no recorded trips to pay for them, so this period looks worse than it is. Pick a period starting on or after {fmtDate(firstTripDate!)} for a fair view.</p>
@@ -1097,7 +1092,7 @@ function TruckProfitabilityTab({
           )}
           {incompleteCount > 0 && (
             <p className="flex items-start gap-1.5"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {incompleteCount} truck{incompleteCount !== 1 ? "s have" : " has"} no diesel or tyre cost per km in {mode} mode, so their Net Profit leaves that out (marked ⚠). Set them in the Running Cost Calculator.</p>
+              {incompleteCount} truck{incompleteCount !== 1 ? "s have" : " has"} no diesel or tyre cost per km in {mode} mode, so their Net Profit leaves that out (marked with a warning icon). Set them in the Running Cost Calculator.</p>
           )}
         </div>
       )}
@@ -1106,7 +1101,7 @@ function TruckProfitabilityTab({
         <div className="flex items-center gap-2 text-xs">
           <span className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold",
-            profitFilter === "profitable" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+            profitFilter === "profitable" ? "bg-success-surface-strong text-success-text" : "bg-danger-surface-strong text-danger-text"
           )}>
             {profitFilter === "profitable" ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             Showing: {profitFilter === "profitable" ? "Profitable" : "Non-Profitable"} trucks only
@@ -1114,7 +1109,7 @@ function TruckProfitabilityTab({
           <button
             type="button"
             onClick={() => setProfitFilter("all")}
-            className="font-medium text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
+            className="font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
           >
             Clear
           </button>
@@ -1123,27 +1118,27 @@ function TruckProfitabilityTab({
 
       {/* Table */}
       {filtered.length > 0 && (
-        <p className="-mb-2 flex items-center gap-1.5 px-1 text-xs text-gray-500">
-          <MousePointerClick className="h-3.5 w-3.5 text-blue-500" />
-          Click any truck to see how its Net Profit is worked out. Hover <Info className="inline h-3 w-3 text-gray-400" /> on a column for what it means.
+        <p className="-mb-2 flex items-center gap-1.5 px-1 text-xs text-text-secondary">
+          <MousePointerClick className="h-3.5 w-3.5 text-accent-text" />
+          Click any truck to see how its Net Profit is worked out. Hover <Info className="inline h-3 w-3 text-text-tertiary" /> on a column for what it means.
         </p>
       )}
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="rounded-xl border border-separator-border bg-background-primary-default">
         {filtered.length === 0 ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-text-tertiary">
               {profitFilter === "all" ? "No trucks found for this period." : "No trucks match this filter."}
             </p>
           </div>
         ) : (
           <div className="overflow-auto max-h-[70vh]">
             <table className="w-full min-w-[1280px] text-sm">
-              <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-fill-1 border-b border-separator-border">
                 <tr>
                   <th className="px-2 py-3" />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Truck</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">Trips</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">KM</th>
+                  <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Truck</th>
+                  <th className="px-4 py-3 text-center text-caption-1-semibold text-text-secondary">Trips</th>
+                  <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">KM</th>
                   <HintTh label="Hire" hint="Hire from this truck's trip sheets in the period, less route commission." />
                   <HintTh label="Trip Expenses" hint="Everything entered on those trip sheets (batta, toll, port pass, …)." />
                   <HintTh label="Trip Profit" hint="Hire − Trip Expenses" />
@@ -1162,52 +1157,52 @@ function TruckProfitabilityTab({
                   <tr
                     onClick={() => setExpandedTruck(isOpen ? null : entry.truckId)}
                     title="Click to see how this truck's Net Profit is worked out"
-                    className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors cursor-pointer"
+                    className="border-b border-separator-border hover:bg-accent-surface-strong/50 transition-colors cursor-pointer"
                   >
                       <td className="px-2 py-3 text-center">
-                        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                        <ChevronDown className={`h-4 w-4 text-text-tertiary transition-transform ${isOpen ? "rotate-180" : ""}`} />
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{entry.truckId}<DisposalChip disposal={entry.disposal} /></p>
-                        <p className="text-xs text-gray-400">{entry.registrationNumber}</p>
+                        <p className="font-semibold text-text-primary">{entry.truckId}<DisposalChip disposal={entry.disposal} /></p>
+                        <p className="text-xs text-text-tertiary">{entry.registrationNumber}</p>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={cn("inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                          entry.tripCount ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")}>
+                        <span className={cn("inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-caption-1-semibold",
+                          entry.tripCount ? "bg-accent-surface-strong text-accent-text" : "bg-fill-2 text-text-secondary")}>
                           {entry.tripCount || "Idle"}
                         </span>
                         {entry.flaggedTripCount > 0 && (
                           <span
                             title={`${entry.flaggedTripCount} trip(s) under review — excluded from this truck's totals`}
-                            className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                            className="ml-1 inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-warning-text"
                           >
                             <AlertCircle className="h-2.5 w-2.5" /> {entry.flaggedTripCount}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-gray-600 tabular-nums">
-                        {entry.totalKm > 0 ? entry.totalKm.toLocaleString("en-IN") : <span className="text-gray-400">—</span>}
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary tabular-nums">
+                        {entry.totalKm > 0 ? entry.totalKm.toLocaleString("en-IN") : <span className="text-text-tertiary">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-blue-700">{fmt(entry.totalHireAmount)}</td>
-                      <td className="px-4 py-3 text-right text-xs text-gray-600">{fmt(entry.tripExpenses)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-accent-text">{fmt(entry.totalHireAmount)}</td>
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary">{fmt(entry.tripExpenses)}</td>
                       <td className="px-4 py-3 text-right"><PlBadge value={money.tripProfit} /></td>
-                      <td className="px-4 py-3 text-right text-xs text-gray-600">
-                        {money.diesel != null ? fmt(money.diesel) : <span className="text-gray-400">—</span>}
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary">
+                        {money.diesel != null ? fmt(money.diesel) : <span className="text-text-tertiary">—</span>}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {money.gross != null ? <PlBadge value={money.gross} /> : <span className="text-gray-400 text-xs">—</span>}
+                        {money.gross != null ? <PlBadge value={money.gross} /> : <span className="text-text-tertiary text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-gray-600">{fmt(money.running)}</td>
-                      <td className="px-4 py-3 text-right text-xs text-gray-600">{fmt(money.fixed)}</td>
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary">{fmt(money.running)}</td>
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary">{fmt(money.fixed)}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {money.incomplete.length > 0 && (
-                          <span title={`Missing: ${money.incomplete.join("; ")}`} className="mr-1 cursor-help text-amber-500">⚠</span>
+                          <span title={`Missing: ${money.incomplete.join("; ")}`} className="mr-1 inline-flex cursor-help text-warning-text"><WarnIcon className="size-3.5" /></span>
                         )}
                         <PlBadge value={money.net} />
                       </td>
                   </tr>
                   {isOpen && (
-                    <tr className="border-b border-gray-100">
+                    <tr className="border-b border-separator-border">
                       <td colSpan={12} className="p-0">
                         <TruckDetailPanel entry={entry} money={money} mode={mode} />
                       </td>
@@ -1218,21 +1213,21 @@ function TruckProfitabilityTab({
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+                <tr className="border-t-2 border-separator-border bg-fill-1 font-semibold">
                   <td className="px-2 py-3"></td>
-                  <td className="px-4 py-3 text-gray-700">
+                  <td className="px-4 py-3 text-text-primary">
                     Fleet Total
-                    <span className="ml-1.5 text-xs font-normal text-gray-400">({totals.trucks} trucks)</span>
+                    <span className="ml-1.5 text-caption-1-regular text-text-tertiary">({totals.trucks} trucks)</span>
                   </td>
-                  <td className="px-4 py-3 text-center text-blue-700">{totals.trips}</td>
-                  <td className="px-4 py-3 text-right text-xs text-gray-700 tabular-nums">{totals.km > 0 ? totals.km.toLocaleString("en-IN") : "—"}</td>
-                  <td className="px-4 py-3 text-right text-blue-700">{fmt(totals.hire)}</td>
-                  <td className="px-4 py-3 text-right text-xs text-gray-700">{fmt(totals.tripExpenses)}</td>
+                  <td className="px-4 py-3 text-center text-accent-text">{totals.trips}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary tabular-nums">{totals.km > 0 ? totals.km.toLocaleString("en-IN") : "—"}</td>
+                  <td className="px-4 py-3 text-right text-accent-text">{fmt(totals.hire)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.tripExpenses)}</td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.tripProfit} /></td>
-                  <td className="px-4 py-3 text-right text-xs text-gray-700">{fmt(totals.diesel)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.diesel)}</td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.gross} /></td>
-                  <td className="px-4 py-3 text-right text-xs text-gray-700">{fmt(totals.running)}</td>
-                  <td className="px-4 py-3 text-right text-xs text-gray-700">{fmt(totals.fixed)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.running)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.fixed)}</td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.net} /></td>
                 </tr>
               </tfoot>
@@ -1241,7 +1236,7 @@ function TruckProfitabilityTab({
         )}
       </div>
 
-      <p className="text-[11px] text-gray-400 italic">
+      <p className="text-[11px] text-text-tertiary">
         Net Profit = Hire − Trip Expenses − Diesel − AdBlue − Tyres − Maintenance − EMI − Documents. Diesel, AdBlue and Tyres use the Running Cost Calculator&rsquo;s
         per-km figures for the selected mode; everything else comes from real records. Click a row to see the full breakdown.
       </p>
@@ -1352,12 +1347,12 @@ export default function PLSummaryPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <BarChart3 className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Profitability</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Profitability</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Trip-wise and truck-wise P&L for the selected period.
             </p>
           </div>
@@ -1365,14 +1360,14 @@ export default function PLSummaryPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button" onClick={() => setShowQuickStart(true)}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md"
           >
             <Compass className="h-4 w-4" />
             Quick Start Guide
           </button>
           <button
             type="button" onClick={() => setShowHowCalculated(true)}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md"
           >
             <Calculator className="h-4 w-4" />
             How is it Calculated
@@ -1380,7 +1375,7 @@ export default function PLSummaryPage() {
           {computed && (
             <button
               type="button" onClick={openExportPreview} disabled={preparingExport}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             >
               {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
               {preparingExport ? "Preparing…" : "View"}
@@ -1403,7 +1398,7 @@ export default function PLSummaryPage() {
         />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           {loading && (
-            <span className="flex items-center gap-2 text-sm text-gray-500">
+            <span className="flex items-center gap-2 text-sm text-text-secondary">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading…
             </span>
@@ -1418,7 +1413,7 @@ export default function PLSummaryPage() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+        <div className="flex items-center gap-2 rounded-xl border border-danger-border bg-danger-surface px-5 py-4 text-sm text-danger-text">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
         </div>
@@ -1427,21 +1422,21 @@ export default function PLSummaryPage() {
       {computed !== null && (
         <>
           {/* Report heading banner */}
-          <div className="flex items-center gap-5 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-gray-100 px-6 py-4 shadow-sm">
-            <div className="h-12 w-1 rounded-full bg-blue-500 shrink-0" />
+          <div className="flex items-center gap-5 rounded-2xl border border-accent-border bg-accent-surface px-6 py-4 shadow-sm">
+            <div className="h-12 w-1 rounded-full bg-accent-solid shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-0.5">
+              <p className="text-caption-2-semibold text-accent-text mb-0.5">
                 Profitability Report
               </p>
-              <p className="text-lg font-bold text-gray-900 truncate">
+              <p className="text-title-3-semibold text-text-primary truncate">
                 {tab === "trips" ? "Trip Profitability" : "Truck Profitability"}
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 shadow-sm shrink-0">
-              <CalendarDays className="h-4 w-4 text-blue-400 shrink-0" />
-              <span className="text-sm font-semibold text-blue-800">{fmtDate(startDate)}</span>
-              <span className="text-blue-300 font-light">→</span>
-              <span className="text-sm font-semibold text-blue-800">{fmtDate(endDate)}</span>
+            <div className="flex items-center gap-2 rounded-xl border border-accent-border bg-accent-surface px-4 py-2.5 shadow-sm shrink-0">
+              <CalendarDays className="h-4 w-4 text-accent-text shrink-0" />
+              <span className="text-body-semibold text-accent-text-strong">{fmtDate(startDate)}</span>
+              <span className="text-on-solid/80 font-light">→</span>
+              <span className="text-body-semibold text-accent-text-strong">{fmtDate(endDate)}</span>
             </div>
           </div>
 
@@ -1478,14 +1473,14 @@ export default function PLSummaryPage() {
 
           {q && (
             <div className="-mt-2 flex items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-700">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-surface-strong px-3 py-1 font-semibold text-accent-text">
                 Showing {tab === "trips" ? `${computed.trips.length} of ${computed.allTripCount} trips` : `${computed.trucks.length} of ${computed.allTruckCount} trucks`} matching &ldquo;{debouncedSearch}&rdquo;
               </span>
               <button type="button" onClick={() => setSearch("")}
-                className="font-medium text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline">
+                className="font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline">
                 Clear
               </button>
-              <span className="text-gray-400">· cards and totals below are for these only</span>
+              <span className="text-text-tertiary">· cards and totals below are for these only</span>
             </div>
           )}
 
@@ -1498,10 +1493,10 @@ export default function PLSummaryPage() {
       )}
 
       {computed === null && !loading && (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-14 text-center">
-          <BarChart3 className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-          <p className="text-sm font-semibold text-gray-500">Select a period to load profitability data</p>
-          <p className="mt-2 text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
+        <div className="rounded-xl border border-dashed border-border-button-default bg-fill-1 p-14 text-center">
+          <BarChart3 className="mx-auto mb-3 h-10 w-10 text-text-tertiary" />
+          <p className="text-body-semibold text-text-secondary">Select a period to load profitability data</p>
+          <p className="mt-2 text-xs text-text-tertiary max-w-sm mx-auto leading-relaxed">
             Trip Profit = Hire − Trip Expenses
             <br />
             Gross Profit = Trip Profit − Diesel Expenses (KM × Mileage Cost/KM)

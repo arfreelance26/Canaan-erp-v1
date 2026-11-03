@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { BookOpen, ChevronDown, Loader2 } from "lucide-react";
+import { RiBookOpenLine as BookOpen, RiArrowDownSLine as ChevronDown, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -34,7 +34,7 @@ const NOTES: Record<string, string> = {
 
 /** The rows behind one part, in a small table. */
 function PartRows({ part }: { part: SalaryStatementPart }) {
-  if (part.rows.length === 0) return <p className="px-4 pb-3 text-xs text-gray-400">Nothing in this period.</p>;
+  if (part.rows.length === 0) return <p className="px-4 pb-3 text-xs text-text-tertiary">Nothing in this period.</p>;
   const isTrip = part.key === "trips";
   const isHalt = part.key === "halt";
   const head = isTrip
@@ -43,18 +43,18 @@ function PartRows({ part }: { part: SalaryStatementPart }) {
       ? ["Completed", "Trip", "Company days", "Party days", "Amount"]
       : ["Date", "Status", "Truck", "Amount"];
   return (
-    <div className="max-h-60 overflow-auto border-t border-gray-100">
+    <div className="max-h-60 overflow-auto border-t border-separator-border">
       <table className="w-full text-left text-xs">
-        <thead className="sticky top-0 bg-gray-50">
-          <tr>{head.map((h, i) => <th key={h} className={cn("px-4 py-2 font-semibold uppercase tracking-wide text-gray-400", i >= 2 && "text-right")}>{h}</th>)}</tr>
+        <thead className="sticky top-0 bg-fill-1">
+          <tr>{head.map((h, i) => <th key={h} className={cn("px-4 py-2 font-semibold text-text-tertiary", i >= 2 && "text-right")}>{h}</th>)}</tr>
         </thead>
-        <tbody className="divide-y divide-gray-50">
+        <tbody className="divide-y divide-separator-border">
           {part.rows.map((r, i) => (
             <tr key={i}>
-              <td className="px-4 py-1.5 text-gray-500">{formatDate(r.date)}</td>
+              <td className="px-4 py-1.5 text-text-secondary">{formatDate(r.date)}</td>
               {isTrip ? (
                 <>
-                  <td className="px-4 py-1.5 font-medium text-gray-800">{r.trip_id}{r.batta_excluded && <span className="ml-1 text-[10px] font-semibold text-purple-600">BATTA EXCLUDED</span>}</td>
+                  <td className="px-4 py-1.5 font-medium text-text-primary">{r.trip_id}{r.batta_excluded && <span className="ml-1 text-caption-2-semibold text-purple-text">BATTA EXCLUDED</span>}</td>
                   <td className="px-4 py-1.5 text-right">{money(r.batta_excluded ? 0 : r.regular_pay)}</td>
                   <td className="px-4 py-1.5 text-right">{money(r.advance)}</td>
                   <td className="px-4 py-1.5 text-right">{money(r.expenses)}</td>
@@ -62,15 +62,15 @@ function PartRows({ part }: { part: SalaryStatementPart }) {
                 </>
               ) : isHalt ? (
                 <>
-                  <td className="px-4 py-1.5 font-medium text-gray-800">{r.trip_id}</td>
+                  <td className="px-4 py-1.5 font-medium text-text-primary">{r.trip_id}</td>
                   <td className="px-4 py-1.5 text-right">{r.company_days}</td>
                   <td className="px-4 py-1.5 text-right">{r.party_days}</td>
                   <td className="px-4 py-1.5 text-right font-semibold">{money(r.amount)}</td>
                 </>
               ) : (
                 <>
-                  <td className="px-4 py-1.5 text-gray-700">{r.status}</td>
-                  <td className="px-4 py-1.5 text-right text-gray-700">{r.truck_registration ?? "—"}</td>
+                  <td className="px-4 py-1.5 text-text-primary">{r.status}</td>
+                  <td className="px-4 py-1.5 text-right text-text-primary">{r.truck_registration ?? "—"}</td>
                   <td className="px-4 py-1.5 text-right font-semibold">{money(r.amount)}</td>
                 </>
               )}
@@ -132,7 +132,7 @@ export function SalaryStatementDialog({ open, onClose, driver, onShowGuide }: {
       title={`Salary Record — ${driver?.name ?? ""}`}
       className="sm:max-w-3xl"
       headerRight={onShowGuide && (
-        <button type="button" onClick={onShowGuide} className="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+        <button type="button" onClick={onShowGuide} className="flex items-center gap-1.5 rounded-full border border-separator-border px-3 py-1.5 text-caption-1-semibold text-text-secondary hover:bg-fill-2">
           <BookOpen className="h-3.5 w-3.5" /> How is this Calculated?
         </button>
       )}
@@ -145,8 +145,8 @@ export function SalaryStatementDialog({ open, onClose, driver, onShowGuide }: {
                 key={mode}
                 type="button"
                 onClick={() => setFilterMode(mode)}
-                className={cn("rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
-                  filterMode === mode ? "bg-blue-600 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50")}
+                className={cn("rounded-full px-3.5 py-1.5 text-caption-1-semibold transition-colors",
+                  filterMode === mode ? "bg-accent-solid text-on-solid" : "border border-separator-border text-text-secondary hover:bg-fill-2")}
               >
                 {label}
               </button>
@@ -154,7 +154,7 @@ export function SalaryStatementDialog({ open, onClose, driver, onShowGuide }: {
             {filterMode === "custom" && (
               <div className="flex items-center gap-2">
                 <div className="w-36"><DatePickerInput value={customFrom} onChange={setCustomFrom} /></div>
-                <span className="text-xs text-gray-400">to</span>
+                <span className="text-xs text-text-tertiary">to</span>
                 <div className="w-36"><DatePickerInput value={customTo} onChange={setCustomTo} /></div>
               </div>
             )}
@@ -170,15 +170,15 @@ export function SalaryStatementDialog({ open, onClose, driver, onShowGuide }: {
         </div>
 
         {loading && !statement ? (
-          <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+          <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
         ) : error ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+          <p className="rounded-lg border border-danger-border bg-danger-surface px-4 py-3 text-sm text-danger-text">{error}</p>
         ) : statement && (
           <div className={cn("flex flex-col gap-3 transition-opacity", loading && "opacity-60")}>
-            <p className="text-xs text-gray-500">
-              {from || to ? <>Period: <span className="font-semibold text-gray-700">{from ? formatDate(from) : "the start"} to {to ? formatDate(to) : "today"}</span></> : "All time"}
+            <p className="text-xs text-text-secondary">
+              {from || to ? <>Period: <span className="font-semibold text-text-primary">{from ? formatDate(from) : "the start"} to {to ? formatDate(to) : "today"}</span></> : "All time"}
             </p>
-            <div className="overflow-hidden rounded-xl border border-gray-200">
+            <div className="overflow-hidden rounded-xl border border-separator-border">
               {statement.parts.map((p) => {
                 const isOpen = expanded === p.key;
                 return (
@@ -186,34 +186,34 @@ export function SalaryStatementDialog({ open, onClose, driver, onShowGuide }: {
                     <button
                       type="button"
                       onClick={() => setExpanded(isOpen ? null : p.key)}
-                      className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                      className="flex w-full items-center gap-3 border-b border-separator-border px-4 py-3 text-left transition-colors hover:bg-fill-2"
                     >
-                      <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm font-bold",
-                        p.sign < 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600")}>
+                      <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-body-semibold",
+                        p.sign < 0 ? "bg-danger-surface text-danger-text" : "bg-success-surface text-success-text")}>
                         {p.sign < 0 ? "−" : "+"}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-gray-900">{p.label}</span>
-                        <span className="block text-xs text-gray-400">{p.count} {p.unit}{p.count === 1 ? "" : "s"} · {NOTES[p.key]}</span>
+                        <span className="block text-body-semibold text-text-primary">{p.label}</span>
+                        <span className="block text-xs text-text-tertiary">{p.count} {p.unit}{p.count === 1 ? "" : "s"} · {NOTES[p.key]}</span>
                       </span>
-                      <span className={cn("text-sm font-semibold tabular-nums", p.sign < 0 ? "text-red-600" : "text-gray-900")}>
+                      <span className={cn("text-body-semibold tabular-nums", p.sign < 0 ? "text-danger-text" : "text-text-primary")}>
                         {p.sign < 0 && p.amount > 0 ? "−" : ""}{money(p.amount)}
                       </span>
-                      <ChevronDown className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform", isOpen && "rotate-180")} />
+                      <ChevronDown className={cn("h-4 w-4 shrink-0 text-text-tertiary transition-transform", isOpen && "rotate-180")} />
                     </button>
                     {isOpen && <PartRows part={p} />}
                   </Fragment>
                 );
               })}
-              <div className="flex items-center justify-between bg-gray-50 px-4 py-4">
-                <span className="text-sm font-bold text-gray-900">Final Net Payable</span>
-                <span className={cn("text-xl font-bold tabular-nums", statement.netPayable < 0 ? "text-red-600" : "text-emerald-700")}>
+              <div className="flex items-center justify-between bg-fill-1 px-4 py-4">
+                <span className="text-body-semibold text-text-primary">Final Net Payable</span>
+                <span className={cn("text-title-2-semibold tabular-nums", statement.netPayable < 0 ? "text-danger-text" : "text-success-text")}>
                   {money(statement.netPayable)}
                 </span>
               </div>
             </div>
             {statement.netPayable < 0 && (
-              <p className="text-xs text-red-600">A negative amount means the driver owes this back (advances are more than the pay).</p>
+              <p className="text-xs text-danger-text">A negative amount means the driver owes this back (advances are more than the pay).</p>
             )}
           </div>
         )}

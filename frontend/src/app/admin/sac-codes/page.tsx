@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Tag, Plus, Pencil, Trash2, Link2, Zap, History } from "lucide-react";
+import { RiPriceTag3Line as Tag, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiLink as Link2, RiFlashlightLine as Zap, RiHistoryLine as History } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { sacCodesApi, type SacCodeEditEventRow } from "@/lib/api";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { SacCode } from "@/types/sac-code";
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+import { EmptyState } from "@/components/ui/EmptyState";
 const emptyForm = { description: "", code: "", gstRate: "" };
 
 const EDIT_EVENT_ICON: Record<SacCodeEditEventRow["event"], typeof Plus> = {
@@ -26,9 +27,9 @@ const EDIT_EVENT_ICON: Record<SacCodeEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<SacCodeEditEventRow["event"], string> = {
-  "SAC Code Created": "bg-blue-100 text-blue-700",
-  "SAC Code Edited": "bg-amber-100 text-amber-700",
-  "SAC Code Deleted": "bg-red-100 text-red-700",
+  "SAC Code Created": "bg-accent-surface-strong text-accent-text",
+  "SAC Code Edited": "bg-warning-surface-strong text-warning-text",
+  "SAC Code Deleted": "bg-danger-surface-strong text-danger-text",
 };
 
 const EXPENSE_HEADINGS = [
@@ -186,12 +187,12 @@ export default function SacCodeManagementPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <Tag className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">SAC Code Management</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">SAC Code Management</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Manage SAC (Services Accounting Codes) used for GST invoicing on transport services.
             </p>
           </div>
@@ -201,7 +202,7 @@ export default function SacCodeManagementPage() {
 <button
               type="button"
               onClick={openEditHistory}
-              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
             >
               <History className="h-4 w-4" />
               Edit History
@@ -211,7 +212,7 @@ export default function SacCodeManagementPage() {
               <button
                 type="button"
                 onClick={openAdd}
-                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
               >
                 <Plus className="h-4 w-4" />
                 SAC Code
@@ -228,51 +229,49 @@ export default function SacCodeManagementPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white overflow-auto max-h-[75vh]">
+      <div className="rounded-xl border border-separator-border bg-background-primary-default overflow-auto max-h-[75vh]">
         <table className="w-full text-sm whitespace-nowrap">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-fill-1 border-b border-separator-border">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Description of Service</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SAC Code</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GST (%)</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Linked Expense</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Auto Populate</th>
-              {canEdit && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>}
+              <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Description of Service</th>
+              <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">SAC Code</th>
+              <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">GST (%)</th>
+              <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Linked Expense</th>
+              <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Auto Populate</th>
+              {canEdit && <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Actions</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-separator-border">
             {filteredSacCodes.length === 0 && (
               <tr>
-                <td colSpan={canEdit ? 6 : 5} className="px-4 py-8 text-center text-sm text-gray-400">
-                  No SAC codes configured yet. Add one to get started.
-                </td>
+                <td colSpan={canEdit ? 6 : 5} className="p-0"><EmptyState size="compact" illustration="no-data" title="No SAC codes configured yet" description="Add one to get started" /></td>
               </tr>
             )}
             {filteredSacCodes.map((sc) => (
-              <tr key={sc.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-700">{sc.description}</td>
-                <td className="px-4 py-3 font-mono font-semibold text-gray-800">{sc.code}</td>
-                <td className="px-4 py-3 text-right text-gray-600">
-                  {parseFloat(sc.gstRate) > 0 ? `${sc.gstRate}%` : <span className="text-gray-400">—</span>}
+              <tr key={sc.id} className="hover:bg-fill-2 transition-colors">
+                <td className="px-4 py-3 text-text-primary">{sc.description}</td>
+                <td className="px-4 py-3 font-mono font-semibold text-text-primary">{sc.code}</td>
+                <td className="px-4 py-3 text-right text-text-secondary">
+                  {parseFloat(sc.gstRate) > 0 ? `${sc.gstRate}%` : <span className="text-text-tertiary">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   {sc.linkedExpense ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-100">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-surface px-2.5 py-1 text-caption-1-medium text-accent-text border border-accent-border">
                       <Link2 className="h-3 w-3 flex-shrink-0" />
                       {sc.linkedExpense}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-400">Not linked</span>
+                    <span className="text-xs text-text-tertiary">Not linked</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
                   {sc.autoPopulateInvoiceType ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-100">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-surface px-2.5 py-1 text-caption-1-medium text-accent-text border border-accent-border">
                       <Zap className="h-3 w-3 flex-shrink-0" />
                       {sc.autoPopulateInvoiceType}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-400">Not set</span>
+                    <span className="text-xs text-text-tertiary">Not set</span>
                   )}
                 </td>
                 {canEdit && (
@@ -282,7 +281,7 @@ export default function SacCodeManagementPage() {
                         type="button"
                         onClick={() => setAutoPopDialog({ open: true, sc })}
                         title="Auto Populate"
-                        className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 px-3.5 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                        className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-separator-border px-3.5 text-caption-1-medium text-text-secondary transition duration-200 hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text"
                       >
                         <Zap className="h-3.5 w-3.5" />
                         Auto Populate
@@ -291,7 +290,7 @@ export default function SacCodeManagementPage() {
                         type="button"
                         onClick={() => setRetrieveDialog({ open: true, sc })}
                         title="Retrieve Values From"
-                        className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 px-3.5 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                        className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-separator-border px-3.5 text-caption-1-medium text-text-secondary transition duration-200 hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text"
                       >
                         <Link2 className="h-3.5 w-3.5" />
                         Retrieve Values From
@@ -299,14 +298,14 @@ export default function SacCodeManagementPage() {
                       <button
                         type="button"
                         onClick={() => openEdit(sc)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-blue-200 hover:text-blue-600"
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-separator-border text-text-secondary transition duration-200 hover:border-accent-border hover:text-accent-text"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(sc)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-red-200 hover:text-red-500"
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-separator-border text-text-secondary transition duration-200 hover:border-danger-border hover:text-danger-text"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -357,17 +356,17 @@ export default function SacCodeManagementPage() {
               placeholder="e.g. 5"
             />
           </Field>
-          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+          <div className="flex justify-end gap-3 border-t border-separator-border pt-4">
             <button
               type="button"
               onClick={() => setDialogOpen(false)}
-              className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md"
+              className="flex h-10 items-center whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-6 text-body-medium text-text-secondary shadow-sm transition duration-300 hover:shadow-md"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex h-10 items-center whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              className="flex h-10 items-center whitespace-nowrap rounded-full bg-accent-solid px-6 text-body-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
             >
               {editing ? "Save Changes" : "Add SAC Code"}
             </button>
@@ -384,8 +383,8 @@ export default function SacCodeManagementPage() {
       >
         <div className="flex flex-col gap-3">
           {retrieveDialog.sc && (
-            <p className="text-sm text-gray-500">
-              Select an expense heading to link to <span className="font-semibold text-gray-700">{retrieveDialog.sc.description}</span>.
+            <p className="text-sm text-text-secondary">
+              Select an expense heading to link to <span className="font-semibold text-text-primary">{retrieveDialog.sc.description}</span>.
             </p>
           )}
           <div className="flex flex-col gap-1.5">
@@ -397,14 +396,14 @@ export default function SacCodeManagementPage() {
                   type="button"
                   disabled={linking}
                   onClick={() => handleLinkExpense(isLinked ? "" : heading)}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm font-medium text-left transition-colors disabled:opacity-50 ${
+                  className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-body-medium text-left transition-colors disabled:opacity-50 ${
                     isLinked
-                      ? "border-blue-300 bg-blue-50 text-blue-700"
-                      : "border-gray-200 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                      ? "border-accent-border-strong bg-accent-surface text-accent-text"
+                      : "border-separator-border text-text-primary hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text"
                   }`}
                 >
                   <span>{heading}</span>
-                  {isLinked && <span className="text-xs text-blue-500 font-normal">Click to unlink</span>}
+                  {isLinked && <span className="text-caption-1-regular text-accent-text">Click to unlink</span>}
                 </button>
               );
             })}
@@ -414,7 +413,7 @@ export default function SacCodeManagementPage() {
               type="button"
               disabled={linking}
               onClick={() => handleLinkExpense("")}
-              className="mt-1 flex h-9 items-center justify-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-5 text-xs font-semibold text-red-600 transition-all duration-300 hover:scale-105 hover:bg-red-100 disabled:pointer-events-none disabled:opacity-50"
+              className="mt-1 flex h-9 items-center justify-center gap-1.5 rounded-full border border-danger-border bg-danger-surface px-5 text-caption-1-semibold text-danger-text transition duration-300 hover:bg-danger-surface-strong disabled:pointer-events-none disabled:opacity-50"
             >
               Remove linked expense
             </button>
@@ -431,8 +430,8 @@ export default function SacCodeManagementPage() {
       >
         <div className="flex flex-col gap-3">
           {autoPopDialog.sc && (
-            <p className="text-sm text-gray-500">
-              Select an invoice type to auto-populate <span className="font-semibold text-gray-700">{autoPopDialog.sc.description}</span> as a service line whenever that invoice type is generated.
+            <p className="text-sm text-text-secondary">
+              Select an invoice type to auto-populate <span className="font-semibold text-text-primary">{autoPopDialog.sc.description}</span> as a service line whenever that invoice type is generated.
             </p>
           )}
           <div className="flex flex-col gap-1.5">
@@ -442,10 +441,10 @@ export default function SacCodeManagementPage() {
                 type="button"
                 disabled={autoPopping}
                 onClick={() => handleSetAutoPopulate(null)}
-                className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-left text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+                className="flex items-center justify-between rounded-lg border border-danger-border bg-danger-surface px-4 py-2.5 text-body-medium text-left text-danger-text transition-colors hover:bg-danger-surface-strong disabled:opacity-50"
               >
                 <span>Remove Auto Populate</span>
-                <span className="text-xs font-normal text-red-400">Currently: {autoPopDialog.sc.autoPopulateInvoiceType}</span>
+                <span className="text-caption-1-regular text-danger-text">Currently: {autoPopDialog.sc.autoPopulateInvoiceType}</span>
               </button>
             )}
             {(["Transport Memo", "Tax Invoice", "Bill of Supply"] as const).map((type) => {
@@ -459,17 +458,17 @@ export default function SacCodeManagementPage() {
                   disabled={autoPopping || blockedByGst}
                   onClick={() => !blockedByGst && handleSetAutoPopulate(type)}
                   title={blockedByGst ? "Transport Memo is strictly no-GST — this SAC code carries a GST rate and cannot be assigned to Transport Memo" : undefined}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm font-medium text-left transition-colors disabled:cursor-not-allowed ${
+                  className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-body-medium text-left transition-colors disabled:cursor-not-allowed ${
                     blockedByGst
-                      ? "border-gray-100 bg-gray-50 text-gray-300"
+                      ? "border-separator-border bg-fill-1 text-text-tertiary"
                       : isActive
-                      ? "border-blue-300 bg-blue-50 text-blue-700"
-                      : "border-gray-200 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                      ? "border-accent-border-strong bg-accent-surface text-accent-text"
+                      : "border-separator-border text-text-primary hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text"
                   }`}
                 >
                   <span>{type}</span>
-                  {isActive && !blockedByGst && <span className="text-xs text-blue-500 font-normal">Currently set</span>}
-                  {blockedByGst && <span className="text-xs text-red-400 font-normal">GST code — not allowed</span>}
+                  {isActive && !blockedByGst && <span className="text-caption-1-regular text-accent-text">Currently set</span>}
+                  {blockedByGst && <span className="text-caption-1-regular text-danger-text">GST code — not allowed</span>}
                 </button>
               );
             })}
@@ -488,7 +487,7 @@ export default function SacCodeManagementPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by code, description, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -498,38 +497,36 @@ export default function SacCodeManagementPage() {
               ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No SAC code edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration="not-found" title={editHistoryEvents.length === 0 ? "No SAC code edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">SAC Code</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Description</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">SAC Code</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Description</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-mono font-semibold text-gray-800">{ev.code}</td>
-                          <td className="px-3 py-2 text-gray-600">{ev.description}</td>
+                          <td className="px-3 py-2 font-mono font-semibold text-text-primary">{ev.code}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.description}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Truck as TruckIcon } from "lucide-react";
+import { RiTruckLine as TruckIcon, RiCheckLine as OkIcon } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import type { Trip } from "@/types/trip";
 import { getComplianceStatus } from "@/lib/compliance";
 import { COMPLIANCE_CHECKS } from "@/hooks/useComplianceAlerts";
 import { Segmented } from "@/components/ui/Segmented";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Filter = "all" | "road" | "attention";
 type Health = "ok" | "soon" | "missing" | "expired";
 
@@ -171,16 +172,16 @@ export function FleetConstellationCard({
   };
 
   return (
-    <div className="dk-inset fleet-const flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+    <div className="fleet-const flex h-full flex-col overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-indigo-50/70 via-white to-white px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-separator-border bg-purple-surface/70 px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-surface-strong text-purple-text">
             <TruckIcon className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-sm font-bold text-gray-900">Fleet Constellation</h2>
-            <p className="text-xs text-gray-500">Every truck at a glance — hover for details</p>
+            <h2 className="text-body-semibold text-text-primary">Fleet Constellation</h2>
+            <p className="text-xs text-text-secondary">Every truck at a glance — hover for details</p>
           </div>
         </div>
         <Segmented
@@ -196,27 +197,27 @@ export function FleetConstellationCard({
       </div>
 
       {nodes.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-10 text-sm text-gray-400">No trucks in the fleet yet.</div>
+        <EmptyState size="compact" illustration="logistics" title="No trucks in the fleet yet" />
       ) : (
         <div className="flex flex-1 flex-col gap-4 p-4">
           {/* Headline numbers */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-sky-200/70 bg-sky-50/70 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">On the road</p>
-              <p className="mt-0.5 text-2xl font-bold tabular-nums text-gray-900">
+            <div className="rounded-xl border border-teal-border/70 bg-teal-surface/70 px-4 py-3">
+              <p className="text-caption-2-semibold text-teal-text">On the road</p>
+              <p className="mt-0.5 text-title-1-semibold tabular-nums text-text-primary">
                 {onRoadCount}
-                <span className="text-base font-semibold text-gray-400"> / {nodes.length}</span>
+                <span className="text-headline-semibold text-text-tertiary"> / {nodes.length}</span>
               </p>
-              <p className="text-xs text-gray-500">{nodes.length - onRoadCount} not moving</p>
+              <p className="text-xs text-text-secondary">{nodes.length - onRoadCount} not moving</p>
             </div>
-            <div className="rounded-xl border border-red-200/70 bg-red-50/70 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">Documents</p>
-              <p className="mt-0.5 text-2xl font-bold tabular-nums text-gray-900">{expiredTrucks}</p>
-              <p className="text-xs text-gray-500">
+            <div className="rounded-xl border border-danger-border/70 bg-danger-surface/70 px-4 py-3">
+              <p className="text-caption-2-semibold text-danger-text">Documents</p>
+              <p className="mt-0.5 text-title-1-semibold tabular-nums text-text-primary">{expiredTrucks}</p>
+              <p className="text-xs text-text-secondary">
                 {expiredTrucks === 1 ? "truck" : "trucks"} expired · {soonTrucks} expiring soon
               </p>
               {missingTrucks > 0 && (
-                <p className="text-xs font-medium text-pink-600 dark:text-pink-300">
+                <p className="text-caption-1-medium text-purple-text">
                   {missingTrucks} {missingTrucks === 1 ? "truck" : "trucks"} with documents not added
                 </p>
               )}
@@ -268,52 +269,52 @@ export function FleetConstellationCard({
             {/* Tooltip */}
             {active && (
               <div
-                className="pointer-events-none absolute z-10 w-60 rounded-xl border border-gray-200 bg-white/95 px-3 py-2.5 text-xs shadow-lg backdrop-blur"
+                className="pointer-events-none absolute z-10 w-60 rounded-xl border border-separator-border bg-background-primary-default px-3 py-2.5 text-xs shadow-lg"
                 style={{
                   left: `${Math.min(80, Math.max(20, (active.cx / width) * 100))}%`,
                   top: `${(active.cy / height) * 100}%`,
                   transform: active.cy / height < 0.4 ? "translate(-50%, 26px)" : "translate(-50%, calc(-100% - 26px))",
                 }}
               >
-                <p className="font-bold text-gray-900">{active.truck.registrationNumber || active.truck.truckId}</p>
-                <p className="text-[11px] text-gray-500">
+                <p className="font-semibold text-text-primary">{active.truck.registrationNumber || active.truck.truckId}</p>
+                <p className="text-[11px] text-text-secondary">
                   {[active.truck.manufacturer, active.truck.modelName].filter((v) => v && v.toLowerCase() !== "nan").join(" ")} · {active.truck.truckId}
                 </p>
                 <div className="mt-2 flex flex-col gap-1">
                   {active.onRoad ? (
-                    <p className="text-sky-700">
+                    <p className="text-teal-text">
                       ● On the road · {active.onRoad.tripId} · {active.onRoad.origin} → {active.onRoad.destination}
                       {active.onRoad.driverName ? ` · ${active.onRoad.driverName}` : ""}
                     </p>
                   ) : active.assigned ? (
-                    <p className="text-sky-700">◌ Assigned · {active.assigned.tripId} · {active.assigned.origin} → {active.assigned.destination}</p>
+                    <p className="text-teal-text">◌ Assigned · {active.assigned.tripId} · {active.assigned.origin} → {active.assigned.destination}</p>
                   ) : active.lastTrip ? (
-                    <p className="text-gray-600">
+                    <p className="text-text-secondary">
                       Idle {active.idleDays} {active.idleDays === 1 ? "day" : "days"} · last trip {fmtDate(active.lastTrip)}
                     </p>
                   ) : (
-                    <p className="text-gray-600">No trips yet</p>
+                    <p className="text-text-secondary">No trips yet</p>
                   )}
                   {active.expired.slice(0, 4).map((l) => (
-                    <p key={l} className="text-red-600">● {l} expired</p>
+                    <p key={l} className="text-danger-text">● {l} expired</p>
                   ))}
-                  {active.expired.length > 4 && <p className="text-red-600">+{active.expired.length - 4} more expired</p>}
+                  {active.expired.length > 4 && <p className="text-danger-text">+{active.expired.length - 4} more expired</p>}
                   {active.missing.length > 0 && (
-                    <p className="text-pink-600 dark:text-pink-300">
+                    <p className="text-purple-text">
                       ● {active.missing.length === COMPLIANCE_CHECKS.length ? "No documents added" : `Not added: ${active.missing.join(", ")}`}
                     </p>
                   )}
                   {active.soon.slice(0, 3).map((l) => (
-                    <p key={l} className="text-amber-600">● {l} expiring soon</p>
+                    <p key={l} className="text-warning-text">● {l} expiring soon</p>
                   ))}
-                  {!attention(active) && <p className="text-emerald-600">✓ All documents valid</p>}
+                  {!attention(active) && <p className="flex items-center gap-1 text-success-text"><OkIcon className="size-3.5" />All documents valid</p>}
                 </div>
               </div>
             )}
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-gray-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-text-secondary">
             <span className="flex items-center gap-1.5"><i className="fc-key fc-ok" /> Healthy</span>
             <span className="flex items-center gap-1.5"><i className="fc-key fc-soon" /> Expiring soon</span>
             <span className="flex items-center gap-1.5"><i className="fc-key fc-bad" /> Expired</span>
@@ -324,11 +325,11 @@ export function FleetConstellationCard({
 
           {/* Attention queue */}
           <div className="flex min-h-[170px] flex-1 flex-col">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            <p className="mb-2 text-caption-2-semibold text-text-tertiary">
               Needs attention <span className="tabular-nums">({queue.length})</span>
             </p>
             {queue.length === 0 ? (
-              <p className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-4 text-center text-xs text-gray-500">
+              <p className="rounded-xl border border-separator-border bg-fill-1 px-3 py-4 text-center text-xs text-text-secondary">
                 Every truck has all its documents, and all are valid.
               </p>
             ) : (
@@ -339,16 +340,16 @@ export function FleetConstellationCard({
                       key={n.truck.id}
                       onMouseEnter={() => setHovered(n.truck.id)}
                       className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs transition-colors ${
-                        hovered === n.truck.id ? "border-indigo-300 bg-indigo-50" : "border-gray-100 bg-white"
+                        hovered === n.truck.id ? "border-purple-border-strong bg-purple-surface" : "border-separator-border bg-background-primary-default"
                       }`}
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <i className={`fc-key shrink-0 ${HEALTH_CLASS[n.health]}`} />
-                        <span className="shrink-0 font-semibold text-gray-900">{n.truck.registrationNumber || n.truck.truckId}</span>
-                        <span className="truncate text-gray-500">{reasons(n)}</span>
+                        <span className="shrink-0 font-semibold text-text-primary">{n.truck.registrationNumber || n.truck.truckId}</span>
+                        <span className="truncate text-text-secondary">{reasons(n)}</span>
                       </span>
                       {n.onRoad && (
-                        <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">On road</span>
+                        <span className="shrink-0 rounded-full bg-teal-surface px-2 py-0.5 text-caption-2-semibold text-teal-text">On road</span>
                       )}
                     </li>
                   ))}

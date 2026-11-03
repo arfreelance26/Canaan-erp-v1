@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CircleDot, Eye, Loader2, Paperclip, Wrench } from "lucide-react";
+import { RiRecordCircleLine as CircleDot, RiEyeLine as Eye, RiLoader4Line as Loader2, RiAttachment2 as Paperclip, RiToolsLine as Wrench } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileViewer } from "@/components/ui/FileViewer";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -87,16 +87,16 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
               { label: "Trucks serviced", value: stats.trucks.toLocaleString("en-IN") },
               { label: "Last job / retread", value: stats.last ? formatDate(stats.last) : "—" },
             ].map((c) => (
-              <div key={c.label} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                <p className="text-xs font-medium text-gray-500">{c.label}</p>
-                <p className="mt-0.5 text-lg font-bold tabular-nums text-gray-900">{c.value}</p>
-                {c.sub && <p className="text-[11px] tabular-nums text-gray-400">{c.sub}</p>}
+              <div key={c.label} className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+                <p className="text-caption-1-medium text-text-secondary">{c.label}</p>
+                <p className="mt-0.5 text-title-3-semibold tabular-nums text-text-primary">{c.value}</p>
+                {c.sub && <p className="text-[11px] tabular-nums text-text-tertiary">{c.sub}</p>}
               </div>
             ))}
           </div>
 
           {/* Maintenance Jobs | Tyre Retreads */}
-          <div role="tablist" className="flex w-fit gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+          <div role="tablist" className="flex w-fit gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
             {([["jobs", `Maintenance Jobs (${stats.jobs})`], ["retreads", `Tyre Retreads (${stats.retreads})`]] as const).map(([k, label]) => (
               <button
                 key={k}
@@ -104,8 +104,8 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
                 role="tab"
                 aria-selected={tab === k}
                 onClick={() => setTab(k)}
-                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200 ${
-                  tab === k ? "bg-brand-navy text-white shadow" : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+                className={`rounded-full px-4 py-1.5 text-caption-1-semibold transition duration-200 ${
+                  tab === k ? "bg-accent-solid text-on-solid shadow" : "text-text-secondary hover:bg-fill-2 hover:text-text-primary"
                 }`}
               >
                 {label}
@@ -115,7 +115,7 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
 
           {/* Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            <p className="text-caption-2-semibold text-text-tertiary">
               {tab === "jobs"
                 ? `${records.length} ${records.length === 1 ? "record" : "records"}`
                 : `${retreads.length} ${retreads.length === 1 ? "retread" : "retreads"}`}
@@ -139,53 +139,53 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
           {/* Table */}
           {tab === "retreads" ? (
             loading && retreads.length === 0 ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+              <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
             ) : retreads.length === 0 ? (
-              <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-                  <CircleDot className="h-5 w-5 text-gray-400" />
+              <div className="rounded-2xl border border-separator-border bg-background-primary-default p-10 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fill-2">
+                  <CircleDot className="h-5 w-5 text-text-tertiary" />
                 </div>
-                <p className="text-sm font-semibold text-gray-600">No tyre retreads</p>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="text-body-semibold text-text-secondary">No tyre retreads</p>
+                <p className="mt-1 text-xs text-text-tertiary">
                   Retreads show up here when a tyre is moved back from the Retread Queue with Rethreading Done by → Vendor → {vendor.name}.
                 </p>
               </div>
             ) : (
-              <div className="max-h-[50vh] overflow-auto rounded-xl border border-slate-200">
+              <div className="max-h-[50vh] overflow-auto rounded-xl border border-separator-border">
                 <table className="w-full min-w-[800px] whitespace-nowrap text-left text-xs">
-                  <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
+                  <thead className="sticky top-0 z-10 border-b border-separator-border bg-fill-1">
                     <tr>
                       {["Date", "Tyre", "Size / Type", "Retread #", "Range", "Invoice No.", "Invoice Date", "Retread Cost", "Proof of Payment"].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{h}</th>
+                        <th key={h} className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-separator-border">
                     {retreads.map((r) => (
-                      <tr key={r.id} className="bg-white transition-colors hover:bg-slate-50">
-                        <td className="px-4 py-2.5 tabular-nums text-slate-600">{formatDate(r.date.slice(0, 10))}</td>
+                      <tr key={r.id} className="bg-background-primary-default transition-colors hover:bg-fill-2">
+                        <td className="px-4 py-2.5 tabular-nums text-text-secondary">{formatDate(r.date.slice(0, 10))}</td>
                         <td className="px-4 py-2.5">
-                          <span className="block font-medium text-slate-800">{r.tyreNumber || "—"}</span>
-                          {r.brand && <span className="block text-[11px] text-slate-400">{r.brand}</span>}
+                          <span className="block font-medium text-text-primary">{r.tyreNumber || "—"}</span>
+                          {r.brand && <span className="block text-[11px] text-text-tertiary">{r.brand}</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-500">{[r.tyreSize, r.tyreType].filter(Boolean).join(" · ") || "—"}</td>
-                        <td className="px-4 py-2.5 tabular-nums text-slate-600">{r.retreadCount ?? "—"}</td>
-                        <td className="px-4 py-2.5 tabular-nums text-slate-600">{r.expectedRange ? `${r.expectedRange.toLocaleString("en-IN")} km` : "—"}</td>
-                        <td className="px-4 py-2.5 text-slate-500">{r.invoiceNumber || <span className="italic text-slate-400">—</span>}</td>
-                        <td className="px-4 py-2.5 tabular-nums text-slate-600">{r.invoiceDate ? formatDate(r.invoiceDate) : <span className="italic text-slate-400">—</span>}</td>
-                        <td className="px-4 py-2.5 tabular-nums font-semibold text-blue-700">{money(r.retreadCost)}</td>
+                        <td className="px-4 py-2.5 text-text-secondary">{[r.tyreSize, r.tyreType].filter(Boolean).join(" · ") || "—"}</td>
+                        <td className="px-4 py-2.5 tabular-nums text-text-secondary">{r.retreadCount ?? "—"}</td>
+                        <td className="px-4 py-2.5 tabular-nums text-text-secondary">{r.expectedRange ? `${r.expectedRange.toLocaleString("en-IN")} km` : "—"}</td>
+                        <td className="px-4 py-2.5 text-text-secondary">{r.invoiceNumber || <span className="italic text-text-tertiary">—</span>}</td>
+                        <td className="px-4 py-2.5 tabular-nums text-text-secondary">{r.invoiceDate ? formatDate(r.invoiceDate) : <span className="italic text-text-tertiary">—</span>}</td>
+                        <td className="px-4 py-2.5 tabular-nums font-semibold text-accent-text">{money(r.retreadCost)}</td>
                         <td className="px-4 py-2.5">
                           {r.proofFileName ? (
                             <button
                               type="button"
                               onClick={() => setViewingRetread(r)}
                               title={r.proofFileName}
-                              className="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                              className="flex items-center gap-1 rounded-full border border-accent-border bg-accent-surface px-2.5 py-0.5 text-caption-1-semibold text-accent-text transition-colors hover:bg-accent-surface-strong"
                             >
                               <Eye className="h-3 w-3" /> View
                             </button>
                           ) : (
-                            <span className="italic text-slate-400">—</span>
+                            <span className="italic text-text-tertiary">—</span>
                           )}
                         </td>
                       </tr>
@@ -195,56 +195,56 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
               </div>
             )
           ) : loading && records.length === 0 ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+            <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
           ) : records.length === 0 ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-                <Wrench className="h-5 w-5 text-gray-400" />
+            <div className="rounded-2xl border border-separator-border bg-background-primary-default p-10 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fill-2">
+                <Wrench className="h-5 w-5 text-text-tertiary" />
               </div>
-              <p className="text-sm font-semibold text-gray-600">No maintenance records</p>
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="text-body-semibold text-text-secondary">No maintenance records</p>
+              <p className="mt-1 text-xs text-text-tertiary">
                 Jobs show up here when a maintenance record is saved with Maintenance By → Vendor → {vendor.name}.
               </p>
             </div>
           ) : (
-            <div className="max-h-[50vh] overflow-auto rounded-xl border border-slate-200">
+            <div className="max-h-[50vh] overflow-auto rounded-xl border border-separator-border">
               <table className="w-full min-w-[800px] whitespace-nowrap text-left text-xs">
-                <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
+                <thead className="sticky top-0 z-10 border-b border-separator-border bg-fill-1">
                   <tr>
                     {["Start Date", "Truck", "Maintenance Type", "Repair Type", "Invoice No.", "Invoice Date", "Location", "Remarks", "Cost", "Proof of Payment"].map((h) => (
-                      <th key={h} className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{h}</th>
+                      <th key={h} className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-separator-border">
                   {records.map((r) => (
-                    <tr key={r.id} className="bg-white transition-colors hover:bg-slate-50">
-                      <td className="px-4 py-2.5 tabular-nums text-slate-600">{formatDate(r.date)}</td>
+                    <tr key={r.id} className="bg-background-primary-default transition-colors hover:bg-fill-2">
+                      <td className="px-4 py-2.5 tabular-nums text-text-secondary">{formatDate(r.date)}</td>
                       <td className="px-4 py-2.5">
-                        <span className="block font-medium text-slate-800">{r.truckRegistration || "—"}</span>
-                        {r.truckCode && <span className="block text-[11px] text-slate-400">{r.truckCode}</span>}
+                        <span className="block font-medium text-text-primary">{r.truckRegistration || "—"}</span>
+                        {r.truckCode && <span className="block text-[11px] text-text-tertiary">{r.truckCode}</span>}
                       </td>
-                      <td className="px-4 py-2.5 font-medium text-slate-800">{r.maintenanceType}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{r.repairType || <span className="italic text-slate-400">—</span>}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{r.invoiceNumber || <span className="italic text-slate-400">—</span>}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-slate-600">{r.invoiceDate ? formatDate(r.invoiceDate) : <span className="italic text-slate-400">—</span>}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{r.maintenanceLocation || <span className="italic text-slate-400">—</span>}</td>
-                      <td className="max-w-[220px] truncate px-4 py-2.5 text-slate-500" title={r.description}>
-                        {r.description || <span className="italic text-slate-400">—</span>}
+                      <td className="px-4 py-2.5 font-medium text-text-primary">{r.maintenanceType}</td>
+                      <td className="px-4 py-2.5 text-text-secondary">{r.repairType || <span className="italic text-text-tertiary">—</span>}</td>
+                      <td className="px-4 py-2.5 text-text-secondary">{r.invoiceNumber || <span className="italic text-text-tertiary">—</span>}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-text-secondary">{r.invoiceDate ? formatDate(r.invoiceDate) : <span className="italic text-text-tertiary">—</span>}</td>
+                      <td className="px-4 py-2.5 text-text-secondary">{r.maintenanceLocation || <span className="italic text-text-tertiary">—</span>}</td>
+                      <td className="max-w-[220px] truncate px-4 py-2.5 text-text-secondary" title={r.description}>
+                        {r.description || <span className="italic text-text-tertiary">—</span>}
                       </td>
-                      <td className="px-4 py-2.5 tabular-nums font-semibold text-blue-700">{money(parseFloat(r.cost) || 0)}</td>
+                      <td className="px-4 py-2.5 tabular-nums font-semibold text-accent-text">{money(parseFloat(r.cost) || 0)}</td>
                       <td className="px-4 py-2.5">
                         {(r.proofCount ?? 0) > 0 ? (
                           <button
                             type="button"
                             onClick={() => setProofsRecord(r)}
-                            className="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                            className="flex items-center gap-1 rounded-full border border-accent-border bg-accent-surface px-2.5 py-0.5 text-caption-1-semibold text-accent-text transition-colors hover:bg-accent-surface-strong"
                           >
                             <Paperclip className="h-3 w-3" />
                             {r.proofCount} file{r.proofCount === 1 ? "" : "s"}
                           </button>
                         ) : (
-                          <span className="italic text-slate-400">—</span>
+                          <span className="italic text-text-tertiary">—</span>
                         )}
                       </td>
                     </tr>

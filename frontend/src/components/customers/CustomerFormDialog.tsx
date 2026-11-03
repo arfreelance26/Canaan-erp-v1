@@ -13,7 +13,7 @@ import { ProfileAvatarPicker } from "@/components/ui/ProfileAvatarPicker";
 export const DRAFT_KEY = "erp_customer_form_draft";
 
 const sectionHeadingClass =
-  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+  "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 type CustomerFormDialogProps = {
   open: boolean;
@@ -143,7 +143,7 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
           />
         </Field>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-separator-border p-4">
           <p className={sectionHeadingClass}>Additional Fields</p>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Is GTA (Goods Transport Agent)?" required>
@@ -176,13 +176,13 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover"
           >
             {initialData ? "Save Changes" : "Add Customer"}
           </button>

@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useChat } from "@/context/ChatContext";
 import { useRouter } from "next/navigation";
 import { buildSystemPrompt, runAgent } from "@/lib/ai/erpAgent";
-import { X, Send, Square } from "lucide-react";
+import { RiCloseLine as X, RiSendPlaneLine as Send, RiStopFill } from "@remixicon/react";
 import {
   MessageScrollerProvider,
   MessageScroller,
@@ -61,7 +61,7 @@ function ChatMessages({
                   {[0, 1, 2].map((i) => (
                     <span
                       key={i}
-                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold"
+                      className="h-1.5 w-1.5 rounded-full bg-gold-solid"
                       style={{ animationDelay: `${i * 0.15}s` }}
                     />
                   ))}
@@ -133,28 +133,28 @@ export function ERPChatWidget() {
     <aside
       className={[
         "flex flex-col shrink-0 overflow-hidden",
-        "border-l border-gray-200",
-        "bg-white",
+        "border-l border-separator-border",
+        "bg-background-primary-default",
         "transition-[width] duration-300 ease-in-out",
         isOpen ? "w-80" : "w-0",
       ].join(" ")}
     >
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between bg-brand-navy px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between bg-accent-solid px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 p-1">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-on-solid/10 p-1">
             <img src="/logo.png" alt="Canaan" width={20} height={20} className="object-contain" />
           </div>
           <div>
-            <p className="text-xs font-bold leading-none text-white">ERP Assistant</p>
-            <p className="mt-0.5 text-[10px] leading-none text-white/50">Canaan Global</p>
+            <p className="text-caption-1-semibold leading-none text-on-solid">ERP Assistant</p>
+            <p className="mt-0.5 text-[10px] leading-none text-on-solid/50">Canaan Global</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {messages.length > 0 && (
             <button
               onClick={clearMessages}
-              className="text-[11px] text-white/50 transition-colors hover:text-white"
+              className="text-[11px] text-on-solid/50 transition-colors hover:text-on-solid"
             >
               Clear
             </button>
@@ -162,7 +162,7 @@ export function ERPChatWidget() {
           <button
             onClick={close}
             aria-label="Close chat"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-on-solid/60 transition-colors hover:bg-on-solid/10 hover:text-on-solid"
           >
             <X size={15} />
           </button>
@@ -171,12 +171,12 @@ export function ERPChatWidget() {
 
       {/* Messages */}
       <MessageScrollerProvider>
-        <MessageScroller className="flex-1 bg-white py-3">
+        <MessageScroller className="flex-1 bg-background-primary-default py-3">
           <MessageScrollerViewport>
             <MessageScrollerContent>
               {messages.length === 0 && (
                 <div className="flex flex-col gap-2 px-3 pt-2">
-                  <p className="text-center text-xs text-gray-400">
+                  <p className="text-center text-xs text-text-tertiary">
                     Ask me anything about your ERP data.
                   </p>
                   {SUGGESTIONS.map((s) => (
@@ -186,7 +186,7 @@ export function ERPChatWidget() {
                         setInput(s);
                         // focus is handled by the ref callback on re-render
                       }}
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-left text-xs text-gray-600 transition-colors hover:bg-gray-50"
+                      className="rounded-lg border border-separator-border px-3 py-2 text-left text-xs text-text-secondary transition-colors hover:bg-fill-2"
                     >
                       {s}
                     </button>
@@ -202,7 +202,7 @@ export function ERPChatWidget() {
       </MessageScrollerProvider>
 
       {/* Input bar */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-white px-3 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-t border-separator-border bg-background-primary-default px-3 py-2">
         <input
           ref={inputRef}
           type="text"
@@ -211,22 +211,22 @@ export function ERPChatWidget() {
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           placeholder="Ask about trips, compliance…"
           disabled={thinking}
-          className="input-no-transform flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-brand-gold focus:bg-white disabled:opacity-50"
+          className="input-no-transform flex-1 rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-xs text-text-primary placeholder-text-placeholder outline-none transition-colors focus:border-gold-solid focus:bg-background-primary-default disabled:opacity-50"
         />
         {thinking ? (
           <button
             onClick={stop}
             title="Stop"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white transition-colors hover:bg-red-600"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-danger-solid text-on-solid transition-colors hover:bg-danger-solid-hover"
           >
-            <Square size={10} fill="currentColor" />
+            <RiStopFill size={10} />
           </button>
         ) : (
           <button
             onClick={send}
             disabled={!input.trim()}
             title="Send"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-navy text-white transition-colors hover:bg-brand-navy/90 disabled:opacity-40"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-solid text-on-solid transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-40"
           >
             <Send size={13} />
           </button>

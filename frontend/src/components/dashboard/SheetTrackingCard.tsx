@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, type LucideIcon } from "lucide-react";
+import { RiCloseLine as X, type RemixiconComponentType as LucideIcon } from "@remixicon/react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 
 type Tone = "emerald" | "blue";
@@ -11,25 +11,25 @@ type BadgeTone = "blue" | "amber" | "emerald";
 // tone lives in a lookup table rather than being built at runtime.
 const TONES: Record<Tone, { card: string; chip: string; count: string; tabActive: string; tabCount: string }> = {
   emerald: {
-    card: "border-emerald-200/70 from-emerald-50/80",
-    chip: "bg-emerald-100 text-emerald-600",
-    count: "bg-emerald-100 text-emerald-700",
-    tabActive: "text-emerald-700",
-    tabCount: "bg-emerald-100 text-emerald-700",
+    card: "border-success-border/70",
+    chip: "bg-success-surface-strong text-success-text",
+    count: "bg-success-surface-strong text-success-text",
+    tabActive: "text-success-text",
+    tabCount: "bg-success-surface-strong text-success-text",
   },
   blue: {
-    card: "border-blue-200/70 from-blue-50/80",
-    chip: "bg-blue-100 text-blue-600",
-    count: "bg-blue-100 text-blue-700",
-    tabActive: "text-blue-700",
-    tabCount: "bg-blue-100 text-blue-700",
+    card: "border-accent-border/70",
+    chip: "bg-accent-surface-strong text-accent-text",
+    count: "bg-accent-surface-strong text-accent-text",
+    tabActive: "text-accent-text",
+    tabCount: "bg-accent-surface-strong text-accent-text",
   },
 };
 
 const BADGES: Record<BadgeTone, string> = {
-  blue: "bg-blue-50 text-blue-700",
-  amber: "bg-amber-50 text-amber-700",
-  emerald: "bg-emerald-50 text-emerald-700",
+  blue: "bg-accent-surface text-accent-text",
+  amber: "bg-warning-surface text-warning-text",
+  emerald: "bg-success-surface text-success-text",
 };
 
 export type SheetTrackingItem = {
@@ -71,20 +71,20 @@ export function SheetTrackingCard({
   const dateFilterActive = dates.some((d) => d.value);
 
   return (
-    <div className={`dk-inset flex flex-col gap-3 rounded-2xl border bg-gradient-to-b to-white p-4 shadow-sm ${t.card}`}>
+    <div className={`flex flex-col gap-3 rounded-2xl border bg-background-primary-default p-4 shadow-sm ${t.card}`}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${t.chip}`}>
             <Icon className="h-4 w-4" />
           </span>
-          <h3 className="truncate text-sm font-semibold text-gray-900">{title}</h3>
+          <h3 className="truncate text-body-semibold text-text-primary">{title}</h3>
         </div>
-        <span className={`rounded-full px-3 py-0.5 text-sm font-bold tabular-nums ${t.count}`}>{total}</span>
+        <span className={`rounded-full px-3 py-0.5 text-body-semibold tabular-nums ${t.count}`}>{total}</span>
       </div>
 
       {/* Status tabs — segmented control */}
-      <div className="dk-seg flex w-fit max-w-full flex-wrap gap-0.5 rounded-full p-0.5">
+      <div className="seg-track flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg p-0.5">
         {tabs.map((item) => {
           const active = tab === item.key;
           return (
@@ -93,12 +93,12 @@ export function SheetTrackingCard({
               type="button"
               onClick={() => selectTab(item.key)}
               aria-pressed={active}
-              className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-colors duration-150 ${
-                active ? `dk-seg-active shadow-sm ${t.tabActive}` : "text-gray-500 hover:text-gray-700"
+              className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 text-caption-1-medium transition-colors duration-150 ${
+                active ? `seg-thumb ${t.tabActive}` : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {item.label}
-              <span className={`rounded-full px-1.5 text-[10px] font-bold tabular-nums ${active ? t.tabCount : "bg-gray-200/70 text-gray-500"}`}>
+              <span className={`rounded-full px-1.5 text-caption-2-semibold tabular-nums ${active ? t.tabCount : "bg-fill-3 text-text-secondary"}`}>
                 {item.count}
               </span>
             </button>
@@ -111,9 +111,9 @@ export function SheetTrackingCard({
         {dates.map((d) => (
           <div
             key={d.label}
-            className="flex h-8 items-center gap-1.5 rounded-full border border-gray-200 bg-white pl-3 pr-2 shadow-sm transition-shadow hover:shadow-md [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-400 [&_input]:!text-xs [&_input]:!normal-case [&_input]:!font-medium [&_input]:!text-gray-700 [&_input::placeholder]:!font-normal [&_input::placeholder]:!text-gray-400"
+            className="flex h-8 items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default pl-3 pr-2 shadow-sm transition-shadow hover:shadow-md [&_.border-gold-solid]:!border-0 [&_.border-gold-solid]:!bg-transparent [&_.border-gold-solid]:!px-1 [&_.border-gold-solid]:!py-1 [&_.border-gold-solid]:!shadow-none [&_.border-brand-gold_svg]:!text-text-tertiary [&_input]:!text-xs [&_input]:!normal-case [&_input]:!font-medium [&_input]:!text-text-primary [&_input::placeholder]:!font-normal [&_input::placeholder]:!text-text-tertiary"
           >
-            <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-gray-500">{d.label}</span>
+            <span className="whitespace-nowrap text-caption-2-semibold text-text-secondary">{d.label}</span>
             <div className="w-[92px]">
               <DatePickerInput value={d.value} onChange={d.onChange} placeholder="" dateFormat="dd MMM yyyy" clearable={false} />
             </div>
@@ -122,7 +122,7 @@ export function SheetTrackingCard({
                 type="button"
                 onClick={() => d.onChange("")}
                 aria-label={`Clear ${d.label} date`}
-                className="rounded-full p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                className="rounded-full p-0.5 text-text-tertiary transition-colors hover:bg-fill-3 hover:text-text-secondary"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -130,7 +130,7 @@ export function SheetTrackingCard({
           </div>
         ))}
         {dateFilterActive && (
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${t.count}`}>
+          <span className={`rounded-full px-2 py-0.5 text-caption-2-semibold tabular-nums ${t.count}`}>
             {visibleCount} match{visibleCount === 1 ? "" : "es"}
           </span>
         )}
@@ -138,29 +138,29 @@ export function SheetTrackingCard({
 
       {/* Rows */}
       {items.length === 0 ? (
-        <p className="py-4 text-center text-xs text-gray-400">No trips in this filter.</p>
+        <p className="py-4 text-center text-xs text-text-tertiary">No trips in this filter.</p>
       ) : (
         <ul className="custom-scrollbar flex max-h-56 flex-col gap-1.5 overflow-y-auto pr-1">
           {items.map((it) => (
             <li
               key={it.id}
-              className="rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-gray-200"
+              className="rounded-xl border border-separator-border bg-background-primary-default px-3 py-2 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-separator-border"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-baseline gap-2.5">
-                  <span className="shrink-0 font-semibold text-gray-900">{it.tripId}</span>
-                  {it.reference && <span className="truncate font-mono text-[11px] text-gray-500">{it.reference}</span>}
+                  <span className="shrink-0 font-semibold text-text-primary">{it.tripId}</span>
+                  {it.reference && <span className="truncate font-mono text-[11px] text-text-secondary">{it.reference}</span>}
                 </div>
-                <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGES[it.badge.tone]}`}>
+                <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-caption-2-semibold ${BADGES[it.badge.tone]}`}>
                   <span className="h-1 w-1 rounded-full bg-current" />
                   {it.badge.label}
                 </span>
               </div>
               {it.meta.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-x-4 text-[11px] text-gray-500">
+                <div className="mt-1 flex flex-wrap gap-x-4 text-[11px] text-text-secondary">
                   {it.meta.map((m) => (
                     <span key={m.label}>
-                      {m.label} <span className="text-gray-600">{m.value}</span>
+                      {m.label} <span className="text-text-secondary">{m.value}</span>
                     </span>
                   ))}
                 </div>

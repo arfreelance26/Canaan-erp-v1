@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import { type RemixiconComponentType as LucideIcon } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
 // The dashboard's top line used to be six identical bordered, shadowed,
@@ -33,9 +33,9 @@ export type FleetStatusSegment = {
 );
 
 const TONE_TEXT: Record<"neutral" | "good" | "warn", string> = {
-  neutral: "text-gray-400",
-  good: "text-emerald-500",
-  warn: "text-amber-500",
+  neutral: "text-text-tertiary",
+  good: "text-success-text",
+  warn: "text-warning-text",
 };
 
 const RING_COLOR: Record<"neutral" | "good" | "warn", string> = {
@@ -49,7 +49,7 @@ function Ring({ fraction, color }: { fraction: number; color: string }) {
   const c = 2 * Math.PI * r;
   return (
     <svg className="h-9 w-9 -rotate-90 shrink-0" viewBox="0 0 36 36">
-      <circle cx="18" cy="18" r={r} fill="none" className="stroke-gray-100" strokeWidth="4" />
+      <circle cx="18" cy="18" r={r} fill="none" className="stroke-foreground-icon-quaternary" strokeWidth="4" />
       <circle
         cx="18" cy="18" r={r} fill="none"
         stroke={color} strokeWidth="4" strokeLinecap="round"
@@ -70,12 +70,12 @@ function Segment({ segment }: { segment: FleetStatusSegment }) {
     segment.kind === "ratio" ? `${segment.numerator}/${segment.denominator}` : segment.value;
 
   const body = (
-    <div className="flex h-full flex-col gap-3 bg-white p-5">
+    <div className="flex h-full flex-col gap-3 bg-background-primary-default p-5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[13px] font-medium text-gray-500">
+        <span className="text-body-2-medium text-text-secondary">
           {segment.label}
         </span>
-        <Icon className={cn("h-4 w-4 shrink-0", active ? "text-red-500" : tone ? TONE_TEXT[tone] : "text-gray-300")} />
+        <Icon className={cn("h-4 w-4 shrink-0", active ? "text-danger-text" : tone ? TONE_TEXT[tone] : "text-text-tertiary")} />
       </div>
 
       <div className="flex items-center gap-3">
@@ -86,15 +86,15 @@ function Segment({ segment }: { segment: FleetStatusSegment }) {
           />
         )}
         <p className={cn(
-          "text-3xl font-bold leading-none tabular-nums",
-          active ? "text-red-600" : "text-gray-900"
+          "text-display-4-semibold leading-none tabular-nums",
+          active ? "text-danger-text" : "text-text-primary"
         )}>
           {valueText}
         </p>
       </div>
 
       {segment.caption && (
-        <p className={cn("mt-auto text-xs", active ? "text-red-500" : "text-gray-400")}>
+        <p className={cn("mt-auto text-xs", active ? "text-danger-text" : "text-text-tertiary")}>
           {segment.caption}
         </p>
       )}
@@ -106,7 +106,7 @@ function Segment({ segment }: { segment: FleetStatusSegment }) {
     <button
       type="button"
       onClick={segment.onClick}
-      className="h-full w-full text-left transition-colors hover:bg-gray-50/80"
+      className="h-full w-full text-left transition-colors hover:bg-fill-2"
     >
       {body}
     </button>
@@ -116,7 +116,7 @@ function Segment({ segment }: { segment: FleetStatusSegment }) {
 export function FleetStatusPanel({ segments }: { segments: FleetStatusSegment[] }) {
   return (
     <div
-      className="grid gap-px overflow-hidden rounded-2xl border border-gray-200 bg-gray-200 shadow-sm"
+      className="grid gap-px overflow-hidden rounded-2xl border border-separator-border bg-fill-3 shadow-sm"
       style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}
     >
       {segments.map((s) => (

@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { tyreApi } from "@/lib/api";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate, formatDateTime } from "@/lib/format-date";
-import { confirmAction, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const columns = [
   "Brand",
   "Tyre Type",
@@ -64,50 +65,48 @@ export default function DiscardedTyresPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <Trash2 className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Discarded Tyres</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Tyres taken out of service and written off</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Discarded Tyres</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Tyres taken out of service and written off</p>
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">Loading…</div>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-10 text-center text-sm text-text-secondary">Loading…</div>
       ) : tyres.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          No discarded tyres. Use &ldquo;Flag as Discarded&rdquo; on Tyre Inventory or the Retread Queue to add one.
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No discarded tyres" description="Use &ldquo;Flag as Discarded&rdquo; on Tyre Inventory or the Retread Queue to add one" />
       ) : (
-        <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
+        <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
           <table className="w-full min-w-[1500px] text-left text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b border-gray-200 bg-gray-50">
+              <tr className="border-b border-separator-border bg-fill-1">
                 {columns.map((column) => (
-                  <th key={column} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                  <th key={column} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                     {column}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {tyres.map((tyre) => (
-                <tr key={tyre.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{tyre.brand}</td>
-                  <td className="px-4 py-3 text-gray-600">{tyre.tyreType}</td>
-                  <td className="px-4 py-3 text-gray-600">{tyre.tyreNumber}</td>
-                  <td className="px-4 py-3 text-gray-600">{tyre.size}</td>
-                  <td className="px-4 py-3 text-gray-600">₹{Number(tyre.cost || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-600">{formatDate(tyre.purchaseDate)}</td>
-                  <td className="px-4 py-3 text-gray-600">{tyre.retreadCount}</td>
-                  <td className="px-4 py-3 text-gray-600">{tyre.condition}</td>
-                  <td className="px-4 py-3 text-gray-600">{tyre.discardedAt ? formatDateTime(tyre.discardedAt) : "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{tyre.discardedBy ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={tyre.discardReason ?? ""}>
+                <tr key={tyre.id} className="hover:bg-fill-2">
+                  <td className="px-4 py-3 font-medium text-text-primary">{tyre.brand}</td>
+                  <td className="px-4 py-3 text-text-secondary">{tyre.tyreType}</td>
+                  <td className="px-4 py-3 text-text-secondary">{tyre.tyreNumber}</td>
+                  <td className="px-4 py-3 text-text-secondary">{tyre.size}</td>
+                  <td className="px-4 py-3 text-text-secondary">₹{Number(tyre.cost || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-text-secondary">{formatDate(tyre.purchaseDate)}</td>
+                  <td className="px-4 py-3 text-text-secondary">{tyre.retreadCount}</td>
+                  <td className="px-4 py-3 text-text-secondary">{tyre.condition}</td>
+                  <td className="px-4 py-3 text-text-secondary">{tyre.discardedAt ? formatDateTime(tyre.discardedAt) : "—"}</td>
+                  <td className="px-4 py-3 text-text-secondary">{tyre.discardedBy ?? "—"}</td>
+                  <td className="px-4 py-3 text-text-secondary max-w-xs truncate" title={tyre.discardReason ?? ""}>
                     {tyre.soldWithTruckAt && (
-                      <span className="mr-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      <span className="mr-1.5 rounded-full bg-fill-2 px-2 py-0.5 text-caption-2-semibold text-text-secondary">
                         Sold with truck
                       </span>
                     )}
@@ -118,7 +117,7 @@ export default function DiscardedTyresPage() {
                       <button
                         type="button"
                         onClick={() => setDataTyreId(tyre.id)}
-                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-primary hover:bg-fill-2 transition-colors"
                       >
                         View Tyre Data
                       </button>
@@ -127,7 +126,7 @@ export default function DiscardedTyresPage() {
                         type="button"
                         disabled={actingId === tyre.id}
                         onClick={() => handleMoveToInventory(tyre)}
-                        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                        className="rounded-lg border border-accent-border bg-accent-surface px-3 py-1.5 text-caption-1-medium text-accent-text hover:bg-accent-surface-strong transition-colors disabled:opacity-50"
                       >
                         Move to Inventory
                       </button>

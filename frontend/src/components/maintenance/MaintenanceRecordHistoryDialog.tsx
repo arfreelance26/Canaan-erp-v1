@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Pencil, Trash2, X, AlertTriangle, Paperclip, Clock } from "lucide-react";
+import { RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiCloseLine as X, RiAlertLine as AlertTriangle, RiAttachment2 as Paperclip, RiTimeLine as Clock } from "@remixicon/react";
 import { MaintenanceProofsDialog } from "./MaintenanceProofsDialog";
 import { MaintenanceRecordFormDialog } from "./MaintenanceRecordFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
@@ -15,8 +15,9 @@ import { useAuth } from "@/context/AuthContext";
 import { editApprovalsApi, maintenanceApi, maintenanceRecordChanges, maintenanceRequestsApi } from "@/lib/api";
 import type { MaintenanceRequest } from "@/types/maintenance-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError, confirm } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type MaintenanceRecordHistoryDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -66,48 +67,48 @@ function DeletionReasonDialog({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-background-primary-default shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-amber-50 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-separator-border bg-warning-surface px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning-solid text-on-solid">
               <AlertTriangle className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">Request Deletion</p>
-              <p className="text-[11px] text-gray-500">Admin approval required</p>
+              <p className="text-body-semibold text-text-primary">Request Deletion</p>
+              <p className="text-[11px] text-text-secondary">Admin approval required</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="rounded-lg border border-separator-border p-1.5 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Record summary */}
-        <div className="bg-gray-50 border-b border-gray-100 px-5 py-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Record to delete</p>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700">
-            <span><span className="text-gray-400">Truck</span> {truckId}</span>
-            <span><span className="text-gray-400">Date</span> {formatDate(record.date)}</span>
-            <span><span className="text-gray-400">Type</span> {record.maintenanceType}</span>
-            {record.compliant && <span><span className="text-gray-400">Compliant</span> {record.compliant}</span>}
-            <span><span className="text-gray-400">Odometer</span> {Number(record.odometer).toLocaleString()} km</span>
-            <span><span className="text-gray-400">Cost</span> ₹{Number(record.cost).toLocaleString()}</span>
-            {record.enteredByName && <span><span className="text-gray-400">Entered by</span> {record.enteredByName}</span>}
-            {record.source && <span><span className="text-gray-400">Source</span> {record.source}</span>}
+        <div className="bg-fill-1 border-b border-separator-border px-5 py-3">
+          <p className="text-caption-2-semibold text-text-tertiary mb-1.5">Record to delete</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-primary">
+            <span><span className="text-text-tertiary">Truck</span> {truckId}</span>
+            <span><span className="text-text-tertiary">Date</span> {formatDate(record.date)}</span>
+            <span><span className="text-text-tertiary">Type</span> {record.maintenanceType}</span>
+            {record.compliant && <span><span className="text-text-tertiary">Compliant</span> {record.compliant}</span>}
+            <span><span className="text-text-tertiary">Odometer</span> {Number(record.odometer).toLocaleString()} km</span>
+            <span><span className="text-text-tertiary">Cost</span> ₹{Number(record.cost).toLocaleString()}</span>
+            {record.enteredByName && <span><span className="text-text-tertiary">Entered by</span> {record.enteredByName}</span>}
+            {record.source && <span><span className="text-text-tertiary">Source</span> {record.source}</span>}
           </div>
         </div>
 
         {/* Reason */}
         <div className="px-5 py-5 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-gray-700">
-              Reason for deletion <span className="text-red-500">*</span>
+            <label className="text-body-semibold text-text-primary">
+              Reason for deletion <span className="text-danger-text">*</span>
             </label>
             <textarea
               ref={textareaRef}
@@ -115,7 +116,7 @@ function DeletionReasonDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Explain why this maintenance record needs to be deleted…"
-              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-100 placeholder-gray-400"
+              className="w-full resize-none rounded-xl border border-separator-border bg-fill-1 px-4 py-3 text-sm text-text-primary outline-none transition focus:border-warning-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-warning-border placeholder-text-placeholder"
             />
           </div>
 
@@ -123,7 +124,7 @@ function DeletionReasonDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary hover:bg-fill-2 transition-colors"
             >
               Cancel
             </button>
@@ -131,7 +132,7 @@ function DeletionReasonDialog({
               type="button"
               onClick={handleSubmit}
               disabled={!reason.trim() || submitting}
-              className="rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-warning-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-warning-solid-hover disabled:opacity-50 transition-colors"
             >
               {submitting ? "Submitting…" : "Submit Request"}
             </button>
@@ -204,7 +205,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
   if (!truck) return null;
 
   async function handleAdminDelete(record: MaintenanceRecord) {
-    if (!window.confirm(`Delete this maintenance record (${record.maintenanceType} · ${formatDate(record.date)})? This cannot be undone.`)) return;
+    if (!(await confirm({ title: `Delete this maintenance record?`, description: `${record.maintenanceType} · ${formatDate(record.date)}. This can't be undone`, confirmLabel: "Delete", tone: "danger" }))) return;
     setDeletingId(record.id);
     try {
       await maintenanceApi.deleteRecord(record.id);
@@ -281,12 +282,12 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
       >
         {/* ── Toolbar: count + total on the left, date range + View on the right ── */}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption-2-semibold text-text-tertiary">
             <span>{filteredRecords.length} {filteredRecords.length === 1 ? "record" : "records"}</span>
             {filteredRecords.length > 0 && (
               <span>
                 Total:{" "}
-                <span className="tabular-nums text-blue-600">
+                <span className="tabular-nums text-accent-text">
                   ₹{totalCost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </span>
@@ -308,31 +309,31 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
         </div>
 
         {pending.length > 0 && (
-          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-700">
+          <div className="mb-3 rounded-xl border border-warning-border bg-warning-surface/60 px-4 py-3">
+            <p className="mb-2 flex items-center gap-1.5 text-caption-2-semibold text-warning-text">
               <Clock className="h-3 w-3" /> Pending approval ({pending.length}) · not counted yet
             </p>
             <ul className="flex flex-col gap-1.5">
               {pending.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-white/80 px-3 py-2 text-xs ring-1 ring-amber-100">
-                  <span className="tabular-nums text-slate-600">{formatDate(r.date)}</span>
-                  <span className="font-medium text-slate-800">{r.maintenanceType}{r.repairType ? ` · ${r.repairType}` : ""}</span>
-                  <span className="tabular-nums font-semibold text-slate-700">
+                <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-background-primary-default px-3 py-2 text-xs ring-1 ring-warning-border">
+                  <span className="tabular-nums text-text-secondary">{formatDate(r.date)}</span>
+                  <span className="font-medium text-text-primary">{r.maintenanceType}{r.repairType ? ` · ${r.repairType}` : ""}</span>
+                  <span className="tabular-nums font-semibold text-text-primary">
                     ₹{r.cost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  <span className="text-slate-500">
+                  <span className="text-text-secondary">
                     by {r.submittedByName}{r.source === "Trip Sheet" ? ` · Trip Sheet${r.tripIdStr ? ` ${r.tripIdStr}` : ""}` : ""}
                   </span>
                   {r.proofCount > 0 && (
                     <button
                       type="button"
                       onClick={() => setPendingProofs(r)}
-                      className="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                      className="flex items-center gap-1 rounded-full border border-accent-border bg-accent-surface px-2 py-0.5 font-semibold text-accent-text transition-colors hover:bg-accent-surface-strong"
                     >
                       <Paperclip className="h-3 w-3" /> {r.proofCount}
                     </button>
                   )}
-                  <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">Awaiting Admin / Accounts</span>
+                  <span className="ml-auto rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">Awaiting Admin / Accounts</span>
                 </li>
               ))}
             </ul>
@@ -341,67 +342,65 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
 
         {/* ── Table ── */}
         {filteredRecords.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-400">
-            No maintenance records found for this period.
-          </p>
+          <EmptyState size="compact" illustration="no-data" title="No maintenance records found for this period" />
         ) : (
-          <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
+          <div className="max-h-72 overflow-auto rounded-xl border border-separator-border">
             <table className="w-full min-w-[700px] whitespace-nowrap text-left text-xs">
-              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
+              <thead className="sticky top-0 z-10 border-b border-separator-border bg-fill-1">
                 <tr>
                   {DATA_COLUMNS.map((col, i) => (
                     <th
                       key={i}
-                      className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400"
+                      className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary"
                     >
                       {col}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-separator-border">
                 {filteredRecords.map((record) => (
                   <tr
                     key={record.id}
-                    className="bg-white transition-colors hover:bg-slate-50"
+                    className="bg-background-primary-default transition-colors hover:bg-fill-2"
                   >
-                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
+                    <td className="px-4 py-2.5 tabular-nums text-text-secondary">
                       {formatDate(record.date)}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
-                      {record.maintenanceEndDate ? formatDate(record.maintenanceEndDate) : <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 tabular-nums text-text-secondary">
+                      {record.maintenanceEndDate ? formatDate(record.maintenanceEndDate) : <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-slate-800">
+                    <td className="px-4 py-2.5 font-medium text-text-primary">
                       {record.maintenanceType}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {record.compliant || <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {record.compliant || <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {record.maintenanceLocation || <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {record.maintenanceLocation || <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {record.maintenanceBy || <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {record.maintenanceBy || <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {record.invoiceNumber || <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {record.invoiceNumber || <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
-                      {record.invoiceDate ? formatDate(record.invoiceDate) : <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 tabular-nums text-text-secondary">
+                      {record.invoiceDate ? formatDate(record.invoiceDate) : <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {record.description || <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {record.description || <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
+                    <td className="px-4 py-2.5 tabular-nums text-text-secondary">
                       {Number(record.odometer).toLocaleString("en-IN")} km
                     </td>
-                    <td className="px-4 py-2.5 text-slate-600">
-                      {record.enteredByName || <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {record.enteredByName || <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {record.source || <span className="italic text-slate-400">—</span>}
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {record.source || <span className="italic text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums font-semibold text-blue-700">
+                    <td className="px-4 py-2.5 tabular-nums font-semibold text-accent-text">
                       ₹{Number(record.cost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-2.5">
@@ -409,13 +408,13 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                         <button
                           type="button"
                           onClick={() => setProofsRecord(record)}
-                          className="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                          className="flex items-center gap-1 rounded-full border border-accent-border bg-accent-surface px-2.5 py-0.5 text-caption-1-semibold text-accent-text transition-colors hover:bg-accent-surface-strong"
                         >
                           <Paperclip className="h-3 w-3" />
                           {proofCounts[record.id] ?? record.proofCount} file{(proofCounts[record.id] ?? record.proofCount) === 1 ? "" : "s"}
                         </button>
                       ) : (
-                        <span className="italic text-slate-400">—</span>
+                        <span className="italic text-text-tertiary">—</span>
                       )}
                     </td>
                     <td className="px-2 py-2.5">
@@ -424,7 +423,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                         type="button"
                         title={isAdmin ? "Edit" : "Request edit"}
                         onClick={() => setEditingRecord(record)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary hover:bg-accent-surface-strong hover:text-accent-text transition-colors"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
@@ -433,7 +432,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                         title={isAdmin ? "Delete" : "Request deletion"}
                         disabled={deletingId === record.id}
                         onClick={() => isAdmin ? handleAdminDelete(record) : setReasonRecord(record)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary hover:bg-danger-surface-strong hover:text-danger-text transition-colors disabled:opacity-40"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

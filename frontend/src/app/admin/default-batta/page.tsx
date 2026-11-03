@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Check, Loader2, History } from "lucide-react";
+import { RiCoinsLine as Coins, RiCheckLine as Check, RiLoader4Line as Loader2, RiHistoryLine as History } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { branchesApi, defaultBattaApi, type DefaultBattaEditEventRow } from "@/lib/api";
 import type { Branch } from "@/types/branch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { formatDateTime } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const TRIP_TYPES = ["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP"] as const;
 type TripType = (typeof TRIP_TYPES)[number];
 
@@ -122,12 +123,12 @@ export default function DefaultBattaManagementPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
             <Coins className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Default Batta Management</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Default Batta Management</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Configure default batta (allowance) rates used across trips and driver compensation.
             </p>
           </div>
@@ -136,12 +137,12 @@ export default function DefaultBattaManagementPage() {
         <div className="flex shrink-0 items-center gap-3">
           <div className="h-6">
             {saveStatus === "saving" && (
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
               </span>
             )}
             {saveStatus === "saved" && (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+              <span className="flex items-center gap-1.5 text-caption-1-medium text-success-text">
                 <Check className="h-3.5 w-3.5" /> Saved
               </span>
             )}
@@ -150,7 +151,7 @@ export default function DefaultBattaManagementPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -159,24 +160,24 @@ export default function DefaultBattaManagementPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl border border-separator-border bg-background-primary-default p-5">
         {branches.length === 0 && (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-text-secondary">
             No branches found. Create one in Branch Management first.
           </p>
         )}
 
         {branches.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-4">
+          <div className="flex flex-wrap gap-2 border-b border-separator-border pb-4">
             {branches.map((b) => (
               <button
                 key={b.id}
                 type="button"
                 onClick={() => setSelectedBranchId(b.id)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                className={`rounded-full px-3.5 py-1.5 text-caption-1-semibold transition-colors ${
                   selectedBranchId === b.id
-                    ? "bg-brand-navy text-white shadow-sm"
-                    : "border border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-navy/40 hover:text-brand-navy dark:hover:border-white/40 dark:hover:text-white"
+                    ? "bg-accent-solid text-on-solid shadow-sm"
+                    : "border border-separator-border bg-fill-1 text-text-secondary hover:border-accent-solid/40 hover:text-accent-text-strong "
                 }`}
               >
                 {b.name}
@@ -192,10 +193,10 @@ export default function DefaultBattaManagementPage() {
                 key={t}
                 type="button"
                 onClick={() => setSelectedTripType(t)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                className={`rounded-full px-3.5 py-1.5 text-caption-1-semibold transition-colors ${
                   selectedTripType === t
-                    ? "bg-brand-gold text-brand-navy shadow-sm"
-                    : "border border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-gold/60 hover:text-brand-navy dark:hover:border-brand-gold/60 dark:hover:text-white"
+                    ? "bg-gold-solid text-accent-text-strong shadow-sm"
+                    : "border border-separator-border bg-fill-1 text-text-secondary hover:border-gold-solid/60 hover:text-accent-text-strong "
                 }`}
               >
                 {t}
@@ -205,25 +206,25 @@ export default function DefaultBattaManagementPage() {
         )}
 
         {selectedBranchId && (
-          <div className="mt-4 overflow-hidden rounded-xl border border-gray-100">
+          <div className="mt-4 overflow-hidden rounded-xl border border-separator-border">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-fill-1">
                 <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-2.5 text-left text-caption-1-semibold text-text-secondary">
                     Cargo Type
                   </th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-2.5 text-right text-caption-1-semibold text-text-secondary">
                     Default Batta (₹)
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {CARGO_TYPES.map((cargoType) => (
                   <tr key={cargoType}>
-                    <td className="px-4 py-2.5 font-medium text-gray-700">{cargoType}</td>
+                    <td className="px-4 py-2.5 font-medium text-text-primary">{cargoType}</td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="relative ml-auto w-36">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-caption-2-semibold text-text-tertiary">
                           ₹
                         </span>
                         <input
@@ -234,8 +235,8 @@ export default function DefaultBattaManagementPage() {
                           placeholder="0.00"
                           readOnly={!canEdit}
                           disabled={!canEdit}
-                          className={`w-full rounded-lg border border-gray-200 py-1.5 pl-7 pr-3 text-right text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 ${
-                            canEdit ? "bg-white/50" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                          className={`w-full rounded-lg border border-separator-border py-1.5 pl-7 pr-3 text-right text-sm outline-none transition focus:border-accent-solid focus:bg-background-primary-default focus:ring-4 focus:ring-accent-solid/10 ${
+                            canEdit ? "bg-background-primary-default" : "bg-fill-1 text-text-secondary cursor-not-allowed"
                           }`}
                         />
                       </div>
@@ -259,7 +260,7 @@ export default function DefaultBattaManagementPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by branch, trip type, cargo type, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -270,36 +271,34 @@ export default function DefaultBattaManagementPage() {
               ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No default batta edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No default batta edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Branch</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip Type</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Cargo Type</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-gray-400">Amount</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Branch</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Trip Type</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Cargo Type</th>
+                      <th className="px-3 py-2 text-right text-caption-2-semibold text-text-tertiary">Amount</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => (
                       <tr key={ev.id}>
-                        <td className="px-3 py-2 font-semibold text-gray-800">{ev.branchName}</td>
-                        <td className="px-3 py-2 text-gray-600">{ev.tripType}</td>
-                        <td className="px-3 py-2 text-gray-600">{ev.cargoType}</td>
-                        <td className="px-3 py-2 text-right text-gray-600">
-                          {ev.amount != null ? `₹${ev.amount.toLocaleString("en-IN")}` : <span className="text-gray-400">—</span>}
+                        <td className="px-3 py-2 font-semibold text-text-primary">{ev.branchName}</td>
+                        <td className="px-3 py-2 text-text-secondary">{ev.tripType}</td>
+                        <td className="px-3 py-2 text-text-secondary">{ev.cargoType}</td>
+                        <td className="px-3 py-2 text-right text-text-secondary">
+                          {ev.amount != null ? `₹${ev.amount.toLocaleString("en-IN")}` : <span className="text-text-tertiary">—</span>}
                         </td>
-                        <td className="px-3 py-2 text-gray-600">
+                        <td className="px-3 py-2 text-text-secondary">
                           {ev.actorName}
-                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

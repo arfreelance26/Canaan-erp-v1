@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, FileX2, Loader2, PencilLine, RotateCw, Sparkles, User } from "lucide-react";
+import { RiFileTextLine as FileText, RiFileCloseLine as FileX2, RiLoader4Line as Loader2, RiEditLine as PencilLine, RiRestartLine as RotateCw, RiStarLine as Sparkles, RiUserLine as User } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileViewer } from "@/components/ui/FileViewer";
 import { complianceRecordsApi, type ComplianceDocType, type ComplianceRecord } from "@/lib/api";
@@ -50,9 +50,9 @@ export function ComplianceHistoryDialog({ truck, onClose }: { truck: Truck | nul
       className="sm:max-w-3xl"
     >
       {failed ? (
-        <p className="py-10 text-center text-sm text-red-500">Couldn&apos;t load the history. Please try again.</p>
+        <p className="py-10 text-center text-sm text-danger-text">Couldn&apos;t load the history. Please try again.</p>
       ) : records === null ? (
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400">
+        <div className="flex items-center justify-center gap-2 py-12 text-sm text-text-tertiary">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
         </div>
       ) : (
@@ -75,16 +75,16 @@ export function ComplianceHistoryDialog({ truck, onClose }: { truck: Truck | nul
                   type="button"
                   onClick={() => setTab(d.key)}
                   className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption-1-semibold transition-colors",
                     active
-                      ? "border-[#16213e] bg-[#16213e] text-white"
+                      ? "border-accent-solid bg-accent-solid text-on-solid"
                       : n
-                        ? "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                        : "border-dashed border-gray-200 bg-white text-gray-400 hover:bg-gray-50",
+                        ? "border-separator-border bg-background-primary-default text-text-primary hover:bg-fill-2"
+                        : "border-dashed border-separator-border bg-background-primary-default text-text-tertiary hover:bg-fill-2",
                   )}
                 >
                   {d.short}
-                  <span className={cn("rounded-full px-1.5 text-[10px]", active ? "bg-white/20" : "bg-gray-100 text-gray-500")}>{n}</span>
+                  <span className={cn("rounded-full px-1.5 text-[10px]", active ? "bg-on-solid/20" : "bg-fill-2 text-text-secondary")}>{n}</span>
                 </button>
               );
             })}
@@ -92,56 +92,56 @@ export function ComplianceHistoryDialog({ truck, onClose }: { truck: Truck | nul
 
           {/* Timeline */}
           {rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-gray-200 py-10 text-sm text-gray-400">
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-separator-border py-10 text-sm text-text-tertiary">
               <FileX2 className="h-7 w-7 opacity-50" />
               No {meta.label} on record for this truck.
             </div>
           ) : (
             <div className="flex flex-col gap-1">
-              <p className="mb-1 text-xs text-gray-500">
+              <p className="mb-1 text-xs text-text-secondary">
                 {rows.length} {meta.label} document{rows.length === 1 ? "" : "s"} · total{" "}
-                <span className="font-semibold text-gray-800">{formatRupees(sum(rows))}</span>
+                <span className="font-semibold text-text-primary">{formatRupees(sum(rows))}</span>
               </p>
               <ol className="relative flex max-h-[52vh] flex-col gap-3 overflow-y-auto pl-5">
-                <span className="absolute bottom-3 left-[7px] top-3 w-px bg-gray-200" aria-hidden />
+                <span className="absolute bottom-3 left-[7px] top-3 w-px bg-fill-3" aria-hidden />
                 {rows.map((r) => (
                   <li key={r.id} className="relative">
                     <span
                       className={cn(
-                        "absolute -left-5 top-4 h-3.5 w-3.5 rounded-full border-2 border-white ring-2",
-                        r.isCurrent ? "bg-emerald-500 ring-emerald-200" : "bg-gray-300 ring-gray-100",
+                        "absolute -left-5 top-4 h-3.5 w-3.5 rounded-full border-2 border-background-primary-default ring-2",
+                        r.isCurrent ? "bg-success-solid ring-success-border" : "bg-fill-4 ring-separator-border",
                       )}
                       aria-hidden
                     />
                     <div className={cn(
-                      "rounded-xl border p-3.5 shadow-sm",
-                      r.isCurrent ? "border-emerald-200 bg-emerald-50/40" : "border-gray-100 bg-white",
+                      "rounded-xl border bg-background-primary-default p-3.5 shadow-sm",
+                      r.isCurrent ? "border-success-border bg-success-surface/40" : "border-separator-border bg-background-primary-default",
                     )}>
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
                             {r.isCurrent && (
-                              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Current</span>
+                              <span className="rounded-full bg-success-solid px-2 py-0.5 text-caption-2-semibold text-on-solid">Current</span>
                             )}
                             <span className={cn(
-                              "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                              r.kind === "Renewal" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600",
+                              "flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold",
+                              r.kind === "Renewal" ? "bg-accent-surface text-accent-text" : "bg-fill-2 text-text-secondary",
                             )}>
                               {r.kind === "Renewal" ? <RotateCw className="h-2.5 w-2.5" /> : <Sparkles className="h-2.5 w-2.5" />}
                               {r.kind}
                             </span>
-                            {r.docNumber && <span className="text-[11px] font-medium text-gray-500">No. {r.docNumber}</span>}
+                            {r.docNumber && <span className="text-caption-2-medium text-text-secondary">No. {r.docNumber}</span>}
                           </div>
-                          <p className="mt-1.5 text-sm font-semibold tabular-nums text-gray-900">
+                          <p className="mt-1.5 text-body-semibold tabular-nums text-text-primary">
                             {r.validFrom ? `${formatDate(r.validFrom)} → ` : "Valid until "}
                             {formatDate(r.validUntil)}
                           </p>
                         </div>
-                        <p className="text-lg font-bold tabular-nums text-gray-900">{formatRupees(r.expense)}</p>
+                        <p className="text-title-3-semibold tabular-nums text-text-primary">{formatRupees(r.expense)}</p>
                       </div>
 
                       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-                        <p className="flex items-center gap-1 text-[11px] text-gray-500">
+                        <p className="flex items-center gap-1 text-[11px] text-text-secondary">
                           <User className="h-3 w-3" />
                           {r.createdByName || "—"} · {formatDateTime(r.createdAt)}
                         </p>
@@ -149,19 +149,19 @@ export function ComplianceHistoryDialog({ truck, onClose }: { truck: Truck | nul
                           <button
                             type="button"
                             onClick={() => setViewing(r)}
-                            className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                            className="flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-surface px-2.5 py-1 text-caption-1-semibold text-accent-text transition hover:bg-accent-surface-strong"
                           >
                             <FileText className="h-3.5 w-3.5" /> View document
                           </button>
                         ) : (
-                          <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                          <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
                             <FileX2 className="h-3 w-3" /> No file
                           </span>
                         )}
                       </div>
 
                       {r.correctionNote && (
-                        <div className="mt-2.5 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] text-amber-800 ring-1 ring-amber-100">
+                        <div className="mt-2.5 rounded-lg bg-warning-surface px-2.5 py-2 text-[11px] text-warning-text-strong ring-1 ring-warning-border">
                           <p className="flex items-center gap-1 font-semibold">
                             <PencilLine className="h-3 w-3" /> Corrected by {r.correctedByName} · {formatDateTime(r.correctedAt)}
                           </p>
@@ -190,9 +190,9 @@ export function ComplianceHistoryDialog({ truck, onClose }: { truck: Truck | nul
 
 function Stat({ label, value, strong, className }: { label: string; value: string; strong?: boolean; className?: string }) {
   return (
-    <div className={cn("flex flex-col rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2.5", className)}>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</span>
-      <span className={cn("mt-0.5 tabular-nums", strong ? "text-lg font-bold text-[#16213e] dark:text-gray-900" :"text-base font-semibold text-gray-800")}>{value}</span>
+    <div className={cn("flex flex-col rounded-xl border border-separator-border bg-fill-1 px-3.5 py-2.5", className)}>
+      <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
+      <span className={cn("mt-0.5 tabular-nums", strong ? "text-title-3-semibold text-accent-text-strong" :"text-headline-semibold text-text-primary")}>{value}</span>
     </div>
   );
 }

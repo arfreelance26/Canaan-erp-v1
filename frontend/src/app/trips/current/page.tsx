@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
-import { Route } from "lucide-react";
+import { RiRouteLine as Route } from "@remixicon/react";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -13,7 +13,7 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError, confirmAction } from "@/lib/swal";
+import { showSuccess, showError, confirmAction } from "@/lib/feedback";
 import { useAuth } from "@/context/AuthContext";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
@@ -104,12 +104,12 @@ export default function CurrentTripsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
           <Route className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Current Trips</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Current Trips</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">
             Active and upcoming trips being handled by drivers
           </p>
         </div>

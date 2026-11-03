@@ -24,45 +24,45 @@ export function TyreHistoryDialog({ open, onClose, tyre, records, trucks }: Tyre
   return (
     <Dialog open={open} onClose={onClose} title={`Tyre History — ${tyre.tyreNumber}`} className="max-w-3xl">
       {tyreRecords.length === 0 ? (
-        <p className="text-sm text-gray-500">This tyre has not been fitted to any truck yet.</p>
+        <p className="text-sm text-text-secondary">This tyre has not been fitted to any truck yet.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {tyreRecords.map((record) => {
             const truck = trucks.find((t) => t.id === record.truckId);
 
             return (
-              <li key={record.id} className="rounded-lg border border-gray-200 p-3">
+              <li key={record.id} className="rounded-lg border border-separator-border p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium text-gray-900">
+                  <span className="font-medium text-text-primary">
                     {truck?.registrationNumber ?? "Unknown Truck"} · {record.position}
                   </span>
                   <span
                     className={
                       record.removedOdometer === null
-                        ? "shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                        : "shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600"
+                        ? "shrink-0 rounded-full bg-success-surface px-2.5 py-1 text-caption-1-medium text-success-text"
+                        : "shrink-0 rounded-full bg-fill-2 px-2.5 py-1 text-caption-1-medium text-text-secondary"
                     }
                   >
                     {record.removedOdometer === null ? "Currently Fitted" : "Removed"}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-gray-600">
+                <p className="mt-1 text-xs text-text-secondary">
                   Fitted at {record.fittedOdometer.toLocaleString()} km on {formatDate(record.fittedDate)}
                 </p>
                 {record.removedOdometer !== null ? (
                   <>
-                    <p className="mt-1 text-xs text-gray-600">
+                    <p className="mt-1 text-xs text-text-secondary">
                       Removed at {record.removedOdometer.toLocaleString()} km on {formatDate(record.removedDate)}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-gray-700">
+                    <p className="mt-1 text-caption-1-medium text-text-primary">
                       Total Distance Covered: {(record.removedOdometer - record.fittedOdometer).toLocaleString()} km
                     </p>
                     {record.removalRemark && (
-                      <p className="mt-1 text-xs text-gray-500 italic">Remark: {record.removalRemark}</p>
+                      <p className="mt-1 text-xs text-text-secondary">Remark: {record.removalRemark}</p>
                     )}
                   </>
                 ) : (
-                  <p className="mt-1 text-xs text-gray-600">Still in service on this truck</p>
+                  <p className="mt-1 text-xs text-text-secondary">Still in service on this truck</p>
                 )}
               </li>
             );

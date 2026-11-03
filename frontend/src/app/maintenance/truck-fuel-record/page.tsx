@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Fuel, ChevronDown, Truck as TruckIcon, ClipboardList, IndianRupee, CalendarClock, Gauge } from "lucide-react";
+import { RiSearchLine as Search, RiGasStationLine as Fuel, RiArrowDownSLine as ChevronDown, RiTruckLine as TruckIcon, RiFileList3Line as ClipboardList, RiMoneyRupeeCircleLine as IndianRupee, RiCalendarScheduleLine as CalendarClock, RiDashboard3Line as Gauge } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { trucksApi, fuelLogsApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
@@ -14,6 +14,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate, inDateRange } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 
 const n = (v: string | number | undefined | null) => {
@@ -27,21 +28,21 @@ const fmtCurCompact = (v: number) => `₹${v.toLocaleString("en-IN", { maximumFr
 function DetailChip({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className={`truncate text-sm font-medium text-gray-800 dark:text-gray-950 ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
+      <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
+      <span className={`truncate text-body-medium text-text-primary ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
     </div>
   );
 }
 
 function StatCard({ icon: Icon, label, value, accent }: { icon: typeof TruckIcon; label: string; value: string; accent: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/80 bg-white/60 px-4 py-3.5 shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/60">
+    <div className="flex items-center gap-3 rounded-xl border border-separator-border bg-background-primary-default px-4 py-3.5 shadow-sm">
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent}`}>
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-        <p className="truncate text-lg font-bold leading-tight text-gray-900 dark:text-gray-950">{value}</p>
+        <p className="text-caption-2-semibold text-text-tertiary">{label}</p>
+        <p className="truncate text-title-3-semibold leading-tight text-text-primary">{value}</p>
       </div>
     </div>
   );
@@ -154,22 +155,22 @@ export default function TruckFuelRecordPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-border bg-teal-surface text-teal-text shadow-sm">
             <Fuel className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Fuel Record</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Read-only audit view of every fuel log across the fleet</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Truck Fuel Record</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Read-only audit view of every fuel log across the fleet</p>
           </div>
         </div>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <StatCard icon={TruckIcon} label="Trucks" value={String(trucks.length)} accent="bg-blue-50 text-blue-600" />
-        <StatCard icon={ClipboardList} label="Total Fuel Logs" value={String(logs.length)} accent="bg-violet-50 text-violet-600" />
-        <StatCard icon={Gauge} label="Total Litres Filled" value={`${totalLitres.toLocaleString("en-IN", { maximumFractionDigits: 0 })} L`} accent="bg-amber-50 text-amber-600" />
-        <StatCard icon={IndianRupee} label="Total Fuel Cost" value={fmtCurCompact(totalCost)} accent="bg-emerald-50 text-emerald-600" />
+        <StatCard icon={TruckIcon} label="Trucks" value={String(trucks.length)} accent="bg-accent-surface text-accent-text" />
+        <StatCard icon={ClipboardList} label="Total Fuel Logs" value={String(logs.length)} accent="bg-purple-surface text-purple-text" />
+        <StatCard icon={Gauge} label="Total Litres Filled" value={`${totalLitres.toLocaleString("en-IN", { maximumFractionDigits: 0 })} L`} accent="bg-warning-surface text-warning-text" />
+        <StatCard icon={IndianRupee} label="Total Fuel Cost" value={fmtCurCompact(totalCost)} accent="bg-success-surface text-success-text" />
       </div>
 
       {/* Filters */}
@@ -177,17 +178,17 @@ export default function TruckFuelRecordPage() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Search: collapsed icon pill that expands on hover / focus / when it holds text */}
         <label
-          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md dark:border-gray-300/30 dark:bg-gray-200 ${
+          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition duration-300 hover:shadow-md focus-within:scale-105 focus-within:border-accent-border-strong focus-within:shadow-md ${
             search ? "w-72" : "w-10 hover:w-72 focus-within:w-72"
           }`}
         >
-          <Search className="h-4 w-4 shrink-0 text-gray-500" />
+          <Search className="h-4 w-4 shrink-0 text-text-secondary" />
           <input
             type="text"
             placeholder="Search by truck, fuel station, entered by…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full min-w-0 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-950"
+            className="w-full min-w-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-placeholder"
           />
         </label>
 
@@ -208,12 +209,7 @@ export default function TruckFuelRecordPage() {
 
       {/* Truck cards */}
       {visibleTrucks.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/40">
-          <Fuel className="h-8 w-8 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">
-            {trucks.length === 0 ? "No trucks yet." : "No trucks or fuel logs match these filters."}
-          </p>
-        </div>
+        <EmptyState size="compact" illustration="not-found" title={trucks.length === 0 ? "No trucks yet" : "No trucks or fuel logs match these filters"} className="rounded-xl border border-separator-border bg-background-primary-default" />
       ) : (
         <div className="flex flex-col gap-3">
           {visibleTrucks.map((truck) => {
@@ -225,17 +221,17 @@ export default function TruckFuelRecordPage() {
             return (
               <div
                 key={truck.id}
-                className={`overflow-hidden rounded-xl border bg-white/60 shadow-sm backdrop-blur-sm transition-all dark:bg-gray-200/60 ${
-                  isOpen ? "border-blue-200 ring-1 ring-blue-100 dark:border-blue-400/40 dark:ring-blue-400/20" : "border-white/80 hover:border-blue-100 dark:border-gray-300/30 dark:hover:border-blue-400/30"
+                className={`overflow-hidden rounded-xl border bg-background-primary-default shadow-sm transition ${
+                  isOpen ? "border-accent-border ring-1 ring-accent-border " : "border-separator-border hover:border-accent-border "
                 }`}
               >
                 {/* Horizontal truck detail card — click anywhere to expand/collapse */}
                 <button
                   type="button"
                   onClick={() => toggle(truck.id)}
-                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-white/70 dark:hover:bg-gray-300/20"
+                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-fill-2"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 text-amber-600">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-warning-surface text-warning-text">
                     <TruckIcon className="h-5 w-5" />
                   </span>
 
@@ -251,31 +247,31 @@ export default function TruckFuelRecordPage() {
                   <div className="ml-auto flex shrink-0 items-center gap-4">
                     {truckLogs.length > 0 && (
                       <div className="hidden flex-col items-end gap-0.5 sm:flex">
-                        <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                        <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
                           <CalendarClock className="h-3 w-3" /> Last fill-up {lastFillUp ? formatDate(lastFillUp) : "—"}
                         </span>
-                        <span className="text-xs font-semibold text-emerald-700">{fmtCurCompact(truckCost)} spent</span>
+                        <span className="text-caption-1-semibold text-success-text">{fmtCurCompact(truckCost)} spent</span>
                       </div>
                     )}
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      truckLogs.length > 0 ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-caption-1-semibold ${
+                      truckLogs.length > 0 ? "bg-warning-surface-strong text-warning-text" : "bg-fill-2 text-text-secondary"
                     }`}>
                       {truckLogs.length} log{truckLogs.length !== 1 ? "s" : ""}
                     </span>
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-text-tertiary transition-transform ${isOpen ? "rotate-180" : ""}`} />
                   </div>
                 </button>
 
                 {/* Fuel logs — wrapped underneath, shown when expanded */}
                 {isOpen && (
-                  <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white/80 dark:border-gray-300/20 dark:from-gray-200/40 dark:to-gray-200/60">
+                  <div className="border-t border-separator-border bg-fill-1">
                     {truckLogs.length === 0 ? (
-                      <p className="px-5 py-6 text-center text-sm text-gray-400">No fuel logs for this truck.</p>
+                      <p className="px-5 py-6 text-center text-sm text-text-tertiary">No fuel logs for this truck.</p>
                     ) : (
                       <div className="overflow-x-auto px-3 pb-3 pt-1">
                         <table className="w-full text-left text-sm whitespace-nowrap">
                           <thead>
-                            <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                            <tr className="text-left text-caption-2-semibold text-text-tertiary">
                               <th className="px-3 py-2">Date</th>
                               <th className="px-3 py-2 text-right">Odometer</th>
                               <th className="px-3 py-2 text-right">Litres</th>
@@ -292,18 +288,18 @@ export default function TruckFuelRecordPage() {
                             {truckLogs.map((l, i) => (
                               <tr
                                 key={l.id}
-                                className={`rounded-lg transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-100/10 ${i % 2 === 1 ? "bg-white/70 dark:bg-gray-300/20" : "bg-white/40 dark:bg-transparent"}`}
+                                className={`rounded-lg transition-colors hover:bg-warning-surface-strong/50 ${i % 2 === 1 ? "bg-background-primary-default " : "bg-background-primary-default "}`}
                               >
-                                <td className="rounded-l-lg px-3 py-2.5 text-gray-600 dark:text-gray-800">{l.date ? formatDate(l.date) : "—"}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-800">{n(l.odometer).toLocaleString("en-IN")} km</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-800">{n(l.litres).toLocaleString("en-IN")} L</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-800">{fmtCur(l.pricePerLitre)}</td>
-                                <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900 dark:text-gray-950">{fmtCur(l.totalCost)}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-800">{n(l.distance) > 0 ? `${n(l.distance).toLocaleString("en-IN")} km` : "—"}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-800">{n(l.mileage) > 0 ? `${n(l.mileage).toFixed(2)} km/L` : "—"}</td>
-                                <td className="px-3 py-2.5 text-gray-600 dark:text-gray-800">{l.fuelStation || "—"}</td>
-                                <td className="px-3 py-2.5 text-gray-600 dark:text-gray-800">{l.enteredByName ?? "—"}</td>
-                                <td className="rounded-r-lg px-3 py-2.5 text-gray-500 dark:text-gray-600">{l.source ?? "—"}</td>
+                                <td className="rounded-l-lg px-3 py-2.5 text-text-secondary">{l.date ? formatDate(l.date) : "—"}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{n(l.odometer).toLocaleString("en-IN")} km</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{n(l.litres).toLocaleString("en-IN")} L</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(l.pricePerLitre)}</td>
+                                <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-text-primary">{fmtCur(l.totalCost)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{n(l.distance) > 0 ? `${n(l.distance).toLocaleString("en-IN")} km` : "—"}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{n(l.mileage) > 0 ? `${n(l.mileage).toFixed(2)} km/L` : "—"}</td>
+                                <td className="px-3 py-2.5 text-text-secondary">{l.fuelStation || "—"}</td>
+                                <td className="px-3 py-2.5 text-text-secondary">{l.enteredByName ?? "—"}</td>
+                                <td className="rounded-r-lg px-3 py-2.5 text-text-secondary">{l.source ?? "—"}</td>
                               </tr>
                             ))}
                           </tbody>

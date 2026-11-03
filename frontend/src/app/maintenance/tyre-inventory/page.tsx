@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Boxes, History, Pencil, Trash2, Undo2 } from "lucide-react";
+import { RiAddLine as Plus, RiStackLine as Boxes, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2 } from "@remixicon/react";
 import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTable";
 import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY, type TyreProofChange } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -9,7 +9,7 @@ import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog
 import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
 import { DiscardReasonDialog } from "@/components/tyre-inventory/DiscardReasonDialog";
 import { tyreApi, deletionApprovalsApi, type TyreInventoryEditEventRow } from "@/lib/api";
-import { confirmAction, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 import { useAuth } from "@/context/AuthContext";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
@@ -26,6 +26,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<TyreInventoryEditEventRow["event"], typeof Plus> = {
   "Tyre Created": Plus,
   "Tyre Edited": Pencil,
@@ -34,10 +35,10 @@ const EDIT_EVENT_ICON: Record<TyreInventoryEditEventRow["event"], typeof Plus> =
 };
 
 const EDIT_EVENT_COLOR: Record<TyreInventoryEditEventRow["event"], string> = {
-  "Tyre Created": "bg-blue-100 text-blue-700",
-  "Tyre Edited": "bg-amber-100 text-amber-700",
-  "Tyre Deleted": "bg-red-100 text-red-700",
-  "Tyre Restored": "bg-emerald-100 text-emerald-700",
+  "Tyre Created": "bg-accent-surface-strong text-accent-text",
+  "Tyre Edited": "bg-warning-surface-strong text-warning-text",
+  "Tyre Deleted": "bg-danger-surface-strong text-danger-text",
+  "Tyre Restored": "bg-success-surface-strong text-success-text",
 };
 
 export default function TyreInventoryPage() {
@@ -217,12 +218,12 @@ export default function TyreInventoryPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-border bg-teal-surface text-teal-text shadow-sm">
           <Boxes className="h-5 w-5" />
         </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Tyre Inventory</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Track all tyres purchased by the company</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Tyre Inventory</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Track all tyres purchased by the company</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -230,7 +231,7 @@ export default function TyreInventoryPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -239,7 +240,7 @@ export default function TyreInventoryPage() {
           <button
             type="button"
             onClick={handleAdd}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Tyre
@@ -264,9 +265,9 @@ export default function TyreInventoryPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
-          { filter: "All" as const, label: "Total Tyres", value: totalCount, color: "bg-gray-50 border-gray-200 text-gray-700" },
-          { filter: "Available" as const, label: "Available", value: availableCount, color: "bg-blue-50 border-blue-200 text-blue-700" },
-          { filter: "Attached" as const, label: "Attached", value: attachedCount, color: "bg-purple-50 border-purple-200 text-purple-700" },
+          { filter: "All" as const, label: "Total Tyres", value: totalCount, color: "bg-fill-1 border-separator-border text-text-primary" },
+          { filter: "Available" as const, label: "Available", value: availableCount, color: "bg-accent-surface border-accent-border text-accent-text" },
+          { filter: "Attached" as const, label: "Attached", value: attachedCount, color: "bg-purple-surface border-purple-border text-purple-text" },
         ].map(({ filter, label, value, color }) => (
           <button
             key={label}
@@ -276,11 +277,11 @@ export default function TyreInventoryPage() {
             className={cn(
               "rounded-xl border px-4 py-3 flex flex-col items-start gap-0.5 text-left transition-shadow hover:shadow-md",
               color,
-              statusFilter === filter && "ring-2 ring-blue-400"
+              statusFilter === filter && "ring-2 ring-accent-border-strong"
             )}
           >
-            <span className="text-xs font-medium opacity-70">{label}</span>
-            <span className="text-2xl font-bold">{value}</span>
+            <span className="text-caption-1-medium opacity-70">{label}</span>
+            <span className="text-title-1-semibold">{value}</span>
           </button>
         ))}
       </div>
@@ -342,7 +343,7 @@ export default function TyreInventoryPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by tyre number, brand, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -351,39 +352,37 @@ export default function TyreInventoryPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No tyre edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "logistics" : "not-found"} title={editHistoryEvents.length === 0 ? "No tyre edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Tyre</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Tyre</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.tyreNumber}</p>
-                            <p className="text-[11px] text-gray-400">{ev.brand}</p>
+                            <p className="font-semibold text-text-primary">{ev.tyreNumber}</p>
+                            <p className="text-[11px] text-text-tertiary">{ev.brand}</p>
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

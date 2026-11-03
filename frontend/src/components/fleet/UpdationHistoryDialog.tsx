@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, FilePlus2, FileText, FileX2, Loader2, PencilLine, RotateCw, Trash2, Undo2, User } from "lucide-react";
+import { RiArrowLeftLine as ArrowLeft, RiFileAddLine as FilePlus2, RiFileTextLine as FileText, RiFileCloseLine as FileX2, RiLoader4Line as Loader2, RiEditLine as PencilLine, RiRestartLine as RotateCw, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2, RiUserLine as User } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileViewer } from "@/components/ui/FileViewer";
@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { COMPLIANCE_DOCS, formatRupees } from "@/lib/compliance-docs";
 import { formatDate, formatDateTime } from "@/lib/format-date";
-import { confirmAction, showError, showSuccess } from "@/lib/swal";
+import { confirmAction, showError, showSuccess } from "@/lib/feedback";
 import { Field, inputClassLower } from "@/components/ui/Field";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
@@ -135,9 +135,9 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
       className="sm:max-w-3xl"
     >
       {failed ? (
-        <p className="py-10 text-center text-sm text-red-500">Couldn&apos;t load the history. Please try again.</p>
+        <p className="py-10 text-center text-sm text-danger-text">Couldn&apos;t load the history. Please try again.</p>
       ) : records === null ? (
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400">
+        <div className="flex items-center justify-center gap-2 py-12 text-sm text-text-tertiary">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
         </div>
       ) : (
@@ -154,12 +154,12 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
                     type="button"
                     onClick={() => setTab(d.key)}
                     className={cn(
-                      "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                      active ? "border-[#16213e] bg-[#16213e] text-white" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
+                      "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption-1-semibold transition-colors",
+                      active ? "border-accent-solid bg-accent-solid text-on-solid" : "border-separator-border bg-background-primary-default text-text-primary hover:bg-fill-2",
                     )}
                   >
                     {d.short}
-                    <span className={cn("rounded-full px-1.5 text-[10px]", active ? "bg-white/20" : "bg-gray-100 text-gray-500")}>{n}</span>
+                    <span className={cn("rounded-full px-1.5 text-[10px]", active ? "bg-on-solid/20" : "bg-fill-2 text-text-secondary")}>{n}</span>
                   </button>
                 );
               })}
@@ -170,7 +170,7 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
             <button
               type="button"
               onClick={() => { setView("list"); setReason(""); }}
-              className="flex w-fit items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-800"
+              className="flex w-fit items-center gap-1 text-caption-1-semibold text-text-secondary hover:text-text-primary"
             >
               <ArrowLeft className="h-3.5 w-3.5" /> Back to {meta.label} history
             </button>
@@ -178,14 +178,14 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
 
           {/* Current document + fix tools */}
           {current ? (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5">
+            <div className="rounded-xl border border-success-border bg-success-surface/40 p-3.5">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Current {meta.label}</p>
-                  <p className="mt-1 text-sm font-semibold tabular-nums text-gray-900">
+                  <p className="text-caption-2-semibold text-success-text">Current {meta.label}</p>
+                  <p className="mt-1 text-body-semibold tabular-nums text-text-primary">
                     {current.validFrom ? `${formatDate(current.validFrom)} → ` : "Valid until "}{formatDate(current.validUntil)}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-text-secondary">
                     {formatRupees(current.expense)}
                     {current.docNumber && <> · No. {current.docNumber}</>}
                     {" · "}{current.kind} by {current.createdByName || "—"}
@@ -195,17 +195,17 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
                   <button
                     type="button"
                     onClick={() => setViewing(current)}
-                    className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                    className="flex items-center gap-1.5 rounded-lg border border-accent-border bg-background-primary-default px-2.5 py-1 text-caption-1-semibold text-accent-text transition hover:bg-accent-surface-strong"
                   >
                     <FileText className="h-3.5 w-3.5" /> View file
                   </button>
                 ) : (
-                  <span className="flex items-center gap-1 text-[11px] text-gray-400"><FileX2 className="h-3 w-3" /> No file</span>
+                  <span className="flex items-center gap-1 text-[11px] text-text-tertiary"><FileX2 className="h-3 w-3" /> No file</span>
                 )}
               </div>
 
               {view === "list" && (
-                <div className="mt-3 flex flex-wrap gap-2 border-t border-emerald-100 pt-3">
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-success-border pt-3">
                   <ToolButton onClick={() => setView("correct")} icon={PencilLine} label="Correct a mistake" />
                   {current.hasFile && <ToolButton onClick={removeFile} icon={Trash2} label="Remove file" danger disabled={saving} />}
                   {canUndo && <ToolButton onClick={() => setView("undo")} icon={Undo2} label="Undo this renewal" danger />}
@@ -214,7 +214,7 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
             </div>
           ) : (
             view === "list" && (
-              <p className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
+              <p className="rounded-xl border border-dashed border-separator-border px-4 py-6 text-center text-sm text-text-tertiary">
                 No {meta.label} on record for this truck yet — add one with <b>Update Document</b>.
               </p>
             )
@@ -236,15 +236,15 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
           {view === "undo" && current && previous && (
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs">
-                  <p className="font-semibold uppercase tracking-wide text-red-600">Will be deleted</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">Valid until {formatDate(current.validUntil)}</p>
-                  <p className="text-gray-600">{formatRupees(current.expense)}{current.fileName ? ` · ${current.fileName}` : " · no file"}</p>
+                <div className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2.5 text-xs">
+                  <p className="font-semibold text-danger-text">Will be deleted</p>
+                  <p className="mt-1 text-body-semibold text-text-primary">Valid until {formatDate(current.validUntil)}</p>
+                  <p className="text-text-secondary">{formatRupees(current.expense)}{current.fileName ? ` · ${current.fileName}` : " · no file"}</p>
                 </div>
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs">
-                  <p className="font-semibold uppercase tracking-wide text-emerald-700">Becomes current again</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">Valid until {formatDate(previous.validUntil)}</p>
-                  <p className="text-gray-600">{formatRupees(previous.expense)}{previous.fileName ? ` · ${previous.fileName}` : " · no file"}</p>
+                <div className="rounded-lg border border-success-border bg-success-surface px-3 py-2.5 text-xs">
+                  <p className="font-semibold text-success-text">Becomes current again</p>
+                  <p className="mt-1 text-body-semibold text-text-primary">Valid until {formatDate(previous.validUntil)}</p>
+                  <p className="text-text-secondary">{formatRupees(previous.expense)}{previous.fileName ? ` · ${previous.fileName}` : " · no file"}</p>
                 </div>
               </div>
               <Field label="Why is this renewal being undone?" required>
@@ -260,7 +260,7 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
                 <button
                   type="button"
                   onClick={() => { setView("list"); setReason(""); }}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2"
                 >
                   Back
                 </button>
@@ -268,7 +268,7 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
                   type="button"
                   onClick={undo}
                   disabled={saving || !reason.trim()}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-danger-solid px-4 py-2 text-body-medium text-on-solid transition hover:bg-danger-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "Undo Renewal"}
                 </button>
@@ -279,33 +279,33 @@ export function UpdationHistoryDialog({ truck, onClose, onSaved }: { truck: Truc
           {/* Activity */}
           {view === "list" && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Activity</p>
+              <p className="mb-2 text-caption-2-semibold text-text-tertiary">Activity</p>
               {docLog.length === 0 ? (
-                <p className="py-4 text-center text-xs text-gray-400">Nothing has been logged for this document yet.</p>
+                <p className="py-4 text-center text-xs text-text-tertiary">Nothing has been logged for this document yet.</p>
               ) : (
                 <ol className="relative flex max-h-[40vh] flex-col gap-2.5 overflow-y-auto pl-5">
-                  <span className="absolute bottom-2 left-[7px] top-2 w-px bg-gray-200" aria-hidden />
+                  <span className="absolute bottom-2 left-[7px] top-2 w-px bg-fill-3" aria-hidden />
                   {docLog.map((l) => {
                     const look = l.action === "Corrected"
-                      ? { label: "Corrected", Icon: PencilLine, dot: "bg-blue-500", chip: "bg-blue-50 text-blue-700" }
+                      ? { label: "Corrected", Icon: PencilLine, dot: "bg-accent-solid", chip: "bg-accent-surface text-accent-text" }
                       : l.action === "Renewal undone"
-                        ? { label: "Renewal undone", Icon: Undo2, dot: "bg-red-500", chip: "bg-red-50 text-red-700" }
+                        ? { label: "Renewal undone", Icon: Undo2, dot: "bg-danger-solid", chip: "bg-danger-surface text-danger-text" }
                         : l.id === firstSetId
-                          ? { label: "Added", Icon: FilePlus2, dot: "bg-gray-400", chip: "bg-gray-100 text-gray-600" }
-                          : { label: "Renewed / updated", Icon: RotateCw, dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700" };
+                          ? { label: "Added", Icon: FilePlus2, dot: "bg-fill-4", chip: "bg-fill-2 text-text-secondary" }
+                          : { label: "Renewed / updated", Icon: RotateCw, dot: "bg-success-solid", chip: "bg-success-surface text-success-text" };
                     return (
                       <li key={l.id} className="relative">
-                        <span className={cn("absolute -left-5 top-2.5 h-3 w-3 rounded-full border-2 border-white", look.dot)} aria-hidden />
-                        <div className="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <span className={cn("absolute -left-5 top-2.5 h-3 w-3 rounded-full border-2 border-background-primary-default", look.dot)} aria-hidden />
+                        <div className="rounded-lg border border-separator-border bg-background-primary-default px-3 py-2">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", look.chip)}>
+                            <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", look.chip)}>
                               <look.Icon className="h-3 w-3" /> {look.label}
                             </span>
-                            <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                            <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
                               <User className="h-3 w-3" /> {l.actorName || "—"} · {formatDateTime(l.createdAt)}
                             </span>
                           </div>
-                          {l.note && <p className="mt-1.5 whitespace-pre-line text-xs text-gray-600">{l.note}</p>}
+                          {l.note && <p className="mt-1.5 whitespace-pre-line text-xs text-text-secondary">{l.note}</p>}
                         </div>
                       </li>
                     );
@@ -337,8 +337,8 @@ function ToolButton({ onClick, icon: Icon, label, danger, disabled }: {
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50",
-        danger ? "border-red-200 bg-white text-red-600 hover:bg-red-50" : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50",
+        "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-caption-1-semibold transition disabled:opacity-50",
+        danger ? "border-danger-border bg-background-primary-default text-danger-text hover:bg-danger-surface-strong" : "border-accent-border bg-background-primary-default text-accent-text hover:bg-accent-surface-strong",
       )}
     >
       <Icon className="h-3.5 w-3.5" /> {label}

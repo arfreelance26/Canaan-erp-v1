@@ -1,10 +1,11 @@
 "use client";
 
-import { Route } from "lucide-react";
+import { RiRouteLine as Route } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useTruckTripRuns } from "@/hooks/useTruckTripRuns";
 import type { Truck } from "@/types/truck";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type TruckRunRecordDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -26,32 +27,29 @@ export function TruckRunRecordDialog({ open, onClose, truck }: TruckRunRecordDia
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-gray-100" />
+            <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-fill-2" />
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-10 text-center">
-          <Route className="h-7 w-7 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">No trips found for this truck.</p>
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No trips found for this truck" />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-xl border border-separator-border">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Trip ID</th>
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">From</th>
-                <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">To</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Total Distance</th>
+              <tr className="border-b border-separator-border bg-fill-1">
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Trip ID</th>
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">From</th>
+                <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">To</th>
+                <th className="px-4 py-2.5 text-right text-caption-1-semibold text-text-secondary">Total Distance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {rows.map(({ trip, totalKm }) => (
-                <tr key={trip.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-medium text-gray-800">{trip.tripId}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{trip.origin || "—"}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{trip.destination || "—"}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+                <tr key={trip.id} className="hover:bg-fill-2">
+                  <td className="px-4 py-2.5 font-medium text-text-primary">{trip.tripId}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">{trip.origin || "—"}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">{trip.destination || "—"}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-text-primary">
                     {totalKm ? `${Number(totalKm).toLocaleString("en-IN")} km` : "—"}
                   </td>
                 </tr>

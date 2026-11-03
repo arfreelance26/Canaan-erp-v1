@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon, History, Pencil, Trash2, Undo2, HandCoins } from "lucide-react";
+import { RiAddLine as Plus, RiCloseLine as X, RiDownloadLine as Download, RiFileTextLine as FileText, RiLoader4Line as Loader2, RiTruckLine as TruckLucideIcon, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2, RiHandCoinLine as HandCoins } from "@remixicon/react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { VEHICLE_IMAGES, bustTruckImages, truckImageUrl } from "@/components/fleet/VehicleImages";
 import { FileViewer } from "@/components/ui/FileViewer";
@@ -16,7 +16,7 @@ import { RemoveTruckDialog } from "@/components/fleet/RemoveTruckDialog";
 import { TruckTyreStepDialog, type TruckTyrePlan, type TyrePlanRow, type TruckStepDetails } from "@/components/fleet/TruckTyreStepDialog";
 import { trucksApi, branchesApi, uploadFile, deleteFile, fileUrl, editApprovalsApi, deletionApprovalsApi, type TruckEditEventRow } from "@/lib/api";
 import { cacheInvalidate } from "@/lib/api-cache";
-import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import type { Truck } from "@/types/truck";
 import type { Branch } from "@/types/branch";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
@@ -34,6 +34,7 @@ import { useAuth } from "@/context/AuthContext";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<TruckEditEventRow["event"], typeof Plus> = {
   "Truck Created": Plus,
   "Truck Edited": Pencil,
@@ -43,11 +44,11 @@ const EDIT_EVENT_ICON: Record<TruckEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<TruckEditEventRow["event"], string> = {
-  "Truck Created": "bg-blue-100 text-blue-700",
-  "Truck Edited": "bg-amber-100 text-amber-700",
-  "Truck Deleted": "bg-red-100 text-red-700",
-  "Truck Restored": "bg-emerald-100 text-emerald-700",
-  "Truck Sold": "bg-gray-100 text-gray-700",
+  "Truck Created": "bg-accent-surface-strong text-accent-text",
+  "Truck Edited": "bg-warning-surface-strong text-warning-text",
+  "Truck Deleted": "bg-danger-surface-strong text-danger-text",
+  "Truck Restored": "bg-success-surface-strong text-success-text",
+  "Truck Sold": "bg-fill-2 text-text-primary",
 };
 export default function FleetPage() {
   const { user: authUser } = useAuth();
@@ -465,7 +466,7 @@ export default function FleetPage() {
 
       pdf.save(`truck-${truck.truckId ?? truck.id}.pdf`);
     } catch {
-      const { showError: se } = await import("@/lib/swal");
+      const { showError: se } = await import("@/lib/feedback");
       se("Failed to generate PDF.");
     } finally {
       setDownloading(false);
@@ -478,12 +479,12 @@ export default function FleetPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-border bg-purple-surface text-purple-text shadow-sm">
           <TruckLucideIcon className="h-5 w-5" />
         </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Fleet</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Manage trucks across all branches</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Our Fleet</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Manage trucks across all branches</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -491,7 +492,7 @@ export default function FleetPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -500,7 +501,7 @@ export default function FleetPage() {
           <button
             type="button"
             onClick={handleAdd}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Truck
@@ -519,7 +520,7 @@ export default function FleetPage() {
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search fleet..." value={searchQuery} onChange={setSearchQuery} />
-        <div role="radiogroup" aria-label="Fleet view" className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+        <div role="radiogroup" aria-label="Fleet view" className="flex shrink-0 gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
           {([["active", "Active Trucks"], ["sold", "Sold Trucks"]] as const).map(([key, label]) => (
             <button
               key={key}
@@ -528,14 +529,14 @@ export default function FleetPage() {
               aria-checked={fleetView === key}
               onClick={() => setFleetView(key)}
               className={cn(
-                "rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200",
+                "rounded-full px-4 py-1.5 text-caption-1-semibold transition duration-200",
                 fleetView === key
-                  ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
-                  : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+                  ? "bg-accent-solid text-on-solid shadow-md"
+                  : "text-text-secondary hover:bg-fill-2 hover:text-text-primary"
               )}
             >
               {label}
-              <span className={cn("ml-1.5 tabular-nums", fleetView === key ? "text-white/70" : "text-gray-400")}>
+              <span className={cn("ml-1.5 tabular-nums", fleetView === key ? "text-on-solid/70" : "text-text-tertiary")}>
                 {key === "active" ? trucks.length : soldTrucks.length}
               </span>
             </button>
@@ -560,44 +561,44 @@ export default function FleetPage() {
             onCorrectOdometer={setOdometerTruck}
           />
         ) : filteredSoldTrucks.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-14 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <HandCoins className="h-5 w-5 text-gray-400" />
+          <div className="rounded-2xl border border-dashed border-separator-border bg-background-primary-default px-6 py-14 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fill-2">
+              <HandCoins className="h-5 w-5 text-text-tertiary" />
             </div>
-            <p className="text-sm font-semibold text-gray-700">
+            <p className="text-body-semibold text-text-primary">
               {soldTrucks.length === 0 ? "No sold trucks yet" : "No sold trucks match this search"}
             </p>
             {soldTrucks.length === 0 && (
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-text-tertiary">
                 Trucks removed with &ldquo;Sell Truck&rdquo; are listed here with their sale details.
               </p>
             )}
           </div>
         ) : (
-          <div className="overflow-auto rounded-2xl border border-gray-200 bg-white">
+          <div className="overflow-auto rounded-2xl border border-separator-border bg-background-primary-default">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50">
+              <thead className="border-b border-separator-border bg-fill-1">
                 <tr>
                   {["Truck", "Model", "Tyre Layout", "Sold On", "Odometer at Sale", "Note", "Sold By"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{h}</th>
+                    <th key={h} className="px-4 py-3 text-caption-2-semibold text-text-tertiary">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {filteredSoldTrucks.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50/60">
+                  <tr key={t.id} className="hover:bg-fill-2">
                     <td className="px-4 py-3">
-                      <span className="block font-semibold text-gray-900">{t.registrationNumber}</span>
-                      <span className="block text-xs text-gray-400">{t.truckId}</span>
+                      <span className="block font-semibold text-text-primary">{t.registrationNumber}</span>
+                      <span className="block text-xs text-text-tertiary">{t.truckId}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{[t.manufacturer, t.modelName].filter(Boolean).join(" ") || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{t.tyreLayout || "—"}</td>
-                    <td className="px-4 py-3 tabular-nums text-gray-700">{t.soldDate ? formatDate(t.soldDate) : "—"}</td>
-                    <td className="px-4 py-3 tabular-nums text-gray-700">
+                    <td className="px-4 py-3 text-text-secondary">{[t.manufacturer, t.modelName].filter(Boolean).join(" ") || "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">{t.tyreLayout || "—"}</td>
+                    <td className="px-4 py-3 tabular-nums text-text-primary">{t.soldDate ? formatDate(t.soldDate) : "—"}</td>
+                    <td className="px-4 py-3 tabular-nums text-text-primary">
                       {t.soldOdometer != null ? `${t.soldOdometer.toLocaleString("en-IN")} km` : "—"}
                     </td>
-                    <td className="max-w-[240px] truncate px-4 py-3 text-gray-500" title={t.soldNote ?? ""}>{t.soldNote || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{t.soldByName || "—"}</td>
+                    <td className="max-w-[240px] truncate px-4 py-3 text-text-secondary" title={t.soldNote ?? ""}>{t.soldNote || "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">{t.soldByName || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -693,20 +694,20 @@ export default function FleetPage() {
         const isExpired = (d: string) => !!d && new Date(d) < new Date();
         const Field = ({ label, value, expired }: { label: string; value: string; expired?: boolean }) => (
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
-            <span className={`text-sm font-medium ${expired ? "text-red-600" : "text-gray-800"}`}>{value || "—"}</span>
+            <span className="text-caption-1-medium text-text-tertiary">{label}</span>
+            <span className={`text-body-medium ${expired ? "text-danger-text" : "text-text-primary"}`}>{value || "—"}</span>
           </div>
         );
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingTruck(null); }}>
-            <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingTruck(null); }}>
+            <div className="w-full max-w-2xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
                 <div>
-                  <p className="font-semibold text-gray-900">{t.truckId} — {t.registrationNumber}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{t.manufacturer} {t.modelName} · {t.truckType}</p>
+                  <p className="font-semibold text-text-primary">{t.truckId} — {t.registrationNumber}</p>
+                  <p className="text-xs text-text-secondary mt-0.5">{t.manufacturer} {t.modelName} · {t.truckType}</p>
                 </div>
-                <button type="button" onClick={() => setViewingTruck(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                <button type="button" onClick={() => setViewingTruck(null)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -715,7 +716,7 @@ export default function FleetPage() {
               <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-6">
                 {/* General */}
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">General Information</p>
+                  <p className="text-caption-1-semibold text-accent-text mb-3">General Information</p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="Truck ID" value={t.truckId} />
                     <Field label="Registration No." value={t.registrationNumber} />
@@ -733,7 +734,7 @@ export default function FleetPage() {
 
                 {/* Compliance */}
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Compliance & Documents</p>
+                  <p className="text-caption-1-semibold text-accent-text mb-3">Compliance & Documents</p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="FC Expiry" value={fmtDate(t.fcExpiryDate)} expired={isExpired(t.fcExpiryDate)} />
                     <Field label="Insurance Expiry" value={fmtDate(t.insuranceExpiryDate)} expired={isExpired(t.insuranceExpiryDate)} />
@@ -752,25 +753,25 @@ export default function FleetPage() {
                 {/* Vehicle Images — open in the in-app viewer, not a new tab */}
                 {VEHICLE_IMAGES.some(({ nameKey }) => t[nameKey]) && (
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Vehicle Images</p>
+                    <p className="text-caption-1-semibold text-accent-text mb-3">Vehicle Images</p>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                       {VEHICLE_IMAGES.filter(({ nameKey }) => t[nameKey]).map(({ field, label }) => (
                         <button
                           key={field}
                           type="button"
                           onClick={() => setViewingImage({ url: truckImageUrl(t, field), title: `${t.registrationNumber || t.truckId} — ${label}` })}
-                          className="group overflow-hidden rounded-xl border border-gray-200 bg-gray-50 text-left transition hover:border-blue-300 hover:shadow-md"
+                          className="group overflow-hidden rounded-xl border border-separator-border bg-fill-1 text-left transition hover:border-accent-border-strong hover:shadow-md"
                         >
-                          <div className="h-24 w-full overflow-hidden bg-gray-100">
+                          <div className="h-24 w-full overflow-hidden bg-fill-2">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={truckImageUrl(t, field)}
                               alt={label}
                               onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              className="h-full w-full object-cover transition-transform duration-300"
                             />
                           </div>
-                          <p className="truncate px-2.5 py-1.5 text-[11px] font-medium text-gray-700">{label}</p>
+                          <p className="truncate px-2.5 py-1.5 text-caption-2-medium text-text-primary">{label}</p>
                         </button>
                       ))}
                     </div>
@@ -780,47 +781,47 @@ export default function FleetPage() {
                 {/* Uploaded documents — only shown if the file was actually uploaded */}
                 {(t.rcDocumentUrl || t.fcDocumentFileName || t.roadTaxDocumentFileName || t.insuranceDocumentProofFileName || t.nationalPermitProofFileName || t.localPermitProofFileName || t.pollutionCertificateProofFileName) && (
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
+                    <p className="text-caption-1-semibold text-accent-text mb-3">Uploaded Documents</p>
                     <div className="flex flex-wrap gap-3">
                       {t.rcDocumentUrl && (
                         <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "rc"), title: `${t.registrationNumber || t.truckId} — RC` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> RC
                         </button>
                       )}
                       {t.fcDocumentFileName && (
                         <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "fc"), title: `${t.registrationNumber || t.truckId} — FC` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> FC
                         </button>
                       )}
                       {t.roadTaxDocumentFileName && (
                         <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "road_tax"), title: `${t.registrationNumber || t.truckId} — Road Tax` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Road Tax
                         </button>
                       )}
                       {t.insuranceDocumentProofFileName && (
                         <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "insurance"), title: `${t.registrationNumber || t.truckId} — Insurance` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Insurance
                         </button>
                       )}
                       {t.nationalPermitProofFileName && (
                         <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "national_permit"), title: `${t.registrationNumber || t.truckId} — National Permit` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> National Permit
                         </button>
                       )}
                       {t.localPermitProofFileName && (
                         <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "local_permit"), title: `${t.registrationNumber || t.truckId} — Local Permit` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Local Permit
                         </button>
                       )}
                       {t.pollutionCertificateProofFileName && (
                         <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "pollution_cert"), title: `${t.registrationNumber || t.truckId} — PUC Certificate` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> PUC Certificate
                         </button>
                       )}
@@ -835,7 +836,7 @@ export default function FleetPage() {
                   type="button"
                   onClick={async () => { await handleDownloadPDF(t); setViewingTruck(null); }}
                   disabled={downloading}
-                  className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   {downloading ? "Generating..." : "Download PDF"}
@@ -861,7 +862,7 @@ export default function FleetPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by registration, truck ID, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -870,39 +871,37 @@ export default function FleetPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No truck edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "logistics" : "not-found"} title={editHistoryEvents.length === 0 ? "No truck edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Truck</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Truck</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.registrationNumber}</p>
-                            <p className="text-[11px] text-gray-400">{ev.truckIdStr}</p>
+                            <p className="font-semibold text-text-primary">{ev.registrationNumber}</p>
+                            <p className="text-[11px] text-text-tertiary">{ev.truckIdStr}</p>
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

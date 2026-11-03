@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarClock } from "lucide-react";
+import { RiCalendarScheduleLine as CalendarClock } from "@remixicon/react";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAuth } from "@/context/AuthContext";
 import { eventsApi } from "@/lib/api";
@@ -105,20 +105,20 @@ export function EventReminderListener() {
   if (!current) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm animate-dialog-enter rounded-2xl bg-white p-6 text-center shadow-2xl">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/50 p-4">
+      <div className="w-full max-w-sm animate-modal-in rounded-2xl bg-background-primary-default p-6 text-center shadow-2xl">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-orange-surface-strong text-orange-text">
           <CalendarClock className="h-7 w-7" />
         </div>
-        <p className="text-base font-semibold text-gray-900">&quot;{current.title}&quot; is starting now.</p>
-        {current.location && <p className="mt-1 text-xs text-gray-400">{current.location}</p>}
+        <p className="text-headline-semibold text-text-primary">&quot;{current.title}&quot; is starting now.</p>
+        {current.location && <p className="mt-1 text-xs text-text-tertiary">{current.location}</p>}
         {queue.length > 1 && (
-          <p className="mt-2 text-xs font-medium text-orange-600">+{queue.length - 1} more meeting{queue.length > 2 ? "s" : ""} starting</p>
+          <p className="mt-2 text-caption-1-medium text-orange-text">+{queue.length - 1} more meeting{queue.length > 2 ? "s" : ""} starting</p>
         )}
         <button
           type="button"
           onClick={() => setQueue((prev) => prev.slice(1))}
-          className="mt-5 w-full rounded-full bg-brand-navy py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:bg-brand-navy/90"
+          className="mt-5 w-full rounded-full bg-accent-solid py-2.5 text-body-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover/90"
         >
           OK
         </button>

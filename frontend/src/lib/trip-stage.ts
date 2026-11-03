@@ -31,3 +31,19 @@ export function getStageLabel(trip: Trip): string {
   // Started / Loaded / On-Transit / Reached / Unloaded — in-transit movement.
   return trip.status ?? "—";
 }
+
+/**
+ * The five steps of the trip route line (components/trips/RouteLine.tsx).
+ * Presentation only — derived from the same fields getStageLabel reads.
+ */
+export const ROUTE_STEPS = ["Assigned", "On the road", "Completed", "Trip sheet", "Ready to invoice"] as const;
+
+/** Index into ROUTE_STEPS for a trip, or null when the trip is cancelled. */
+export function getRouteStep(trip: Pick<Trip, "status" | "hasClosure" | "hasSheet" | "verificationStatus" | "tripSheetReceived">): number | null {
+  if (trip.status === "Cancelled") return null;
+  if (trip.status === "Assigned") return 0;
+  if (trip.status !== "Completed") return 1;
+  if (!trip.hasClosure) return 2;
+  if (trip.hasSheet && trip.verificationStatus === "verified") return 4;
+  return 3;
+}

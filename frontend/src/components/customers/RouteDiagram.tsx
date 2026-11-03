@@ -1,6 +1,6 @@
 "use client";
 
-import { Truck, MapPin } from "lucide-react";
+import { RiTruckLine as Truck, RiMapPin2Line as MapPin } from "@remixicon/react";
 
 type RouteDiagramProps = {
   originState?: string;
@@ -32,7 +32,7 @@ export function RouteDiagram({
       >
         <path
           d="M10,64 C 34,64 24,38 50,38 S 74,14 91,11"
-          className="stroke-gray-800 dark:stroke-slate-500"
+          className="stroke-foreground-icon-secondary"
           strokeWidth={compact ? 1.3 : 1.5}
           strokeLinecap="round"
           strokeDasharray="0.2 6.5"
@@ -44,17 +44,17 @@ export function RouteDiagram({
       <div className="absolute bottom-0 left-0 flex flex-col items-start gap-2">
         <div
           className={[
-            "flex items-center justify-center rounded-xl bg-gray-900 text-white shadow-lg dark:bg-brand-navy dark:text-brand-gold",
+            "flex items-center justify-center rounded-xl bg-inverse text-on-solid shadow-lg",
             compact ? "h-8 w-8" : "h-11 w-11",
           ].join(" ")}
         >
           <Truck className={compact ? "h-4 w-4" : "h-5 w-5"} />
         </div>
         <div className={compact ? "max-w-[8rem]" : "max-w-[10rem]"}>
-          <p className="truncate text-[11px] font-semibold uppercase text-gray-700">
+          <p className="truncate text-caption-2-semibold uppercase text-text-primary">
             {originState || "Origin state"}
           </p>
-          <p className="truncate text-[11px] text-gray-400">{originAddress || "Origin address"}</p>
+          <p className="truncate text-[11px] text-text-tertiary">{originAddress || "Origin address"}</p>
         </div>
       </div>
 
@@ -62,24 +62,24 @@ export function RouteDiagram({
       <div className="absolute right-0 top-0 flex flex-col items-end gap-2">
         <div
           className={[
-            "flex items-center justify-center rounded-full bg-gray-900 text-white shadow-lg dark:bg-brand-navy dark:text-brand-gold",
+            "flex items-center justify-center rounded-full bg-inverse text-on-solid shadow-lg",
             compact ? "h-8 w-8" : "h-11 w-11",
           ].join(" ")}
         >
           <MapPin className={compact ? "h-4 w-4" : "h-5 w-5"} />
         </div>
         <div className={compact ? "max-w-[8rem] text-right" : "max-w-[10rem] text-right"}>
-          <p className="truncate text-[11px] font-semibold uppercase text-gray-700">
+          <p className="truncate text-caption-2-semibold uppercase text-text-primary">
             {destinationState || "Destination state"}
           </p>
-          <p className="truncate text-[11px] text-gray-400">
+          <p className="truncate text-[11px] text-text-tertiary">
             {destinationAddress || "Destination address"}
           </p>
         </div>
       </div>
 
       {/* Distance badge, centered on the path */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 shadow-md dark:border-white/10">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-2.5 py-1 text-caption-2-semibold text-text-primary shadow-md">
         {approxDistanceKm ? `${approxDistanceKm} km` : "Distance not set"}
       </div>
     </div>

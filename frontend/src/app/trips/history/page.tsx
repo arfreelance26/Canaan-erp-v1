@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { History, FileText, ClipboardList, Receipt, Trash2, Layers, Plus, Pencil, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
+import { RiHistoryLine as History, RiFileTextLine as FileText, RiFileList3Line as ClipboardList, RiReceiptLine as Receipt, RiDeleteBinLine as Trash2, RiStackLine as Layers, RiAddLine as Plus, RiPencilLine as Pencil, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -28,8 +28,9 @@ import { CombinedInvoicePreviewDialog } from "@/components/trips/CombinedInvoice
 import type { InvoiceType } from "@/components/trips/GenerateInvoiceDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type InvoicePreviewState = {
   trip: Trip;
   closure: TripClosureData;
@@ -70,15 +71,15 @@ const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<TripEditEventRow["event"], string> = {
-  "Booking Created": "bg-blue-100 text-blue-700",
-  "Booking Edited": "bg-amber-100 text-amber-700",
-  "Trip Sheet Saved": "bg-violet-100 text-violet-700",
-  "Trip Updated": "bg-amber-100 text-amber-700",
-  "Trip Closed": "bg-emerald-100 text-emerald-700",
-  "Verification Confirmed": "bg-emerald-100 text-emerald-700",
-  "Verification Rejected": "bg-red-100 text-red-700",
-  "Trip Deleted": "bg-red-100 text-red-700",
-  "Trip Restored": "bg-emerald-100 text-emerald-700",
+  "Booking Created": "bg-accent-surface-strong text-accent-text",
+  "Booking Edited": "bg-warning-surface-strong text-warning-text",
+  "Trip Sheet Saved": "bg-purple-surface-strong text-purple-text",
+  "Trip Updated": "bg-warning-surface-strong text-warning-text",
+  "Trip Closed": "bg-success-surface-strong text-success-text",
+  "Verification Confirmed": "bg-success-surface-strong text-success-text",
+  "Verification Rejected": "bg-danger-surface-strong text-danger-text",
+  "Trip Deleted": "bg-danger-surface-strong text-danger-text",
+  "Trip Restored": "bg-success-surface-strong text-success-text",
 };
 
 export default function TripHistoryPage() {
@@ -348,12 +349,12 @@ export default function TripHistoryPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3.5">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <History className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip History</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Trip History</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               All trips — view booking sheet, trip sheet, and invoice.
             </p>
           </div>
@@ -362,7 +363,7 @@ export default function TripHistoryPage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-border-button-default bg-background-primary-default px-3.5 py-2 text-body-semibold text-text-primary shadow-sm hover:bg-fill-2 transition-colors"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -405,49 +406,49 @@ export default function TripHistoryPage() {
           : (["All", "Assigned", "Current", "Completed", "Invoiced", "Waived Invoice", "Cancelled"] as const)
         ).map((f) => {
           const colors: Record<string, string> = {
-            All:       "border-gray-200 bg-white text-gray-700",
-            Assigned:  "border-blue-200 bg-blue-50 text-blue-700",
-            Current:   "border-amber-200 bg-amber-50 text-amber-700",
-            Completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
-            Invoiced:  "border-purple-200 bg-purple-50 text-purple-700",
-            "Waived Invoice": "border-violet-200 bg-violet-50 text-violet-700",
-            Cancelled: "border-red-200 bg-red-50 text-red-700",
+            All:       "border-separator-border bg-background-primary-default text-text-primary",
+            Assigned:  "border-accent-border bg-accent-surface text-accent-text",
+            Current:   "border-warning-border bg-warning-surface text-warning-text",
+            Completed: "border-success-border bg-success-surface text-success-text",
+            Invoiced:  "border-purple-border bg-purple-surface text-purple-text",
+            "Waived Invoice": "border-purple-border bg-purple-surface text-purple-text",
+            Cancelled: "border-danger-border bg-danger-surface text-danger-text",
           };
           const activeRing: Record<string, string> = {
-            All:       "ring-2 ring-gray-400",
-            Assigned:  "ring-2 ring-blue-400",
-            Current:   "ring-2 ring-amber-400",
-            Completed: "ring-2 ring-emerald-400",
-            Invoiced:  "ring-2 ring-purple-400",
-            "Waived Invoice": "ring-2 ring-violet-400",
-            Cancelled: "ring-2 ring-red-400",
+            All:       "ring-2 ring-border-button-default",
+            Assigned:  "ring-2 ring-accent-border-strong",
+            Current:   "ring-2 ring-warning-border-strong",
+            Completed: "ring-2 ring-success-border-strong",
+            Invoiced:  "ring-2 ring-purple-border-strong",
+            "Waived Invoice": "ring-2 ring-purple-border-strong",
+            Cancelled: "ring-2 ring-danger-border-strong",
           };
           return (
             <button
               key={f}
               type="button"
               onClick={() => { setStatusFilter(f); setPage(1); }}
-              className={`flex flex-col items-center rounded-xl border px-3 py-3 transition-all ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
+              className={`flex flex-col items-center rounded-xl border px-3 py-3 transition ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
             >
-              <span className="text-xl font-bold">{counts[f]}</span>
-              <span className="text-xs font-medium">{f}</span>
+              <span className="text-title-2-semibold">{counts[f]}</span>
+              <span className="text-caption-1-medium">{f}</span>
             </button>
           );
         })}
       </div>
 
       {/* Active filter label */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-text-secondary">
         <span>
-          Showing <span className="font-semibold text-gray-800">{filteredTrips.length}</span> of{" "}
-          <span className="font-semibold text-gray-800">{trips.length}</span> trips
+          Showing <span className="font-semibold text-text-primary">{filteredTrips.length}</span> of{" "}
+          <span className="font-semibold text-text-primary">{trips.length}</span> trips
           {statusFilter !== "All" && (
-            <> — filtered by <span className="font-semibold text-gray-800">{statusFilter}</span></>
+            <> — filtered by <span className="font-semibold text-text-primary">{statusFilter}</span></>
           )}
           {(exportFrom || exportTo) && (
             <>
               {" · "}
-              <span className="font-semibold text-gray-800">
+              <span className="font-semibold text-text-primary">
                 {exportFrom ? fmtDate(exportFrom) : "start"} to {exportTo ? fmtDate(exportTo) : "today"}
               </span>
             </>
@@ -457,7 +458,7 @@ export default function TripHistoryPage() {
           <button
             type="button"
             onClick={() => { setExportFrom(""); setExportTo(""); setPage(1); }}
-            className="ml-1 rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+            className="ml-1 rounded-full border border-border-button-default bg-background-primary-default px-2 py-0.5 text-xs text-text-secondary hover:bg-fill-3"
           >
             Clear dates
           </button>
@@ -466,7 +467,7 @@ export default function TripHistoryPage() {
           <button
             type="button"
             onClick={() => setStatusFilter("All")}
-            className="ml-1 rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+            className="ml-1 rounded-full border border-border-button-default bg-background-primary-default px-2 py-0.5 text-xs text-text-secondary hover:bg-fill-3"
           >
             Clear
           </button>
@@ -474,15 +475,15 @@ export default function TripHistoryPage() {
       </div>
 
       {isAdmin && selected.size > 0 && (
-        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-2">
-          <span className="text-sm font-medium text-red-800">
+        <div className="flex items-center justify-between rounded-xl border border-danger-border bg-danger-surface px-4 py-2">
+          <span className="text-body-medium text-danger-text-strong">
             {selected.size} trip{selected.size > 1 ? "s" : ""} selected
           </span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setSelected(new Set())}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-border-button-default bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary hover:bg-fill-2"
             >
               Clear
             </button>
@@ -490,7 +491,7 @@ export default function TripHistoryPage() {
               type="button"
               disabled={deleting}
               onClick={() => setBulkDeleteOpen(true)}
-              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              className="rounded-lg bg-danger-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-danger-solid-hover disabled:opacity-50"
             >
               {deleting ? "Deleting…" : `Delete ${selected.size} Trip${selected.size > 1 ? "s" : ""}`}
             </button>
@@ -499,15 +500,13 @@ export default function TripHistoryPage() {
       )}
 
       {filteredTrips.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          No closed trips found.
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No closed trips found" />
       ) : (
         <>
-        <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default">
           <table className="w-full min-w-[1500px] text-left text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b border-gray-200 bg-gray-50">
+              <tr className="border-b border-separator-border bg-fill-1">
                 {isAdmin && (
                   <th className="px-4 py-2">
                     <input
@@ -520,19 +519,19 @@ export default function TripHistoryPage() {
                             : new Set(filteredTrips.map((t) => t.id))
                         );
                       }}
-                      className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                      className="h-4 w-4 rounded border-border-button-default accent-danger-solid"
                       title="Select all trips"
                     />
                   </th>
                 )}
                 {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
-                  <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <th key={col} className="px-4 py-2 text-caption-1-semibold text-text-secondary">
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {paginatedTrips.map((trip) => {
                 const customer   = customerById.get(trip.customerId);
                 const isInvoiced = (trip as any).isInvoiced === true;
@@ -554,29 +553,29 @@ export default function TripHistoryPage() {
                   :                                           { color: "gray",    label: trip.status };
 
                 return (
-                  <tr key={trip.id} className={selected.has(trip.id) ? "border-l-4 border-l-red-400 bg-red-50/60" : stageRowClass(stage.color)}>
+                  <tr key={trip.id} className={selected.has(trip.id) ? "border-l-4 border-l-danger-border-strong bg-danger-surface/60" : stageRowClass(stage.color)}>
                     {isAdmin && (
                       <td className="px-4 py-2">
                         <input
                           type="checkbox"
                           checked={selected.has(trip.id)}
                           onChange={() => toggleRow(trip.id)}
-                          className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                          className="h-4 w-4 rounded border-border-button-default accent-danger-solid"
                         />
                       </td>
                     )}
                     <td className="px-4 py-2">
                       <span className={stageBadgeClass(stage.color)}>{stage.label}</span>
                     </td>
-                    <td className="px-4 py-2 font-semibold text-gray-900">
+                    <td className="px-4 py-2 font-semibold text-text-primary">
                       <div className="flex items-center gap-2">
                         {trip.tripId}
                         {trip.status === "Cancelled" ? (
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                          <span className="inline-flex items-center rounded-full bg-danger-surface-strong px-2 py-0.5 text-caption-2-semibold text-danger-text">
                             Cancelled
                           </span>
                         ) : !(trip as any).hasClosure && isAdmin ? (
-                          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                          <span className="inline-flex items-center rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">
                             {trip.status}
                           </span>
                         ) : null}
@@ -585,10 +584,10 @@ export default function TripHistoryPage() {
                         const closure = closures.get(trip.id);
                         const sheetData = sheets.get(trip.id);
                         const items = [
-                          trip.internalRemarks       && { label: "Assignment",  text: trip.internalRemarks,       color: "text-gray-500" },
-                          trip.bookingInstructions   && { label: "Instructions", text: trip.bookingInstructions,  color: "text-gray-500" },
-                          closure?.closureRemarks    && { label: "Closure",      text: closure.closureRemarks,    color: "text-blue-600" },
-                          sheetData?.remarks         && { label: "Sheet",        text: sheetData.remarks,         color: "text-violet-600" },
+                          trip.internalRemarks       && { label: "Assignment",  text: trip.internalRemarks,       color: "text-text-secondary" },
+                          trip.bookingInstructions   && { label: "Instructions", text: trip.bookingInstructions,  color: "text-text-secondary" },
+                          closure?.closureRemarks    && { label: "Closure",      text: closure.closureRemarks,    color: "text-accent-text" },
+                          sheetData?.remarks         && { label: "Sheet",        text: sheetData.remarks,         color: "text-purple-text" },
                         ].filter(Boolean) as { label: string; text: string; color: string }[];
                         if (items.length === 0) return null;
                         return (
@@ -602,73 +601,73 @@ export default function TripHistoryPage() {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
-                    <td className="px-4 py-2 text-gray-500">
-                      <span className="text-gray-800">{trip.origin}</span>
-                      <span className="mx-1 text-gray-300">→</span>
-                      <span className="text-gray-800">{trip.destination}</span>
+                    <td className="px-4 py-2 text-text-secondary">{trip.bookingReferenceNo}</td>
+                    <td className="px-4 py-2 text-text-secondary">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
+                    <td className="px-4 py-2 text-text-secondary">
+                      <span className="text-text-primary">{trip.origin}</span>
+                      <span className="mx-1 text-text-tertiary">→</span>
+                      <span className="text-text-primary">{trip.destination}</span>
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-2 text-gray-600">
+                    <td className="px-4 py-2 text-text-secondary">{containerRef(trip)}</td>
+                    <td className="px-4 py-2 text-text-secondary">
                       <span>{trip.driverName ?? "—"}</span>
                       {trip.driverChangeRemark && (
-                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
+                        <p className="mt-0.5 text-[11px] text-warning-text leading-snug max-w-[160px] whitespace-normal">
                           Remark: {trip.driverChangeRemark}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{trip.truckRegistration ?? "—"}</td>
-                    <td className="px-4 py-2 text-gray-500">{fmtDate(trip.scheduledDate)}</td>
+                    <td className="px-4 py-2 text-text-secondary">{trip.truckRegistration ?? "—"}</td>
+                    <td className="px-4 py-2 text-text-secondary">{fmtDate(trip.scheduledDate)}</td>
 
                     {/* Hire Amount */}
-                    <td className="px-4 py-2 font-medium text-blue-700">
-                      {hire !== null ? `₹${hire.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-gray-300">—</span>}
+                    <td className="px-4 py-2 font-medium text-accent-text">
+                      {hire !== null ? `₹${hire.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-text-tertiary">—</span>}
                     </td>
 
                     {/* Total Expenses */}
-                    <td className="px-4 py-2 font-medium text-gray-700">
-                      {expense !== null ? `₹${expense.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-gray-300">—</span>}
+                    <td className="px-4 py-2 font-medium text-text-primary">
+                      {expense !== null ? `₹${expense.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-text-tertiary">—</span>}
                     </td>
 
                     {/* P&L */}
                     <td className="px-4 py-2">
                       {pl !== null ? (
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption-1-semibold ${
                           isProfit
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-600"
+                            ? "bg-success-surface-strong text-success-text"
+                            : "bg-danger-surface-strong text-danger-text"
                         }`}>
                           {isProfit ? "▲" : "▼"}
                           ₹{Math.abs(pl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           <span className="font-normal opacity-70">{isProfit ? "Profit" : "Loss"}</span>
                         </span>
                       ) : trip.status === "Cancelled" ? (
-                        <span className="text-xs font-medium text-red-500">Trip cancelled</span>
+                        <span className="text-caption-1-medium text-danger-text">Trip cancelled</span>
                       ) : (
-                        <span className="text-xs text-gray-400">No sheet</span>
+                        <span className="text-xs text-text-tertiary">No sheet</span>
                       )}
                     </td>
 
                     {!isFleetManager && (
                       <td className="px-4 py-2">
                         {trip.tripCategory === "SHIFTING" ? (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                          <span className="inline-flex items-center rounded-full bg-fill-2 px-2.5 py-1 text-caption-1-medium text-text-secondary">
                             N/A (Shifting)
                           </span>
                         ) : isInvoiced ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                          <span className="inline-flex items-center rounded-full bg-success-surface-strong px-2.5 py-1 text-caption-1-medium text-success-text">
                             Invoiced
                           </span>
                         ) : isWaived ? (
                           <span
-                            className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700"
+                            className="inline-flex items-center rounded-full bg-purple-surface-strong px-2.5 py-1 text-caption-1-medium text-purple-text"
                             title={trip.paymentType === "To Be Paid" ? "Automatically waived — payment type is To Be Paid" : undefined}
                           >
                             {trip.paymentType === "To Be Paid" ? "To Be Paid" : "Waived"}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                          <span className="inline-flex items-center rounded-full bg-fill-2 px-2.5 py-1 text-caption-1-medium text-text-secondary">
                             Not Invoiced
                           </span>
                         )}
@@ -679,7 +678,7 @@ export default function TripHistoryPage() {
                         <button
                           type="button"
                           onClick={() => setDeleteRequestTrip(trip)}
-                          className="mb-1.5 flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                          className="mb-1.5 flex items-center gap-1 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong transition-colors"
                           title="Delete this trip and all its data"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -690,7 +689,7 @@ export default function TripHistoryPage() {
                         <button
                           type="button"
                           onClick={() => setDeleteRequestTrip(trip)}
-                          className="mb-1.5 flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                          className="mb-1.5 flex items-center gap-1 rounded-lg border border-warning-border bg-warning-surface px-2.5 py-1 text-caption-1-semibold text-warning-text hover:bg-warning-surface-strong transition-colors"
                           title="Request Admin to delete this trip"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -698,14 +697,14 @@ export default function TripHistoryPage() {
                         </button>
                       )}
                       {!closures.has(trip.id) && trip.status === "Cancelled" ? (
-                        <span className="text-xs text-gray-400">No documents (cancelled)</span>
+                        <span className="text-xs text-text-tertiary">No documents (cancelled)</span>
                       ) : (
                       <div className="flex flex-wrap gap-1.5">
                         {/* Booking Sheet — always available (hasClosure is required to appear here) */}
                         <button
                           type="button"
                           onClick={() => setBookingTrip(trip)}
-                          className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+                          className="flex items-center gap-1.5 rounded-lg border border-accent-border-strong bg-accent-surface px-2.5 py-1.5 text-caption-1-semibold text-accent-text hover:bg-accent-surface-strong transition-colors"
                         >
                           <FileText className="h-3.5 w-3.5" />
                           Booking Sheet
@@ -718,7 +717,7 @@ export default function TripHistoryPage() {
                             type="button"
                             onClick={() => setSheetTrip(trip)}
                             disabled={!hasSheet}
-                            className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="flex items-center gap-1.5 rounded-lg border border-purple-border-strong bg-purple-surface px-2.5 py-1.5 text-caption-1-semibold text-purple-text hover:bg-purple-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             title={hasSheet ? undefined : "No trip sheet recorded for this trip"}
                           >
                             <ClipboardList className="h-3.5 w-3.5" />
@@ -731,7 +730,7 @@ export default function TripHistoryPage() {
                           <button
                             type="button"
                             onClick={() => handleViewInvoice(trip)}
-                            className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            className="flex items-center gap-1.5 rounded-lg border border-success-border-strong bg-success-surface px-2.5 py-1.5 text-caption-1-semibold text-success-text hover:bg-success-surface-strong transition-colors"
                           >
                             <Receipt className="h-3.5 w-3.5" />
                             View Invoice
@@ -743,7 +742,7 @@ export default function TripHistoryPage() {
                           <button
                             type="button"
                             onClick={() => handleViewCombinedInvoice(trip)}
-                            className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                            className="flex items-center gap-1.5 rounded-lg border border-purple-border-strong bg-purple-surface px-2.5 py-1.5 text-caption-1-semibold text-purple-text hover:bg-purple-surface-strong transition-colors"
                           >
                             <Layers className="h-3.5 w-3.5" />
                             View Combined Invoice
@@ -760,28 +759,28 @@ export default function TripHistoryPage() {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <p className="text-sm text-gray-500">
+          <div className="flex items-center justify-between rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+            <p className="text-sm text-text-secondary">
               Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredTrips.length)} of {filteredTrips.length} trips
             </p>
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed">
                 Previous
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((n) => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
                 .reduce<(number | "...")[]>((acc, n, i, arr) => { if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("..."); acc.push(n); return acc; }, [])
                 .map((item, i) => item === "..." ? (
-                  <span key={`e${i}`} className="px-2 text-xs text-gray-400">…</span>
+                  <span key={`e${i}`} className="px-2 text-xs text-text-tertiary">…</span>
                 ) : (
                   <button key={item} type="button" onClick={() => setPage(item as number)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${safePage === item ? "bg-blue-600 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                    className={`rounded-lg px-3 py-1.5 text-caption-1-medium transition-colors ${safePage === item ? "bg-accent-solid text-on-solid" : "border border-separator-border text-text-secondary hover:bg-fill-2"}`}>
                     {item}
                   </button>
                 ))}
               <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed">
                 Next
               </button>
             </div>
@@ -895,7 +894,7 @@ export default function TripHistoryPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by trip ID, driver, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -904,39 +903,37 @@ export default function TripHistoryPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No trip edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "logistics" : "not-found"} title={editHistoryEvents.length === 0 ? "No trip edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Trip</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.tripIdStr}</p>
-                            {ev.driverName && <p className="text-[11px] text-gray-400">{ev.driverName}</p>}
+                            <p className="font-semibold text-text-primary">{ev.tripIdStr}</p>
+                            {ev.driverName && <p className="text-[11px] text-text-tertiary">{ev.driverName}</p>}
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IndianRupee, Clock, CircleDollarSign, Check, X, Banknote, Loader2, Upload, ImageIcon, History } from "lucide-react";
+import { RiMoneyRupeeCircleLine as IndianRupee, RiTimeLine as Clock, RiMoneyDollarCircleLine as CircleDollarSign, RiCheckLine as Check, RiCloseLine as X, RiMoneyRupeeCircleLine as Banknote, RiLoader4Line as Loader2, RiUploadLine as Upload, RiImageLine as ImageIcon, RiHistoryLine as History } from "@remixicon/react";
 import { paymentRequestsApi, type PaymentRequestEditEventRow } from "@/lib/api";
 import type { PaymentRequest } from "@/types/payment-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { confirmAction, showError, showSuccess } from "@/lib/swal";
+import { confirmAction, showError, showSuccess } from "@/lib/feedback";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -16,6 +16,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { cn } from "@/lib/utils";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<PaymentRequestEditEventRow["event"], typeof Check> = {
   "Approved for Payment": Check,
   "Rejected by Accounts": X,
@@ -23,9 +24,9 @@ const EDIT_EVENT_ICON: Record<PaymentRequestEditEventRow["event"], typeof Check>
 };
 
 const EDIT_EVENT_COLOR: Record<PaymentRequestEditEventRow["event"], string> = {
-  "Approved for Payment": "bg-emerald-100 text-emerald-700",
-  "Rejected by Accounts": "bg-red-100 text-red-700",
-  "Marked as Paid": "bg-blue-100 text-blue-700",
+  "Approved for Payment": "bg-success-surface-strong text-success-text",
+  "Rejected by Accounts": "bg-danger-surface-strong text-danger-text",
+  "Marked as Paid": "bg-accent-surface-strong text-accent-text",
 };
 
 const ALLOWED_ROLES = ["Admin", "Accounts"];
@@ -58,34 +59,34 @@ const STATUS_CARDS: {
   {
     status: "pending",
     icon: Clock,
-    activeClasses: "border-amber-300 bg-amber-50",
-    iconWrapClasses: "bg-amber-100 text-amber-600",
+    activeClasses: "border-warning-border-strong bg-warning-surface",
+    iconWrapClasses: "bg-warning-surface-strong text-warning-text",
   },
   {
     status: "unpaid",
     icon: CircleDollarSign,
-    activeClasses: "border-sky-300 bg-sky-50",
-    iconWrapClasses: "bg-sky-100 text-sky-600",
+    activeClasses: "border-teal-border-strong bg-teal-surface",
+    iconWrapClasses: "bg-teal-surface-strong text-teal-text",
   },
   {
     status: "paid",
     icon: Check,
-    activeClasses: "border-emerald-300 bg-emerald-50",
-    iconWrapClasses: "bg-emerald-100 text-emerald-600",
+    activeClasses: "border-success-border-strong bg-success-surface",
+    iconWrapClasses: "bg-success-surface-strong text-success-text",
   },
   {
     status: "rejected",
     icon: X,
-    activeClasses: "border-red-300 bg-red-50",
-    iconWrapClasses: "bg-red-100 text-red-500",
+    activeClasses: "border-danger-border-strong bg-danger-surface",
+    iconWrapClasses: "bg-danger-surface-strong text-danger-text",
   },
 ];
 
 const STATUS_PILL_CLASSES: Record<FilterStatus, string> = {
-  pending: "bg-amber-50 text-amber-700",
-  unpaid: "bg-sky-50 text-sky-700",
-  paid: "bg-emerald-50 text-emerald-700",
-  rejected: "bg-red-50 text-red-600",
+  pending: "bg-warning-surface text-warning-text",
+  unpaid: "bg-teal-surface text-teal-text",
+  paid: "bg-success-surface text-success-text",
+  rejected: "bg-danger-surface text-danger-text",
 };
 
 function formatRupees(amount: string): string {
@@ -262,19 +263,19 @@ export default function PaymentRequestsPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
               <CircleDollarSign className="h-5 w-5" />
             </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Payment Requests</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Review and manage payment requests raised by staff</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Payment Requests</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Review and manage payment requests raised by staff</p>
           </div>
         </div>
         {isAdmin && (
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -290,16 +291,16 @@ export default function PaymentRequestsPage() {
               key={status}
               type="button"
               onClick={() => setStatusFilter((prev) => (prev === status ? null : status))}
-              className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
-                isActive ? activeClasses : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+              className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                isActive ? activeClasses : "border-separator-border bg-background-primary-default hover:border-border-button-default hover:bg-fill-2"
               }`}
             >
               <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconWrapClasses}`}>
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-500">{STATUS_LABELS[status]}</p>
-                <p className="text-xl font-bold text-gray-900">{counts[status]}</p>
+                <p className="text-caption-1-medium text-text-secondary">{STATUS_LABELS[status]}</p>
+                <p className="text-title-2-semibold text-text-primary">{counts[status]}</p>
               </div>
             </button>
           );
@@ -322,46 +323,36 @@ export default function PaymentRequestsPage() {
       </div>
 
       {filteredRequests.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white p-16 text-center shadow-sm">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-navy/10">
-            <IndianRupee className="h-6 w-6 text-brand-navy" />
-          </div>
-          <p className="text-sm font-semibold text-gray-700">
-            {statusFilter ? `No ${STATUS_LABELS[statusFilter].toLowerCase()} payment requests` : "No payment requests yet"}
-          </p>
-          <p className="max-w-sm text-sm text-gray-500">
-            Requests appear here once a colleague approves a payment note in Canaan Chat.
-          </p>
-        </div>
+        <EmptyState size="compact" illustration="not-found" title={statusFilter ? `No ${STATUS_LABELS[statusFilter].toLowerCase()} payment requests` : "No payment requests yet"} description="Requests appear here once a colleague approves a payment note in Canaan Chat" className="flex-1 rounded-2xl border border-separator-border bg-background-primary-default" />
       ) : (
-        <div className="overflow-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
+        <div className="overflow-auto rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
           <table className="w-full min-w-[960px] text-left text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b border-gray-200 bg-gray-50">
+              <tr className="border-b border-separator-border bg-fill-1">
                 {["Description", "Amount", "Requested By", "Requested At", "Peer Decision By", "Peer Decision At", "Status", "Actions"].map(
                   (col) => (
-                    <th key={col} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                    <th key={col} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                       {col}
                     </th>
                   )
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {filteredRequests.map((r) => {
                 const status = statusOf(r);
                 return (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="max-w-[220px] truncate px-4 py-3 text-gray-700" title={r.description}>
-                      {r.description || <span className="text-gray-400">—</span>}
+                  <tr key={r.id} className="hover:bg-fill-2">
+                    <td className="max-w-[220px] truncate px-4 py-3 text-text-primary" title={r.description}>
+                      {r.description || <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">₹{formatRupees(r.amount)}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.askedByName ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{formatDateTime(r.askedAt)}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.approvedByName ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{formatDateTime(r.approvedAt)}</td>
+                    <td className="px-4 py-3 font-semibold text-text-primary">₹{formatRupees(r.amount)}</td>
+                    <td className="px-4 py-3 text-text-secondary">{r.askedByName ?? "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">{formatDateTime(r.askedAt)}</td>
+                    <td className="px-4 py-3 text-text-secondary">{r.approvedByName ?? "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">{formatDateTime(r.approvedAt)}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_PILL_CLASSES[status]}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-caption-1-medium ${STATUS_PILL_CLASSES[status]}`}>
                         {STATUS_LABELS[status]}
                       </span>
                     </td>
@@ -372,7 +363,7 @@ export default function PaymentRequestsPage() {
                             type="button"
                             onClick={() => handleDecision(r, "approved")}
                             disabled={actingId === r.id}
-                            className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-60"
+                            className="flex items-center gap-1.5 rounded-lg border border-success-border bg-success-surface px-3 py-1.5 text-caption-1-medium text-success-text transition-colors hover:bg-success-surface-strong disabled:opacity-60"
                           >
                             {actingId === r.id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -385,7 +376,7 @@ export default function PaymentRequestsPage() {
                             type="button"
                             onClick={() => handleDecision(r, "rejected")}
                             disabled={actingId === r.id}
-                            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-60"
+                            className="flex items-center gap-1.5 rounded-lg border border-danger-border bg-danger-surface px-3 py-1.5 text-caption-1-medium text-danger-text transition-colors hover:bg-danger-surface-strong disabled:opacity-60"
                           >
                             <X className="h-3.5 w-3.5" />
                             Reject
@@ -396,20 +387,20 @@ export default function PaymentRequestsPage() {
                           type="button"
                           onClick={() => openMarkPaidDialog(r)}
                           disabled={actingId === r.id}
-                          className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-60"
+                          className="flex items-center gap-1.5 rounded-lg border border-teal-border bg-teal-surface px-3 py-1.5 text-caption-1-medium text-teal-text transition-colors hover:bg-teal-surface-strong disabled:opacity-60"
                         >
                           <Check className="h-3.5 w-3.5" />
                           Mark as Paid
                         </button>
                       ) : status === "paid" ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">{r.paidByName ? `paid by ${r.paidByName}` : "—"}</span>
+                          <span className="text-xs text-text-tertiary">{r.paidByName ? `paid by ${r.paidByName}` : "—"}</span>
                           {r.hasProof && (
                             <button
                               type="button"
                               onClick={() => handleViewProof(r)}
                               disabled={loadingProofId === r.id}
-                              className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-60"
+                              className="flex items-center gap-1 rounded-lg border border-separator-border bg-background-primary-default px-2 py-1 text-caption-1-medium text-text-secondary transition-colors hover:bg-fill-2 disabled:opacity-60"
                             >
                               {loadingProofId === r.id ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -421,11 +412,11 @@ export default function PaymentRequestsPage() {
                           )}
                         </div>
                       ) : r.paymentStatus === "rejected" ? (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-text-tertiary">
                           {r.approvedByName ? `rejected in chat by ${r.approvedByName}` : "rejected in chat"}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">{r.financeDecidedByName ? `by ${r.financeDecidedByName}` : "—"}</span>
+                        <span className="text-xs text-text-tertiary">{r.financeDecidedByName ? `by ${r.financeDecidedByName}` : "—"}</span>
                       )}
                     </td>
                   </tr>
@@ -438,15 +429,15 @@ export default function PaymentRequestsPage() {
 
       {markPaidTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/40 p-4"
           onClick={closeMarkPaidDialog}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl bg-background-primary-default p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-bold text-gray-900">Mark as Paid</h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <h2 className="text-title-3-semibold text-text-primary">Mark as Paid</h2>
+            <p className="mt-1 text-sm text-text-secondary">
               Confirm ₹{formatRupees(markPaidTarget.amount)} to {markPaidTarget.askedByName ?? "this staff member"} has
               actually been paid out. A proof-of-payment photo is required and can&apos;t be undone.
             </p>
@@ -462,20 +453,20 @@ export default function PaymentRequestsPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="mt-4 flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-500 transition-colors hover:border-brand-navy/40 hover:bg-brand-navy/5"
+              className="mt-4 flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border-button-default bg-fill-1 px-4 py-6 text-sm text-text-secondary transition-colors hover:border-accent-solid/40 hover:bg-accent-solid-hover/5"
             >
               {proofPreviewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={proofPreviewUrl} alt="Proof preview" className="max-h-40 rounded-lg object-contain" />
               ) : (
                 <>
-                  <Upload className="h-6 w-6 text-gray-400" />
+                  <Upload className="h-6 w-6 text-text-tertiary" />
                   <span>Click to upload a proof-of-payment photo</span>
                 </>
               )}
             </button>
             {proofFile && (
-              <p className="mt-2 truncate text-xs text-gray-500" title={proofFile.name}>
+              <p className="mt-2 truncate text-xs text-text-secondary" title={proofFile.name}>
                 {proofFile.name}
               </p>
             )}
@@ -485,7 +476,7 @@ export default function PaymentRequestsPage() {
                 type="button"
                 onClick={closeMarkPaidDialog}
                 disabled={submittingProof}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-60"
+                className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary transition-colors hover:bg-fill-2 disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -493,7 +484,7 @@ export default function PaymentRequestsPage() {
                 type="button"
                 onClick={handleConfirmMarkPaid}
                 disabled={!proofFile || submittingProof}
-                className="flex items-center gap-1.5 rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy/90 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-50"
               >
                 {submittingProof && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Mark as Paid
@@ -505,13 +496,13 @@ export default function PaymentRequestsPage() {
 
       {viewingProofUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/70 p-4"
           onClick={closeProofViewer}
         >
           <button
             type="button"
             onClick={closeProofViewer}
-            className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+            className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-on-solid/10 text-on-solid transition-colors hover:bg-on-solid/20"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -537,42 +528,40 @@ export default function PaymentRequestsPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by description or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
               !q || ev.description.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No decisions have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No decisions have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Request</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-gray-400">Amount</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Request</th>
+                      <th className="px-3 py-2 text-right text-caption-2-semibold text-text-tertiary">Amount</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.description || "—"}</td>
-                          <td className="px-3 py-2 text-right text-gray-600">₹{Number(ev.amount).toLocaleString("en-IN")}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.description || "—"}</td>
+                          <td className="px-3 py-2 text-right text-text-secondary">₹{Number(ev.amount).toLocaleString("en-IN")}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

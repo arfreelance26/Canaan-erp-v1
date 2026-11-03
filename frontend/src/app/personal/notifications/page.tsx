@@ -2,16 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Bell,
-  CalendarClock,
-  AlertTriangle,
-  User,
-  ShieldCheck,
-  Wrench,
-  RotateCcw,
-  Sunrise,
-} from "lucide-react";
+import { RiNotification3Line as Bell, RiCalendarScheduleLine as CalendarClock, RiAlertLine as AlertTriangle, RiUserLine as User, RiShieldCheckLine as ShieldCheck, RiToolsLine as Wrench, RiArrowGoBackLine as RotateCcw, RiSunFoggyLine as Sunrise } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications, maintenanceAlertHref, reverificationAlertHref } from "@/context/NotificationContext";
 import { editApprovalsApi, deletionApprovalsApi, attendanceApi, maintenanceRequestsApi } from "@/lib/api";
@@ -21,6 +12,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { formatDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 // The Topbar bell is deliberately a short, capped preview (see its own
 // grouping/cap logic) — this page is its uncapped counterpart: literally
 // every notification across every category the bell tracks, in one
@@ -57,15 +49,15 @@ function timeAgo(raw: string): string {
 }
 
 const TONE_CLASSES: Record<string, { chip: string; icon: string; hover: string; text: string }> = {
-  purple: { chip: "bg-purple-100", icon: "text-purple-600", hover: "hover:bg-purple-50/60", text: "text-purple-700" },
-  red: { chip: "bg-red-100", icon: "text-red-600", hover: "hover:bg-red-50/60", text: "text-red-700" },
-  rose: { chip: "bg-rose-100", icon: "text-rose-600", hover: "hover:bg-rose-50/60", text: "text-rose-700" },
-  violet: { chip: "bg-violet-100", icon: "text-violet-600", hover: "hover:bg-violet-50/60", text: "text-violet-700" },
-  orange: { chip: "bg-orange-100", icon: "text-orange-600", hover: "hover:bg-orange-50/60", text: "text-orange-700" },
-  amber: { chip: "bg-amber-100", icon: "text-amber-600", hover: "hover:bg-amber-50/60", text: "text-amber-700" },
-  blue: { chip: "bg-blue-100", icon: "text-blue-600", hover: "hover:bg-blue-50/60", text: "text-blue-700" },
-  green: { chip: "bg-green-100", icon: "text-green-600", hover: "hover:bg-green-50/60", text: "text-green-700" },
-  gray: { chip: "bg-gray-100", icon: "text-gray-500", hover: "hover:bg-gray-50", text: "text-gray-600" },
+  purple: { chip: "bg-purple-surface-strong", icon: "text-purple-text", hover: "hover:bg-purple-surface-strong/60", text: "text-purple-text" },
+  red: { chip: "bg-danger-surface-strong", icon: "text-danger-text", hover: "hover:bg-danger-surface-strong/60", text: "text-danger-text" },
+  rose: { chip: "bg-danger-surface-strong", icon: "text-danger-text", hover: "hover:bg-danger-surface-strong/60", text: "text-danger-text" },
+  violet: { chip: "bg-purple-surface-strong", icon: "text-purple-text", hover: "hover:bg-purple-surface-strong/60", text: "text-purple-text" },
+  orange: { chip: "bg-orange-surface-strong", icon: "text-orange-text", hover: "hover:bg-orange-surface-strong/60", text: "text-orange-text" },
+  amber: { chip: "bg-warning-surface-strong", icon: "text-warning-text", hover: "hover:bg-warning-surface-strong/60", text: "text-warning-text" },
+  blue: { chip: "bg-accent-surface-strong", icon: "text-accent-text", hover: "hover:bg-accent-surface-strong/60", text: "text-accent-text" },
+  green: { chip: "bg-success-surface-strong", icon: "text-success-text", hover: "hover:bg-success-surface-strong/60", text: "text-success-text" },
+  gray: { chip: "bg-fill-2", icon: "text-text-secondary", hover: "hover:bg-fill-2", text: "text-text-secondary" },
 };
 
 export default function NotificationsPage() {
@@ -312,12 +304,12 @@ export default function NotificationsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-border bg-purple-surface text-purple-text shadow-sm">
           <Bell className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Notifications</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Notifications</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">
             Every notification relevant to you — the bell up top only shows a short preview of this.
           </p>
         </div>
@@ -325,15 +317,15 @@ export default function NotificationsPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search notifications…" value={search} onChange={setSearch} />
-        <div className="flex flex-wrap gap-1.5 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="flex flex-wrap gap-1.5 rounded-full border border-separator-border bg-background-primary-default p-1 shadow-sm">
           {(["All", ...categories] as const).map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCategory(c)}
               className={cn(
-                "flex h-8 items-center whitespace-nowrap rounded-full px-3 text-xs font-semibold transition-colors",
-                category === c ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
+                "flex h-8 items-center whitespace-nowrap rounded-full px-3 text-caption-1-semibold transition-colors",
+                category === c ? "bg-accent-solid text-on-solid" : "text-text-secondary hover:bg-fill-3"
               )}
             >
               {c}
@@ -342,16 +334,11 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-separator-border bg-background-primary-default">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <ShieldCheck className="h-8 w-8 text-gray-200" />
-            <p className="text-sm font-medium text-gray-500">
-              {allItems.length === 0 ? "You're all caught up — nothing here." : "No notifications match these filters."}
-            </p>
-          </div>
+          <EmptyState size="compact" illustration="not-found" title={allItems.length === 0 ? "You're all caught up — nothing here" : "No notifications match these filters"} />
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-separator-border">
             {filtered.map((item) => {
               const t = TONE_CLASSES[item.tone] ?? TONE_CLASSES.gray;
               const Icon = item.icon;
@@ -366,11 +353,11 @@ export default function NotificationsPage() {
                       <Icon className={cn("h-4 w-4", t.icon)} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{item.category}</p>
-                      <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                      {item.detail && <p className="truncate text-xs text-gray-500">{item.detail}</p>}
+                      <p className="text-caption-2-semibold text-text-tertiary">{item.category}</p>
+                      <p className="text-body-semibold text-text-primary">{item.title}</p>
+                      {item.detail && <p className="truncate text-xs text-text-secondary">{item.detail}</p>}
                     </div>
-                    <span className="shrink-0 text-xs text-gray-400">{timeAgo(item.time)}</span>
+                    <span className="shrink-0 text-xs text-text-tertiary">{timeAgo(item.time)}</span>
                   </button>
                 </li>
               );

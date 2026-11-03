@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CircleDot, HandCoins, Loader2, Trash2 } from "lucide-react";
+import { RiRecordCircleLine as CircleDot, RiHandCoinLine as HandCoins, RiLoader4Line as Loader2, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tyreApi } from "@/lib/api";
@@ -49,7 +49,7 @@ function SegmentedChoice({
   value, onChange, label, size = "md",
 }: { value: TyreAction | "" | undefined; onChange: (v: TyreAction) => void; label: string; size?: "sm" | "md" }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+    <div role="radiogroup" aria-label={label} className="flex shrink-0 gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
       {TYRE_ACTIONS.map((a) => {
         const on = value === a.value;
         return (
@@ -61,11 +61,11 @@ function SegmentedChoice({
             title={a.label}
             onClick={() => onChange(a.value)}
             className={cn(
-              "whitespace-nowrap rounded-full font-semibold transition-all duration-200",
+              "whitespace-nowrap rounded-full font-semibold transition duration-200",
               size === "sm" ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs",
               on
-                ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
-                : "text-gray-500 hover:bg-white/70 hover:text-gray-800",
+                ? "bg-accent-solid text-on-solid shadow-md"
+                : "text-text-secondary hover:bg-fill-2 hover:text-text-primary",
             )}
           >
             {ACTION_SHORT[a.value]}
@@ -78,8 +78,8 @@ function SegmentedChoice({
 
 // Plain field style (the shared form inputClass upper-cases text).
 const FIELD_CLS =
-  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition-colors " +
-  "placeholder:text-slate-300 focus:border-brand-navy/40 focus:ring-2 focus:ring-brand-navy/10";
+  "h-10 w-full rounded-xl border border-separator-border bg-background-primary-default px-3 text-sm text-text-primary outline-none transition-colors " +
+  "placeholder:text-text-placeholder focus:border-accent-solid/40 focus:ring-2 focus:ring-accent-solid/10";
 
 type Props = {
   truck: Truck | null;
@@ -192,16 +192,16 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
       <div className="mb-5 flex items-center gap-3">
         <span className={cn(
           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-          isSell ? "bg-brand-navy/10 text-brand-navy" : "bg-rose-50 text-rose-500",
+          isSell ? "bg-accent-solid/10 text-accent-text-strong" : "bg-danger-surface text-danger-text",
         )}>
           {isSell ? <HandCoins className="h-5 w-5" /> : <Trash2 className="h-5 w-5" />}
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-900">
+          <p className="text-body-semibold text-text-primary">
             {truck.registrationNumber}
-            <span className="font-normal text-slate-400"> · {truck.truckId}</span>
+            <span className="font-normal text-text-tertiary"> · {truck.truckId}</span>
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-text-secondary">
             {isSell ? "Being sold" : "Being deleted"}
             {fitments.length > 0 && ` — choose what happens to each of its ${fitments.length} tyre${fitments.length === 1 ? "" : "s"}.`}
           </p>
@@ -209,22 +209,22 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
       ) : loadError ? (
-        <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{loadError}</p>
+        <p className="rounded-xl bg-danger-surface px-4 py-3 text-sm text-danger-text">{loadError}</p>
       ) : fitments.length === 0 && !isSell ? null : (
         <div className="flex flex-col gap-5">
           {fitments.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            <p className="rounded-xl border border-separator-border bg-fill-1 px-4 py-3 text-sm text-text-secondary">
               No tyres are fitted on this truck.
             </p>
           ) : (
-            <section className="overflow-hidden rounded-2xl border border-slate-200">
+            <section className="overflow-hidden rounded-2xl border border-separator-border">
               {/* Apply to all */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-separator-border bg-fill-1 px-4 py-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Apply to all tyres</p>
-                  <p className="mt-0.5 text-xs text-slate-500">Then change any tyre on its own below.</p>
+                  <p className="text-caption-2-semibold text-text-tertiary">Apply to all tyres</p>
+                  <p className="mt-0.5 text-xs text-text-secondary">Then change any tyre on its own below.</p>
                 </div>
                 <SegmentedChoice
                   label="Apply one choice to every tyre"
@@ -234,24 +234,24 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
               </div>
 
               {/* One row per tyre */}
-              <ul className="max-h-[42vh] divide-y divide-slate-100 overflow-y-auto bg-white">
+              <ul className="max-h-[42vh] divide-y divide-separator-border overflow-y-auto bg-background-primary-default">
                 {fitments.map((f) => {
                   const t = tyres[f.tyreId];
                   const chosen = choices[f.id];
                   return (
                     <li
                       key={f.id}
-                      className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-slate-50/60"
+                      className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-fill-2"
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-separator-border bg-background-primary-default text-text-tertiary">
                         <CircleDot className="h-4 w-4" />
                       </span>
                       <div className="min-w-[160px] flex-1">
-                        <p className="flex items-center gap-1.5 font-mono text-[13px] font-semibold text-slate-800">
+                        <p className="flex items-center gap-1.5 font-mono text-body-2-semibold text-text-primary">
                           {t?.tyreNumber ?? `#${f.tyreId}`}
-                          {!chosen && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="Needs a choice" />}
+                          {!chosen && <span className="h-1.5 w-1.5 rounded-full bg-warning-solid" title="Needs a choice" />}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-slate-400">
+                        <p className="mt-0.5 text-[11px] text-text-tertiary">
                           {f.position}
                           {t && ` · ${t.brand}${t.tyreType ? ` ${t.tyreType.toLowerCase()}` : ""}`}
                           {t?.condition && ` · ${t.condition}`}
@@ -271,16 +271,16 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
           )}
 
           {/* Date + odometer (the sale date/odometer when selling) */}
-          <section className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 rounded-2xl border border-separator-border bg-fill-1 p-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              <span className="text-caption-2-semibold text-text-tertiary">
                 {isSell ? "Sale date" : "Removal date"}
               </span>
               <DatePickerInput value={removedDate} onChange={setRemovedDate} required />
-              {dateError && <p className="text-xs text-rose-600">{dateError}</p>}
+              {dateError && <p className="text-xs text-danger-text">{dateError}</p>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              <span className="text-caption-2-semibold text-text-tertiary">
                 {isSell ? "Odometer at sale" : "Odometer"}
               </span>
               <div className="relative">
@@ -292,15 +292,15 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
                   className={FIELD_CLS + " pr-12 tabular-nums"}
                   placeholder="e.g. 85000"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">km</span>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-caption-1-semibold text-text-tertiary">km</span>
               </div>
-              {odoError && <p className="text-xs text-rose-600">{odoError}</p>}
+              {odoError && <p className="text-xs text-danger-text">{odoError}</p>}
             </div>
 
             {isSell && (
               <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                  Sale note <span className="normal-case tracking-normal text-slate-300">(optional)</span>
+                <span className="text-caption-2-semibold text-text-tertiary">
+                  Sale note <span className="normal-case tracking-normal text-text-tertiary">(optional)</span>
                 </span>
                 <textarea
                   rows={2}
@@ -313,8 +313,8 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
             )}
             {isSell && requireReason && (
               <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                  Reason for request <span className="text-rose-500">*</span>
+                <span className="text-caption-2-semibold text-text-tertiary">
+                  Reason for request <span className="text-danger-text">*</span>
                 </span>
                 <textarea
                   rows={2}
@@ -328,18 +328,18 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
           </section>
 
           {/* Summary + actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-separator-border pt-4">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {unchosen > 0 ? (
-                <span className="flex items-center gap-1.5 font-semibold text-amber-600">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                <span className="flex items-center gap-1.5 font-semibold text-warning-text">
+                  <span className="h-1.5 w-1.5 rounded-full bg-warning-solid" />
                   {unchosen} of {fitments.length} tyre{fitments.length === 1 ? "" : "s"} still need a choice
                 </span>
               ) : (
                 choiceCounts.filter((c) => c.count > 0).map((c) => (
-                  <span key={c.value} className="flex items-center gap-1.5 text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-navy/60" />
-                    <span className="font-semibold tabular-nums text-slate-700">{c.count}</span> {c.label.toLowerCase()}
+                  <span key={c.value} className="flex items-center gap-1.5 text-text-secondary">
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent-solid/60" />
+                    <span className="font-semibold tabular-nums text-text-primary">{c.count}</span> {c.label.toLowerCase()}
                   </span>
                 ))
               )}
@@ -348,7 +348,7 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                className="rounded-full border border-separator-border bg-background-primary-default px-5 py-2 text-body-semibold text-text-secondary transition-colors hover:bg-fill-2"
               >
                 Cancel
               </button>
@@ -356,7 +356,7 @@ export function TruckTyreStepDialog({ truck, mode, requireReason = false, onClos
                 type="button"
                 disabled={!canConfirm}
                 onClick={confirm}
-                className="rounded-full bg-brand-navy px-5 py-2 text-sm font-semibold text-white shadow-[0_2px_8px_-2px_rgba(27,43,94,0.5)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                className="rounded-full bg-accent-solid px-5 py-2 text-body-semibold text-on-solid shadow-md transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
               >
                 {isSell ? (requireReason ? "Send Sell Request" : "Sell Truck") : "Continue"}
               </button>

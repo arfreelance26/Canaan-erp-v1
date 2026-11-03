@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Monitor, Circle, LogIn, Zap, Moon, ListChecks } from "lucide-react";
+import { RiComputerLine as Monitor, RiCheckboxBlankCircleLine as Circle, RiLoginBoxLine as LogIn, RiFlashlightLine as Zap, RiMoonLine as Moon, RiListCheck3 as ListChecks } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { usageApi, type UsageOverviewRow, type UsageDetail } from "@/lib/api";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -12,6 +12,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 function formatDuration(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -89,33 +90,33 @@ export default function UsageAnalyticsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
           <Monitor className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">SW Usage Analytics</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">SW Usage Analytics</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">
             Login/active/idle time, module usage, and actions performed per employee — a utilization view, not a performance score
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Online Now</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">{totals.online}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Online Now</p>
+          <p className="mt-1 text-title-1-semibold text-success-text">{totals.online}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total Active Time</p>
-          <p className="mt-1 text-2xl font-bold text-blue-600">{formatDuration(totals.active)}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Total Active Time</p>
+          <p className="mt-1 text-title-1-semibold text-accent-text">{formatDuration(totals.active)}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total Idle Time</p>
-          <p className="mt-1 text-2xl font-bold text-amber-600">{formatDuration(totals.idle)}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Total Idle Time</p>
+          <p className="mt-1 text-title-1-semibold text-warning-text">{formatDuration(totals.idle)}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Actions Performed</p>
-          <p className="mt-1 text-2xl font-bold text-gray-800">{totals.actions}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Actions Performed</p>
+          <p className="mt-1 text-title-1-semibold text-text-primary">{totals.actions}</p>
         </div>
       </div>
 
@@ -126,46 +127,41 @@ export default function UsageAnalyticsPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-separator-border bg-background-primary-default">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <Monitor className="h-8 w-8 text-gray-200" />
-            <p className="text-sm font-medium text-gray-500">
-              {rows.length === 0 ? "No usage data for this range yet." : "No employees match this search."}
-            </p>
-          </div>
+          <EmptyState size="compact" illustration="not-found" title={rows.length === 0 ? "No usage data for this range yet" : "No employees match this search"} />
         ) : (
           <table className="w-full text-sm whitespace-nowrap">
-            <thead className="border-b border-gray-200 bg-gray-50">
+            <thead className="border-b border-separator-border bg-fill-1">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Employee</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Role</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Login Time</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Active</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Idle</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Last Seen</th>
+                <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Employee</th>
+                <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Role</th>
+                <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Login Time</th>
+                <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Active</th>
+                <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Idle</th>
+                <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Actions</th>
+                <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Last Seen</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {filtered.map((r) => (
                 <tr
                   key={r.staffId}
                   onClick={() => openDetail(r)}
-                  className="cursor-pointer transition-colors hover:bg-gray-50"
+                  className="cursor-pointer transition-colors hover:bg-fill-2"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <Circle className={cn("h-2 w-2 shrink-0", r.isOnline ? "fill-emerald-500 text-emerald-500" : "fill-gray-300 text-gray-300")} />
-                      <span className="font-medium text-gray-900">{r.staffName}</span>
+                      <Circle className={cn("h-2 w-2 shrink-0", r.isOnline ? "fill-success-solid text-success-text" : "fill-foreground-icon-quaternary text-text-tertiary")} />
+                      <span className="font-medium text-text-primary">{r.staffName}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{r.staffRole ?? "—"}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatDuration(r.totalLoginSeconds)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-700">{formatDuration(r.totalActiveSeconds)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-amber-600">{formatDuration(r.totalIdleSeconds)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.actionCount}</td>
-                  <td className="px-4 py-3 text-right text-gray-500">{r.lastSeenAt ? formatDateTime(r.lastSeenAt) : "—"}</td>
+                  <td className="px-4 py-3 text-text-secondary">{r.staffRole ?? "—"}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-text-primary">{formatDuration(r.totalLoginSeconds)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-accent-text">{formatDuration(r.totalActiveSeconds)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-warning-text">{formatDuration(r.totalIdleSeconds)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-text-primary">{r.actionCount}</td>
+                  <td className="px-4 py-3 text-right text-text-secondary">{r.lastSeenAt ? formatDateTime(r.lastSeenAt) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -181,47 +177,47 @@ export default function UsageAnalyticsPage() {
         className="sm:max-w-2xl"
       >
         {detailLoading || !detail ? (
-          <p className="py-8 text-center text-sm text-gray-400">Loading…</p>
+          <p className="py-8 text-center text-sm text-text-tertiary">Loading…</p>
         ) : (
           <div className="flex flex-col gap-5">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400"><LogIn className="h-3 w-3" /> Login</p>
-                <p className="mt-1 text-lg font-bold text-gray-800">{formatDuration(detail.totalLoginSeconds)}</p>
+              <div className="rounded-lg border border-separator-border bg-fill-1 p-3">
+                <p className="flex items-center gap-1 text-caption-2-semibold text-text-tertiary"><LogIn className="h-3 w-3" /> Login</p>
+                <p className="mt-1 text-title-3-semibold text-text-primary">{formatDuration(detail.totalLoginSeconds)}</p>
               </div>
-              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400"><Zap className="h-3 w-3" /> Active</p>
-                <p className="mt-1 text-lg font-bold text-blue-700">{formatDuration(detail.totalActiveSeconds)}</p>
+              <div className="rounded-lg border border-separator-border bg-fill-1 p-3">
+                <p className="flex items-center gap-1 text-caption-2-semibold text-text-tertiary"><Zap className="h-3 w-3" /> Active</p>
+                <p className="mt-1 text-title-3-semibold text-accent-text">{formatDuration(detail.totalActiveSeconds)}</p>
               </div>
-              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400"><Moon className="h-3 w-3" /> Idle</p>
-                <p className="mt-1 text-lg font-bold text-amber-600">{formatDuration(detail.totalIdleSeconds)}</p>
+              <div className="rounded-lg border border-separator-border bg-fill-1 p-3">
+                <p className="flex items-center gap-1 text-caption-2-semibold text-text-tertiary"><Moon className="h-3 w-3" /> Idle</p>
+                <p className="mt-1 text-title-3-semibold text-warning-text">{formatDuration(detail.totalIdleSeconds)}</p>
               </div>
-              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400"><ListChecks className="h-3 w-3" /> Actions</p>
-                <p className="mt-1 text-lg font-bold text-gray-800">{detail.actionCount}</p>
+              <div className="rounded-lg border border-separator-border bg-fill-1 p-3">
+                <p className="flex items-center gap-1 text-caption-2-semibold text-text-tertiary"><ListChecks className="h-3 w-3" /> Actions</p>
+                <p className="mt-1 text-title-3-semibold text-text-primary">{detail.actionCount}</p>
               </div>
             </div>
 
             {/* Module usage breakdown */}
             <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Module Usage (active time)</p>
+              <p className="mb-2 text-caption-1-semibold text-text-tertiary">Module Usage (active time)</p>
               {detail.modules.length === 0 ? (
-                <p className="text-sm text-gray-400">No module activity logged in this range.</p>
+                <p className="text-sm text-text-tertiary">No module activity logged in this range.</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {(() => {
                     const max = Math.max(...detail.modules.map((m) => m.activeSeconds), 1);
                     return detail.modules.map((m) => (
                       <div key={m.module} className="flex items-center gap-3">
-                        <span className="w-44 shrink-0 truncate text-sm text-gray-700">{m.module}</span>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+                        <span className="w-44 shrink-0 truncate text-sm text-text-primary">{m.module}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-fill-2">
                           <div
-                            className="h-full rounded-full bg-blue-500"
+                            className="h-full rounded-full bg-accent-solid"
                             style={{ width: `${Math.max((m.activeSeconds / max) * 100, 2)}%` }}
                           />
                         </div>
-                        <span className="w-16 shrink-0 text-right text-xs font-semibold text-gray-600">{formatDuration(m.activeSeconds)}</span>
+                        <span className="w-16 shrink-0 text-right text-caption-1-semibold text-text-secondary">{formatDuration(m.activeSeconds)}</span>
                       </div>
                     ));
                   })()}
@@ -231,25 +227,25 @@ export default function UsageAnalyticsPage() {
 
             {/* Recent actions */}
             <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Recent Actions</p>
+              <p className="mb-2 text-caption-1-semibold text-text-tertiary">Recent Actions</p>
               {detail.recentActions.length === 0 ? (
-                <p className="text-sm text-gray-400">No actions logged in this range.</p>
+                <p className="text-sm text-text-tertiary">No actions logged in this range.</p>
               ) : (
-                <div className="max-h-56 overflow-auto rounded-lg border border-gray-100">
+                <div className="max-h-56 overflow-auto rounded-lg border border-separator-border">
                   <table className="w-full min-w-[420px] text-left text-sm">
-                    <thead className="sticky top-0 bg-gray-50">
-                      <tr className="border-b border-gray-100">
-                        <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Area</th>
-                        <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                        <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    <thead className="sticky top-0 bg-fill-1">
+                      <tr className="border-b border-separator-border">
+                        <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Area</th>
+                        <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                        <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-separator-border">
                       {detail.recentActions.map((a, i) => (
                         <tr key={i}>
-                          <td className="px-3 py-2 text-gray-600">{sourceLabel(a.source)}</td>
-                          <td className="px-3 py-2 font-medium text-gray-800">{a.event}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(a.createdAt)}</td>
+                          <td className="px-3 py-2 text-text-secondary">{sourceLabel(a.source)}</td>
+                          <td className="px-3 py-2 font-medium text-text-primary">{a.event}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(a.createdAt)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -260,19 +256,19 @@ export default function UsageAnalyticsPage() {
 
             {/* Sessions */}
             <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Sessions</p>
+              <p className="mb-2 text-caption-1-semibold text-text-tertiary">Sessions</p>
               {detail.sessions.length === 0 ? (
-                <p className="text-sm text-gray-400">No sessions in this range.</p>
+                <p className="text-sm text-text-tertiary">No sessions in this range.</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
                   {detail.sessions.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
-                      <span className="text-gray-700">
+                    <div key={s.id} className="flex items-center justify-between rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-xs">
+                      <span className="text-text-primary">
                         {formatDateTime(s.loginAt)} → {s.logoutAt ? formatDateTime(s.logoutAt) : "still open"}
                       </span>
                       <span className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                        s.endedReason === "timeout" ? "bg-amber-100 text-amber-700" : s.endedReason === "logout" ? "bg-gray-100 text-gray-600" : "bg-emerald-100 text-emerald-700"
+                        "rounded-full px-2 py-0.5 text-caption-2-semibold",
+                        s.endedReason === "timeout" ? "bg-warning-surface-strong text-warning-text" : s.endedReason === "logout" ? "bg-fill-2 text-text-secondary" : "bg-success-surface-strong text-success-text"
                       )}>
                         {s.endedReason === "timeout" ? "Closed without logout" : s.endedReason === "logout" ? "Logged out" : "Open"}
                       </span>

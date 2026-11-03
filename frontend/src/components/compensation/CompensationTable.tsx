@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 export type CompensationPerson = {
   id: string;
   driverId?: string;
@@ -51,50 +52,48 @@ export function CompensationTable({
   const isAdmin = authUser?.softwareDesignation === "Admin";
   if (people.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No records yet.
-      </div>
+      <EmptyState size="compact" illustration="no-data" title="No records yet" />
     );
   }
 
   return (
-    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[700px] text-left text-sm whitespace-nowrap">
         <thead className="sticky top-0 z-10">
-          <tr className="border-b border-gray-200 bg-gray-50">
-            <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+          <tr className="border-b border-separator-border bg-fill-1">
+            <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
               {photoLabel}
             </th>
             {idLabel && (
-              <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                 {idLabel}
               </th>
             )}
-            <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+            <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
               {nameLabel}
             </th>
-            <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+            <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
               Actions
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-separator-border">
           {people.map((person) => (
-            <tr key={person.id} className="hover:bg-gray-50">
+            <tr key={person.id} className="hover:bg-fill-2">
               <td className="px-4 py-3">
                 <Avatar photoUrl={person.photoUrl} label={person.name} size={44} />
               </td>
               {idLabel && (
-                <td className="px-4 py-3 font-mono text-xs text-gray-600">{person.driverId ?? "—"}</td>
+                <td className="px-4 py-3 font-mono text-xs text-text-secondary">{person.driverId ?? "—"}</td>
               )}
-              <td className="px-4 py-3 font-medium text-gray-900">{person.name}</td>
+              <td className="px-4 py-3 font-medium text-text-primary">{person.name}</td>
               <td className="px-4 py-4">
                 <div className="flex flex-wrap items-center gap-3">
                   {onSalaryStatement && (
                     <button
                       type="button"
                       onClick={() => onSalaryStatement(person)}
-                      className="rounded-lg border border-emerald-600 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                      className="rounded-lg border border-success-solid bg-success-solid px-4 py-2 text-caption-1-semibold text-on-solid shadow-sm transition-colors hover:bg-success-solid-hover"
                     >
                       Salary Record
                     </button>
@@ -103,7 +102,7 @@ export function CompensationTable({
                     <button
                       type="button"
                       onClick={() => onPayAdvance(person)}
-                      className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2 text-xs font-semibold text-yellow-700 shadow-sm transition-colors hover:border-yellow-300 hover:bg-yellow-100"
+                      className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2 text-caption-1-semibold text-warning-text shadow-sm transition-colors hover:border-warning-border-strong hover:bg-warning-surface-strong"
                     >
                       Advance Record
                     </button>
@@ -111,7 +110,7 @@ export function CompensationTable({
                   <button
                     type="button"
                     onClick={() => onPaySalary(person)}
-                    className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 shadow-sm transition-colors hover:border-green-300 hover:bg-green-100"
+                    className="rounded-lg border border-success-border bg-success-surface px-4 py-2 text-caption-1-semibold text-success-text shadow-sm transition-colors hover:border-success-border-strong hover:bg-success-surface-strong"
                   >
                     {onSalaryStatement ? "Trip Salary Record" : "Salary Record"}
                   </button>
@@ -119,7 +118,7 @@ export function CompensationTable({
                     <button
                       type="button"
                       onClick={() => onHaltPay(person)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                      className="rounded-lg border border-separator-border bg-fill-1 px-4 py-2 text-caption-1-semibold text-text-primary shadow-sm transition-colors hover:border-border-button-default hover:bg-fill-3"
                     >
                       Halt Pay Record
                     </button>
@@ -128,7 +127,7 @@ export function CompensationTable({
                     <button
                       type="button"
                       onClick={() => onCleanerBatta(person)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                      className="rounded-lg border border-separator-border bg-fill-1 px-4 py-2 text-caption-1-semibold text-text-primary shadow-sm transition-colors hover:border-border-button-default hover:bg-fill-3"
                     >
                       Cleaner Batta Record
                     </button>
@@ -137,7 +136,7 @@ export function CompensationTable({
                     <button
                       type="button"
                       onClick={() => onWorkshopBatta(person)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                      className="rounded-lg border border-separator-border bg-fill-1 px-4 py-2 text-caption-1-semibold text-text-primary shadow-sm transition-colors hover:border-border-button-default hover:bg-fill-3"
                     >
                       Workshop Batta Record
                     </button>
@@ -146,7 +145,7 @@ export function CompensationTable({
                     <button
                       type="button"
                       onClick={() => onWorkshopAdvance(person)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                      className="rounded-lg border border-separator-border bg-fill-1 px-4 py-2 text-caption-1-semibold text-text-primary shadow-sm transition-colors hover:border-border-button-default hover:bg-fill-3"
                     >
                       Workshop Advance Record
                     </button>
@@ -155,7 +154,7 @@ export function CompensationTable({
 <button
                     type="button"
                     onClick={() => onViewHistory(person)}
-                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50"
+                    className="rounded-lg border border-separator-border bg-background-primary-default px-4 py-2 text-caption-1-semibold text-text-primary shadow-sm transition-colors hover:border-border-button-default hover:bg-fill-2"
                   >
                     Transaction History
                   </button>

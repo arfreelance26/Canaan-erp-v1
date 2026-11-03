@@ -10,12 +10,14 @@ import { useIdleTimer } from "@/hooks/useIdleTimer";
 import { useUsageHeartbeat } from "@/hooks/useUsageHeartbeat";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAttendanceGate } from "@/hooks/useAttendanceGate";
-import { showToast } from "@/lib/swal";
+import { showToast } from "@/lib/feedback";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { LOGOUT_REASON_KEY } from "@/lib/api";
 import { RoomSummonListener } from "./RoomSummonListener";
-import { EventReminderListener } from "./EventReminderListener";import { cn } from "@/lib/utils";
+import { EventReminderListener } from "./EventReminderListener";
+import { cn } from "@/lib/utils";
+import { useEnter } from "@/lib/motion";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
 const IDLE_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes
@@ -28,6 +30,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  // One entrance per route: the page content condenses into place (lib/motion).
+  const mainRef = useRef<HTMLDivElement>(null);
+  useEnter(mainRef, pathname);
 
   // initialIdle=false — otherwise the hook reports "idle" on first render and
   // the effect below would log the user out immediately on every refresh.
@@ -134,11 +139,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           versus reflowing it on every frame of a 200ms transition. The fixed
           sidebar sits above (z-50) and visually covers this boundary while
           it animates, so the instant snap underneath is never seen. */}
-      <div className={cn("hidden shrink-0 md:block", collapsed ? "md:w-16" : "md:w-[310px]")} />
+      <div className={cn("hidden shrink-0 md:block", collapsed ? "md:w-16" : "md:w-64")} />
       <div className="flex min-w-0 flex-1 flex-col [contain:layout_style]">
         <CelebrationPreviewBar />
         <Topbar onMenuOpen={() => setMobileMenuOpen((v) => !v)} attendanceLocked={attendanceLocked} />
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-3 dark:bg-[#090c14] sm:p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-background-full p-4 md:p-6">
+          <div ref={mainRef} className="mx-auto h-full w-full max-w-[1600px]">{children}</div>
+        </main>
       </div>
       {/* <ERPChatWidget /> */}{/* Next phase */}
       <RoomSummonListener />

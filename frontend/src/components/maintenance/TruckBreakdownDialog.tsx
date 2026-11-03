@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { BarChart3, Gauge, CalendarDays, Route } from "lucide-react";
+import { RiBarChartBoxLine as BarChart3, RiDashboard3Line as Gauge, RiCalendar2Line as CalendarDays, RiRouteLine as Route } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useTruckTripRuns, useTruckRunStats, missingSheetsNote } from "@/hooks/useTruckTripRuns";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type TruckBreakdownDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -19,11 +20,11 @@ function fmtKm(n: number): string {
 
 function StatTile({ icon: Icon, label, value }: { icon: typeof Gauge; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+    <div className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+      <p className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary">
         <Icon className="h-3 w-3" /> {label}
       </p>
-      <p className="mt-1 text-lg font-bold text-gray-900">{value}</p>
+      <p className="mt-1 text-title-3-semibold text-text-primary">{value}</p>
     </div>
   );
 }
@@ -46,14 +47,11 @@ export function TruckBreakdownDialog({ open, onClose, truck }: TruckBreakdownDia
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-gray-100" />
+            <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-fill-2" />
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-10 text-center">
-          <BarChart3 className="h-7 w-7 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">No trips found for this truck.</p>
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No trips found for this truck" />
       ) : (
         <div className="flex flex-col gap-5">
           {/* Summary stats */}
@@ -65,40 +63,40 @@ export function TruckBreakdownDialog({ open, onClose, truck }: TruckBreakdownDia
             <StatTile icon={Route} label="Longest Trip" value={fmtKm(stats.longest)} />
             <StatTile icon={Route} label="Shortest Trip" value={stats.tripsWithDistance > 0 ? fmtKm(stats.shortest) : "—"} />
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-text-tertiary">
             Based on {stats.tripsWithDistance} trip{stats.tripsWithDistance !== 1 ? "s" : ""} with a trip sheet, over{" "}
             {stats.days} day{stats.days !== 1 ? "s" : ""} ({stats.months.toFixed(1)} months, from the first such trip to the latest trip entered in the system;
             minimum one month). Cancelled trips and trips without a sheet aren&apos;t counted.
           </p>
           {stats.missingSheets > 0 && (
-            <p className="-mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 ring-1 ring-amber-100">
+            <p className="-mt-3 rounded-lg bg-warning-surface px-3 py-2 text-caption-1-medium text-warning-text-strong ring-1 ring-warning-border">
               {missingSheetsNote(stats)}.
             </p>
           )}
 
           {/* Per-trip breakdown */}
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
+          <div className="overflow-x-auto rounded-xl border border-separator-border">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Trip ID</th>
-                  <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Date</th>
-                  <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Category</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Distance</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Share of Total</th>
+                <tr className="border-b border-separator-border bg-fill-1">
+                  <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Trip ID</th>
+                  <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Date</th>
+                  <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">Category</th>
+                  <th className="px-4 py-2.5 text-right text-caption-1-semibold text-text-secondary">Distance</th>
+                  <th className="px-4 py-2.5 text-right text-caption-1-semibold text-text-secondary">Share of Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {rows.map(({ trip, totalKm }) => {
                   const km = Number(totalKm) || 0;
                   const share = stats.totalDistance > 0 ? (km / stats.totalDistance) * 100 : 0;
                   return (
-                    <tr key={trip.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5 font-medium text-gray-800">{trip.tripId}</td>
-                      <td className="px-4 py-2.5 text-gray-600">{formatDate(trip.assignedDate)}</td>
-                      <td className="px-4 py-2.5 text-gray-600">{trip.tripCategory || "—"}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{km > 0 ? fmtKm(km) : "—"}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{km > 0 ? `${share.toFixed(1)}%` : "—"}</td>
+                    <tr key={trip.id} className="hover:bg-fill-2">
+                      <td className="px-4 py-2.5 font-medium text-text-primary">{trip.tripId}</td>
+                      <td className="px-4 py-2.5 text-text-secondary">{formatDate(trip.assignedDate)}</td>
+                      <td className="px-4 py-2.5 text-text-secondary">{trip.tripCategory || "—"}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-text-primary">{km > 0 ? fmtKm(km) : "—"}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-text-secondary">{km > 0 ? `${share.toFixed(1)}%` : "—"}</td>
                     </tr>
                   );
                 })}

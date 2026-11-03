@@ -14,36 +14,32 @@ import { TruckComplianceView } from "@/components/fleet/TruckComplianceView";
 import { UpdationHistoryDialog } from "@/components/fleet/UpdationHistoryDialog";
 import type { Truck } from "@/types/truck";
 import { useTruckRunStats, missingSheetsNote } from "@/hooks/useTruckTripRuns";
-import {
-  X, History,
-  IdCard, ClipboardCheck, Receipt, Globe, MapPin, Wind, ShieldCheck,
-  Loader2, IndianRupee, Info,
-  CalendarDays, Clock3, Gauge, Sparkles,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { RiCloseLine as X, RiHistoryLine as History, RiProfileLine as IdCard, RiClipboardLine as ClipboardCheck, RiReceiptLine as Receipt, RiGlobalLine as Globe, RiMapPin2Line as MapPin, RiWindyLine as Wind, RiShieldCheckLine as ShieldCheck, RiLoader4Line as Loader2, RiMoneyRupeeCircleLine as IndianRupee, RiInformationLine as Info, RiCalendar2Line as CalendarDays, RiTimeLine as Clock3, RiDashboard3Line as Gauge, RiStarLine as Sparkles } from "@remixicon/react";
+import { type RemixiconComponentType as LucideIcon } from "@remixicon/react";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const STAT_CELL_ACCENTS: Record<"emerald" | "indigo" | "muted", { icon: string; label: string; value: string; border: string; bg: string }> = {
   // Calm, neutral cells — the Cost Breakdown keeps colour for status only.
   emerald: {
-    icon: "bg-slate-100 text-slate-500",
-    label: "text-slate-400",
-    value: "text-slate-800",
-    border: "border-slate-200",
-    bg: "bg-white",
+    icon: "bg-fill-2 text-text-secondary",
+    label: "text-text-tertiary",
+    value: "text-text-primary",
+    border: "border-separator-border",
+    bg: "bg-background-primary-default",
   },
   indigo: {
-    icon: "bg-brand-navy/10 text-brand-navy",
-    label: "text-slate-400",
-    value: "text-brand-navy",
-    border: "border-slate-200",
-    bg: "bg-white",
+    icon: "bg-accent-solid/10 text-accent-text-strong",
+    label: "text-text-tertiary",
+    value: "text-accent-text-strong",
+    border: "border-separator-border",
+    bg: "bg-background-primary-default",
   },
   muted: {
-    icon: "bg-slate-50 text-slate-300",
-    label: "text-slate-300",
-    value: "text-slate-300",
-    border: "border-dashed border-slate-200",
-    bg: "bg-slate-50/60",
+    icon: "bg-fill-1 text-text-tertiary",
+    label: "text-text-tertiary",
+    value: "text-text-tertiary",
+    border: "border-dashed border-separator-border",
+    bg: "bg-fill-1",
   },
 };
 
@@ -65,9 +61,9 @@ function StatCell({
         <div className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md", s.icon)}>
           <Icon className="h-3 w-3" />
         </div>
-        <p className={cn("text-[9px] font-semibold uppercase leading-tight tracking-wide", s.label)}>{label}</p>
+        <p className={cn("text-[9px] font-semibold leading-tight", s.label)}>{label}</p>
       </div>
-      <p className={cn("text-sm font-semibold tabular-nums", s.value)}>{children}</p>
+      <p className={cn("text-body-semibold tabular-nums", s.value)}>{children}</p>
     </div>
   );
 }
@@ -91,9 +87,9 @@ type ComplianceTableProps = {
 };
 
 const TABLE_STATUS: Record<string, string> = {
-  Valid:           "bg-green-50  text-green-700",
-  "Expiring Soon": "bg-amber-50  text-amber-700",
-  Expired:         "bg-red-50    text-red-600",
+  Valid:           "bg-success-surface text-success-text",
+  "Expiring Soon": "bg-warning-surface text-warning-text",
+  Expired:         "bg-danger-surface text-danger-text",
 };
 
 // ---------------------------------------------------------------------------
@@ -104,8 +100,8 @@ function ComplianceCell({ date, field = "default" }: { date: string; field?: Com
   const status = getComplianceStatus(date, field);
   return (
     <div className="flex flex-col gap-1">
-      <span className="whitespace-nowrap text-gray-600">{formatDate(date)}</span>
-      <span className={cn("inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", TABLE_STATUS[status])}>
+      <span className="whitespace-nowrap text-text-secondary">{formatDate(date)}</span>
+      <span className={cn("inline-flex w-fit rounded-full px-2 py-0.5 text-caption-1-medium whitespace-nowrap", TABLE_STATUS[status])}>
         {status}
       </span>
     </div>
@@ -128,13 +124,13 @@ type CostDocDef = {
 };
 
 const COST_DOCS: CostDocDef[] = [
-  { label: "RC",                    expKey: "rcExpenses",                   dateKey: "rcValidityDate",           historyDocType: "RC",                      Icon: IdCard,         iconBg: "bg-blue-100",    iconText: "text-blue-700",    accentText: "text-blue-700"    },
-  { label: "FC (Fitness Cert.)",    expKey: "fcExpenses",                   dateKey: "fcExpiryDate",             historyDocType: "FC (Fitness Certificate)", Icon: ClipboardCheck, iconBg: "bg-violet-100",  iconText: "text-violet-700",  accentText: "text-violet-700"  },
-  { label: "Road Tax",              expKey: "roadTaxExpenses",              dateKey: "roadTaxDate",              historyDocType: "Road Tax",                Icon: Receipt,        iconBg: "bg-orange-100",  iconText: "text-orange-700",  accentText: "text-orange-700"  },
-  { label: "National Permit",       expKey: "nationalPermitExpenses",       dateKey: "nationalPermitDate",       historyDocType: "National Permit",         Icon: Globe,          iconBg: "bg-teal-100",    iconText: "text-teal-700",    accentText: "text-teal-700"    },
-  { label: "Local Permit",          expKey: "localPermitExpenses",          dateKey: "localPermitDate",          historyDocType: "Local Permit",            Icon: MapPin,         iconBg: "bg-cyan-100",    iconText: "text-cyan-700",    accentText: "text-cyan-700"    },
-  { label: "Pollution Certificate", expKey: "pollutionCertificateExpenses", dateKey: "pollutionCertificateDate", historyDocType: "Pollution Certificate",   Icon: Wind,           iconBg: "bg-emerald-100", iconText: "text-emerald-700", accentText: "text-emerald-700" },
-  { label: "Insurance",             expKey: "insuranceExpenses",            dateKey: "insuranceExpiryDate",      historyDocType: "Insurance",               Icon: ShieldCheck,    iconBg: "bg-indigo-100",  iconText: "text-indigo-700",  accentText: "text-indigo-700"  },
+  { label: "RC",                    expKey: "rcExpenses",                   dateKey: "rcValidityDate",           historyDocType: "RC",                      Icon: IdCard,         iconBg: "bg-accent-surface-strong",    iconText: "text-accent-text",    accentText: "text-accent-text"    },
+  { label: "FC (Fitness Cert.)",    expKey: "fcExpenses",                   dateKey: "fcExpiryDate",             historyDocType: "FC (Fitness Certificate)", Icon: ClipboardCheck, iconBg: "bg-purple-surface-strong",  iconText: "text-purple-text",  accentText: "text-purple-text"  },
+  { label: "Road Tax",              expKey: "roadTaxExpenses",              dateKey: "roadTaxDate",              historyDocType: "Road Tax",                Icon: Receipt,        iconBg: "bg-orange-surface-strong",  iconText: "text-orange-text",  accentText: "text-orange-text"  },
+  { label: "National Permit",       expKey: "nationalPermitExpenses",       dateKey: "nationalPermitDate",       historyDocType: "National Permit",         Icon: Globe,          iconBg: "bg-teal-surface-strong",    iconText: "text-teal-text",    accentText: "text-teal-text"    },
+  { label: "Local Permit",          expKey: "localPermitExpenses",          dateKey: "localPermitDate",          historyDocType: "Local Permit",            Icon: MapPin,         iconBg: "bg-teal-surface-strong",    iconText: "text-teal-text",    accentText: "text-teal-text"    },
+  { label: "Pollution Certificate", expKey: "pollutionCertificateExpenses", dateKey: "pollutionCertificateDate", historyDocType: "Pollution Certificate",   Icon: Wind,           iconBg: "bg-success-surface-strong", iconText: "text-success-text", accentText: "text-success-text" },
+  { label: "Insurance",             expKey: "insuranceExpenses",            dateKey: "insuranceExpiryDate",      historyDocType: "Insurance",               Icon: ShieldCheck,    iconBg: "bg-purple-surface-strong",  iconText: "text-purple-text",  accentText: "text-purple-text"  },
 ];
 
 // Cost Breakdown's history label → the compliance record's doc key.
@@ -161,18 +157,18 @@ function daysBetween(from: string | Date, to: string | Date): number {
 type SectionColor = "blue" | "violet" | "emerald" | "amber" | "gray";
 
 const SECTION_COLORS: Record<SectionColor, { wrap: string; heading: string }> = {
-  blue:    { wrap: "border-blue-100 bg-blue-50",     heading: "text-blue-700"    },
-  violet:  { wrap: "border-violet-100 bg-violet-50", heading: "text-violet-700"  },
-  emerald: { wrap: "border-emerald-100 bg-emerald-50",heading: "text-emerald-700"},
-  amber:   { wrap: "border-amber-100 bg-amber-50",   heading: "text-amber-700"   },
-  gray:    { wrap: "border-gray-100 bg-gray-50",     heading: "text-gray-500"    },
+  blue:    { wrap: "border-accent-border bg-accent-surface",     heading: "text-accent-text"    },
+  violet:  { wrap: "border-purple-border bg-purple-surface", heading: "text-purple-text"  },
+  emerald: { wrap: "border-success-border bg-success-surface",heading: "text-success-text"},
+  amber:   { wrap: "border-warning-border bg-warning-surface",   heading: "text-warning-text"   },
+  gray:    { wrap: "border-separator-border bg-fill-1",     heading: "text-text-secondary"    },
 };
 
 function CalcSection({ title, color, children }: { title: string; color: SectionColor; children: ReactNode }) {
   const { wrap, heading } = SECTION_COLORS[color];
   return (
     <div className={cn("rounded-xl border px-4 py-3 space-y-3", wrap)}>
-      <p className={cn("text-[10px] font-bold uppercase tracking-wider", heading)}>{title}</p>
+      <p className={cn("text-caption-2-semibold", heading)}>{title}</p>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -182,12 +178,12 @@ function FormulaRow({ label, formula, desc }: { label: string; formula: string; 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-bold text-gray-800">{label}</span>
-        <span className="rounded border border-gray-200 bg-white/80 px-2 py-0.5 font-mono text-[10px] text-gray-600">
+        <span className="text-caption-1-semibold text-text-primary">{label}</span>
+        <span className="rounded border border-separator-border bg-background-primary-default px-2 py-0.5 font-mono text-[10px] text-text-secondary">
           {formula}
         </span>
       </div>
-      <p className="text-[10px] leading-relaxed text-gray-500">{desc}</p>
+      <p className="text-[10px] leading-relaxed text-text-secondary">{desc}</p>
     </div>
   );
 }
@@ -199,24 +195,24 @@ function CalcInfoDialog({ kmPerDay, onClose }: { kmPerDay: number | null; onClos
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-scrim/60 sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[90vh]">
+      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-background-primary-default shadow-2xl sm:rounded-2xl max-h-[90vh]">
 
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100">
-            <Info className="h-4 w-4 text-blue-600" />
+        <div className="flex items-center gap-3 border-b border-separator-border px-6 py-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-surface-strong">
+            <Info className="h-4 w-4 text-accent-text" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-bold text-gray-900">How Values Are Calculated</h2>
-            <p className="text-xs text-gray-400">Methodology behind every figure in the Cost Breakdown</p>
+            <h2 className="text-body-semibold text-text-primary">How Values Are Calculated</h2>
+            <p className="text-xs text-text-tertiary">Methodology behind every figure in the Cost Breakdown</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="shrink-0 rounded-xl p-2 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -287,12 +283,12 @@ function CalcInfoDialog({ kmPerDay, onClose }: { kmPerDay: number | null; onClos
             />
           </CalcSection>
 
-          <div className="flex gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-            <p className="text-[10px] leading-relaxed text-amber-800">
+          <div className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-text" />
+            <p className="text-[10px] leading-relaxed text-warning-text-strong">
               Per Day, Per Month, and Per KM are only shown for documents that have both an expense
               and a history record. Documents registered or updated through the app always have a
-              history record. Documents without one show <span className="font-bold">—</span> in those fields.
+              history record. Documents without one show <span className="font-semibold">—</span> in those fields.
             </p>
           </div>
         </div>
@@ -394,26 +390,26 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
 
   const portal = createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/60 sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[88vh]">
+      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-background-primary-default shadow-2xl sm:rounded-2xl max-h-[88vh]">
 
         {/* Header */}
-        <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 ring-1 ring-slate-200/70">
+        <div className="flex items-center gap-4 border-b border-separator-border px-6 py-5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fill-2 text-text-secondary ring-1 ring-separator-border">
             <IndianRupee className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold text-slate-900">Cost Breakdown</h2>
-            <p className="text-xs text-slate-400">
+            <h2 className="text-headline-semibold text-text-primary">Cost Breakdown</h2>
+            <p className="text-xs text-text-tertiary">
               {truck.truckId} · {truck.registrationNumber}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowCalcInfo(true)}
-            className="shrink-0 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+            className="shrink-0 flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary transition-colors hover:border-border-button-default hover:bg-fill-2 hover:text-text-primary"
           >
             <Info className="h-3.5 w-3.5" />
             How is it Calculated?
@@ -421,21 +417,21 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="shrink-0 rounded-xl p-2 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {loadingHx ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-text-tertiary">
             <Loader2 className="h-6 w-6 animate-spin" />
             <span className="text-sm">Loading cost data…</span>
           </div>
         ) : (
           <>
             {/* Document cost cards */}
-            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-5 py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-fill-1 px-5 py-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {computed.map(({ doc, raw, expiryDate, daysLeft, perDay, perMonth, perKm }) => {
                   const { Icon } = doc;
@@ -445,27 +441,27 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                   return (
                     <div
                       key={doc.expKey as string}
-                      className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 transition-colors hover:border-slate-300"
+                      className="flex flex-col gap-3 rounded-2xl border border-separator-border bg-background-primary-default p-4 transition-colors hover:border-border-button-default"
                     >
                       {/* Icon + document name */}
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-fill-2 text-text-secondary">
                           <Icon className="h-4 w-4" />
                         </div>
-                        <p className="text-sm font-semibold text-slate-800">{doc.label}</p>
+                        <p className="text-body-semibold text-text-primary">{doc.label}</p>
                       </div>
 
                       {/* Validity Date + Last Updated Expense — two labeled fields */}
-                      <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                      <div className="grid grid-cols-2 gap-3 rounded-xl bg-fill-1 px-3 py-2.5">
                         <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Validity Date</p>
+                          <p className="text-caption-2-semibold text-text-tertiary">Validity Date</p>
                           {hasDate ? (
                             <>
-                              <p className="text-sm font-semibold tabular-nums text-slate-800">{formatDate(expiryDate)}</p>
+                              <p className="text-body-semibold tabular-nums text-text-primary">{formatDate(expiryDate)}</p>
                               {daysLeft !== null && (
                                 <p className={cn(
-                                  "text-[10px] font-semibold",
-                                  isExpired ? "text-rose-500" : daysLeft <= 30 ? "text-amber-600" : "text-slate-400"
+                                  "text-caption-2-semibold",
+                                  isExpired ? "text-danger-text" : daysLeft <= 30 ? "text-warning-text" : "text-text-tertiary"
                                 )}>
                                   {isExpired
                                     ? `${Math.abs(daysLeft)}d overdue`
@@ -474,12 +470,12 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                               )}
                             </>
                           ) : (
-                            <p className="text-[11px] italic text-slate-400">Not set</p>
+                            <p className="text-[11px] text-text-tertiary">Not set</p>
                           )}
                         </div>
                         <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Last Updated Expense</p>
-                          <p className={cn("text-sm font-semibold tabular-nums", raw > 0 ? "text-slate-900" : "text-slate-300")}>
+                          <p className="text-caption-2-semibold text-text-tertiary">Last Updated Expense</p>
+                          <p className={cn("text-body-semibold tabular-nums", raw > 0 ? "text-text-primary" : "text-text-tertiary")}>
                             {raw > 0 ? fmtCost(raw) : "—"}
                           </p>
                         </div>
@@ -487,36 +483,36 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
 
                       {/* Per month / per day / per km — only shown when history anchor exists */}
                       {perDay !== null ? (
-                        <div className="grid grid-cols-3 divide-x divide-slate-100 pt-1">
+                        <div className="grid grid-cols-3 divide-x divide-separator-border pt-1">
                           <div className="pr-3">
-                            <p className="text-sm font-semibold tabular-nums text-gray-800">{fmtCost(perMonth ?? 0)}</p>
-                            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">per month</p>
+                            <p className="text-body-semibold tabular-nums text-text-primary">{fmtCost(perMonth ?? 0)}</p>
+                            <p className="mt-0.5 text-caption-2-medium text-text-tertiary">per month</p>
                           </div>
                           <div className="px-3">
-                            <p className="text-sm font-semibold tabular-nums text-gray-800">{fmtCost(perDay)}</p>
-                            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">per day</p>
+                            <p className="text-body-semibold tabular-nums text-text-primary">{fmtCost(perDay)}</p>
+                            <p className="mt-0.5 text-caption-2-medium text-text-tertiary">per day</p>
                           </div>
                           <div className="pl-3">
-                            <p className="text-sm font-semibold tabular-nums text-gray-800">
+                            <p className="text-body-semibold tabular-nums text-text-primary">
                               {perKm !== null ? `₹${perKm.toFixed(4)}` : "—"}
                             </p>
-                            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">per km</p>
+                            <p className="mt-0.5 text-caption-2-medium text-text-tertiary">per km</p>
                           </div>
                         </div>
                       ) : raw > 0 && isExpired ? (
-                        <p className="pt-1 text-[11px] italic text-rose-400">
+                        <p className="pt-1 text-[11px] text-danger-text">
                           Document expired — renew to recalculate costs
                         </p>
                       ) : raw > 0 && !hasDate ? (
-                        <p className="pt-1 text-[11px] italic text-gray-400">
+                        <p className="pt-1 text-[11px] text-text-tertiary">
                           Set validity date to calculate costs
                         </p>
                       ) : raw > 0 ? (
-                        <p className="pt-1 text-[11px] italic text-gray-400">
+                        <p className="pt-1 text-[11px] text-text-tertiary">
                           Update document to calculate costs
                         </p>
                       ) : (
-                        <p className="pt-1 text-[11px] italic text-gray-400">No expense recorded</p>
+                        <p className="pt-1 text-[11px] text-text-tertiary">No expense recorded</p>
                       )}
                     </div>
                   );
@@ -527,18 +523,18 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
             {/* Totals footer — visually distinct from the scroll area above via a
                 real border + lifted shadow, so it never reads as overlapping the
                 last row of cards. */}
-            <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-5">
+            <div className="shrink-0 border-t border-separator-border bg-background-primary-default px-5 py-5">
               <div className="flex flex-col gap-3 sm:flex-row">
 
                 {/* Total Compliance Cost — primary card */}
-                <div className="relative flex min-h-[92px] flex-1 items-center gap-4 overflow-hidden rounded-2xl bg-brand-navy px-5 py-4">
-                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
-                    <IndianRupee className="h-5 w-5 text-white/90" />
+                <div className="relative flex min-h-[92px] flex-1 items-center gap-4 overflow-hidden rounded-2xl bg-accent-solid px-5 py-4">
+                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-on-solid/10 ring-1 ring-background-primary-default">
+                    <IndianRupee className="h-5 w-5 text-on-solid/90" />
                   </div>
                   <div className="relative min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">Total Compliance Cost</p>
-                    <p className="mt-0.5 truncate text-[26px] font-semibold leading-tight tracking-tight tabular-nums text-white">
-                      {totalExpense > 0 ? fmtCost(totalExpense) : <span className="text-base font-medium text-white/60">No expenses recorded</span>}
+                    <p className="text-caption-2-semibold text-on-solid/50">Total Compliance Cost</p>
+                    <p className="mt-0.5 truncate text-[26px] font-semibold leading-tight tracking-tight tabular-nums text-on-solid">
+                      {totalExpense > 0 ? fmtCost(totalExpense) : <span className="text-headline-medium text-on-solid/60">No expenses recorded</span>}
                     </p>
                   </div>
                 </div>
@@ -546,10 +542,10 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                 {/* Per Month / Per Day / Cost/km (Basic) / Cost/km (Advanced) — compact stat grid */}
                 <div className="grid grid-cols-2 gap-2.5 sm:w-[320px] sm:shrink-0">
                   <StatCell icon={CalendarDays} label="Per Month" accent="emerald">
-                    {totalPerMonth > 0 ? fmtCost(totalPerMonth) : <span className="text-xs font-medium text-gray-300">—</span>}
+                    {totalPerMonth > 0 ? fmtCost(totalPerMonth) : <span className="text-caption-1-medium text-text-tertiary">—</span>}
                   </StatCell>
                   <StatCell icon={Clock3} label="Per Day" accent="emerald">
-                    {totalPerDay > 0 ? fmtCost(totalPerDay) : <span className="text-xs font-medium text-gray-300">—</span>}
+                    {totalPerDay > 0 ? fmtCost(totalPerDay) : <span className="text-caption-1-medium text-text-tertiary">—</span>}
                   </StatCell>
                   <StatCell icon={Gauge} label="Cost/km (Basic)" accent={totalPerKm !== null ? "emerald" : "muted"}>
                     {totalPerKm !== null ? `₹${totalPerKm.toFixed(4)}` : "—"}
@@ -561,18 +557,18 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
               </div>
 
               {/* Formula footnote */}
-              <div className="mt-3 flex flex-col gap-1 rounded-xl bg-slate-50 px-3.5 py-2.5">
-                <p className="text-[10px] leading-relaxed text-slate-400">
-                  <span className="font-semibold text-slate-500">Per month</span> = 26 working days &nbsp;·&nbsp;
-                  <span className="font-semibold text-slate-500"> Per day</span> = amortized daily &nbsp;·&nbsp;
-                  <span className="font-semibold text-slate-500"> Cost/km (Basic)</span> = {totalPerKm !== null ? "total daily cost ÷ km/day" : "set km/day in Admin → Truck Run Config to unlock"}
+              <div className="mt-3 flex flex-col gap-1 rounded-xl bg-fill-1 px-3.5 py-2.5">
+                <p className="text-[10px] leading-relaxed text-text-tertiary">
+                  <span className="font-semibold text-text-secondary">Per month</span> = 26 working days &nbsp;·&nbsp;
+                  <span className="font-semibold text-text-secondary"> Per day</span> = amortized daily &nbsp;·&nbsp;
+                  <span className="font-semibold text-text-secondary"> Cost/km (Basic)</span> = {totalPerKm !== null ? "total daily cost ÷ km/day" : "set km/day in Admin → Truck Run Config to unlock"}
                 </p>
-                <p className="text-[10px] leading-relaxed text-slate-400">
-                  <span className="font-semibold text-slate-500">Cost/km (Advanced)</span> = Per day × 26 ÷ Monthly Distance Average
+                <p className="text-[10px] leading-relaxed text-text-tertiary">
+                  <span className="font-semibold text-text-secondary">Cost/km (Advanced)</span> = Per day × 26 ÷ Monthly Distance Average
                   {runStats.monthlyAvg > 0
                     ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
                     : " — no trip run history for this truck yet"}
-                  {missingSheetsNote(runStats) && <span className="block text-amber-600">{missingSheetsNote(runStats)}</span>}
+                  {missingSheetsNote(runStats) && <span className="block text-warning-text">{missingSheetsNote(runStats)}</span>}
                 </p>
               </div>
             </div>
@@ -613,30 +609,28 @@ export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
 
   if (trucks.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No trucks yet. Add trucks under &ldquo;Our Fleet&rdquo; to get started.
-      </div>
+      <EmptyState size="compact" illustration="logistics" title="No trucks yet" description="Add trucks under &ldquo;Our Fleet&rdquo; to get started" />
     );
   }
 
   return (
     <>
-      <div className="max-h-[75vh] overflow-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+      <div className="max-h-[75vh] overflow-auto rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
         <table className="w-full min-w-[1400px] text-left text-sm">
           <thead className="sticky top-0 z-10">
-            <tr className="border-b border-gray-200 bg-gray-50">
+            <tr className="border-b border-separator-border bg-fill-1">
               {COLUMNS.map((col, i) => (
-                <th key={i} className="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <th key={i} className="whitespace-nowrap px-4 py-3 text-caption-1-semibold text-text-secondary">
                   {col}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-separator-border">
             {trucks.map((truck) => (
-              <tr key={truck.truckId} className="hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{truck.truckId}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-600">{truck.registrationNumber}</td>
+              <tr key={truck.truckId} className="hover:bg-fill-2">
+                <td className="whitespace-nowrap px-4 py-3 font-medium text-text-primary">{truck.truckId}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-text-secondary">{truck.registrationNumber}</td>
                 <td className="px-4 py-3"><ComplianceCell date={truck.rcValidityDate}           field="rc"             /></td>
                 <td className="px-4 py-3"><ComplianceCell date={truck.fcExpiryDate}             field="fc"             /></td>
                 <td className="px-4 py-3"><ComplianceCell date={truck.roadTaxDate}              field="roadTax"        /></td>
@@ -649,28 +643,28 @@ export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
                     <button
                       type="button"
                       onClick={() => setViewTruck(truck)}
-                      className="whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:bg-blue-100"
+                      className="whitespace-nowrap rounded-lg border border-accent-border bg-accent-surface px-3 py-1.5 text-caption-1-semibold text-accent-text transition-colors hover:border-accent-border-strong hover:bg-accent-surface-strong"
                     >
                       View Truck Data
                     </button>
                     <button
                       type="button"
                       onClick={() => setRenewTruck(truck)}
-                      className="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                      className="whitespace-nowrap rounded-lg bg-accent-solid px-3 py-1.5 text-caption-1-semibold text-on-solid shadow-sm transition-colors hover:bg-accent-solid-hover"
                     >
                       Update Document
                     </button>
                     <button
                       type="button"
                       onClick={() => setHistoryTruck(truck)}
-                      className="whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100"
+                      className="whitespace-nowrap rounded-lg border border-purple-border bg-purple-surface px-3 py-1.5 text-caption-1-semibold text-purple-text transition-colors hover:border-purple-border-strong hover:bg-purple-surface-strong"
                     >
                       View Updation History
                     </button>
                     <button
                       type="button"
                       onClick={() => setCostTruck(truck)}
-                      className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100"
+                      className="whitespace-nowrap rounded-lg border border-success-border bg-success-surface px-3 py-1.5 text-caption-1-semibold text-success-text transition-colors hover:border-success-border-strong hover:bg-success-surface-strong"
                     >
                       View Cost Breakdown
                     </button>

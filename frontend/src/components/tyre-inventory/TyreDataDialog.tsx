@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, Loader2, Paperclip, Trash2 } from "lucide-react";
+import { RiEyeLine as Eye, RiLoader4Line as Loader2, RiAttachment2 as Paperclip, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { tyreApi } from "@/lib/api";
 import type { TyreData, TyreMovementEvent } from "@/types/tyre-inventory";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileViewer } from "@/components/ui/FileViewer";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
-import { confirmDelete, showError, showSuccess } from "@/lib/swal";
+import { confirmDelete, showError, showSuccess } from "@/lib/feedback";
 import { PROOF_MAX_BYTES, proofAccepted, fileSize } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 
 const EVENT_LABEL: Record<TyreMovementEvent["event"], string> = {
@@ -84,12 +84,12 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
       onClose={onClose}
       title={tyre ? `Tyre ${tyre.tyreNumber}` : "Tyre Data"}
     >
-      {loading && !data && <p className="p-4 text-sm text-gray-500">Loading…</p>}
-      {error && <p className="p-4 text-sm text-red-600">{error}</p>}
+      {loading && !data && <p className="p-4 text-sm text-text-secondary">Loading…</p>}
+      {error && <p className="p-4 text-sm text-danger-text">{error}</p>}
       {data && tyre && (
         <div className="flex flex-col gap-5 p-1">
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Details</h3>
+            <h3 className="mb-2 text-caption-1-semibold text-text-secondary">Details</h3>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <Row label="Brand" value={tyre.brand} />
               <Row label="Tyre Type" value={tyre.tyreType} />
@@ -104,32 +104,32 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
           </section>
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">History</h3>
-            <ol className="flex flex-col gap-3 border-l border-gray-200 pl-4 text-sm">
+            <h3 className="mb-2 text-caption-1-semibold text-text-secondary">History</h3>
+            <ol className="flex flex-col gap-3 border-l border-separator-border pl-4 text-sm">
               <li>
-                <p className="font-medium text-gray-900">Added to inventory</p>
-                <p className="text-xs text-gray-500">
+                <p className="font-medium text-text-primary">Added to inventory</p>
+                <p className="text-xs text-text-secondary">
                   {data.addedToInventoryAt ? formatDateTime(data.addedToInventoryAt) : "—"}
                 </p>
               </li>
               {data.movements.length === 0 && (
-                <li className="text-xs text-gray-500">No retread or discard moves yet.</li>
+                <li className="text-xs text-text-secondary">No retread or discard moves yet.</li>
               )}
               {data.movements.map((m) => (
                 <li key={m.id}>
-                  <p className="font-medium text-gray-900">{EVENT_LABEL[m.event]}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="font-medium text-text-primary">{EVENT_LABEL[m.event]}</p>
+                  <p className="text-xs text-text-secondary">
                     {formatDateTime(m.createdAt)} · {m.actorName}
                     {m.actorRole ? ` (${m.actorRole})` : ""}
                   </p>
                   {m.retreadDoneBy && (
-                    <p className="mt-0.5 text-xs text-gray-600">
+                    <p className="mt-0.5 text-xs text-text-secondary">
                       Retreaded by <span className="font-semibold">{m.retreadDoneBy}</span>
                       {m.retreadByType && <> ({m.retreadByType})</>}
                     </p>
                   )}
                   {(m.invoiceNumber || m.invoiceDate) && (
-                    <p className="mt-0.5 text-xs text-gray-600">
+                    <p className="mt-0.5 text-xs text-text-secondary">
                       Invoice {m.invoiceNumber ? <span className="font-semibold">{m.invoiceNumber}</span> : "—"}
                       {m.invoiceDate && <> dated {formatDate(m.invoiceDate)}</>}
                     </p>
@@ -140,16 +140,16 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
                         <button
                           type="button"
                           onClick={() => setViewingProof(m)}
-                          className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 font-semibold text-blue-700 hover:bg-blue-100"
+                          className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-surface px-2.5 py-0.5 font-semibold text-accent-text hover:bg-accent-surface-strong"
                           title={`${m.proofFileName}${m.proofSizeBytes ? ` · ${fileSize(m.proofSizeBytes)}` : ""}`}
                         >
                           <Eye className="h-3 w-3" /> View proof
                         </button>
                       ) : (
-                        <span className="italic text-gray-400">No proof of payment</span>
+                        <span className="italic text-text-tertiary">No proof of payment</span>
                       )}
                       {canUpload && (
-                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 font-semibold text-blue-600 hover:bg-blue-50">
+                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 font-semibold text-accent-text hover:bg-accent-surface-strong">
                           {uploadingFor === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
                           {m.proofFileName ? "Replace proof" : "Add proof"}
                           <input
@@ -163,14 +163,14 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
                       )}
                       {role === "Admin" && m.proofFileName && (
                         <button type="button" onClick={() => removeProof(m)} aria-label="Remove proof"
-                          className="rounded-full p-1 text-gray-400 hover:bg-red-50 hover:text-red-600">
+                          className="rounded-full p-1 text-text-tertiary hover:bg-danger-surface-strong hover:text-danger-text">
                           <Trash2 className="h-3 w-3" />
                         </button>
                       )}
                     </div>
                   )}
                   {(m.retreadCost != null || m.expectedRange != null || m.retreadCount != null) && (
-                    <p className="mt-0.5 text-xs text-gray-600">
+                    <p className="mt-0.5 text-xs text-text-secondary">
                       {m.retreadCost != null && <>Retread cost ₹{Number(m.retreadCost).toLocaleString()} · </>}
                       {m.expectedRange != null && <>Range {m.expectedRange.toLocaleString()} km · </>}
                       {m.retreadCount != null && <>Retread count {m.retreadCount}</>}
@@ -197,8 +197,8 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
 function Row({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
     <div>
-      <dt className="text-xs text-gray-500">{label}</dt>
-      <dd className="font-medium text-gray-900">{value || "—"}</dd>
+      <dt className="text-xs text-text-secondary">{label}</dt>
+      <dd className="font-medium text-text-primary">{value || "—"}</dd>
     </div>
   );
 }

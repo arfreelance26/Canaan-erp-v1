@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Building2, History, Undo2 } from "lucide-react";
+import { RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiBuilding2Line as Building2, RiHistoryLine as History, RiArrowGoBackLine as Undo2 } from "@remixicon/react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
 import { CustomerFormDialog, DRAFT_KEY as CUSTOMER_DRAFT_KEY } from "@/components/customers/CustomerFormDialog";
 import { CustomerPricingTable } from "@/components/customers/CustomerPricingTable";
@@ -21,7 +21,7 @@ import type { CustomerPricing } from "@/types/customer-pricing";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -29,6 +29,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const TABS = [
   { id: "list", label: "Customer List" },
   { id: "destinations", label: "Our Customer Destinations" },
@@ -48,10 +49,10 @@ const EDIT_EVENT_ICON: Record<CustomerEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<CustomerEditEventRow["event"], string> = {
-  "Customer Created": "bg-blue-100 text-blue-700",
-  "Customer Edited": "bg-amber-100 text-amber-700",
-  "Customer Deleted": "bg-red-100 text-red-700",
-  "Customer Restored": "bg-emerald-100 text-emerald-700",
+  "Customer Created": "bg-accent-surface-strong text-accent-text",
+  "Customer Edited": "bg-warning-surface-strong text-warning-text",
+  "Customer Deleted": "bg-danger-surface-strong text-danger-text",
+  "Customer Restored": "bg-success-surface-strong text-success-text",
 };
 
 export default function CustomersPage() {
@@ -448,12 +449,12 @@ export default function CustomersPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-border bg-teal-surface text-teal-text shadow-sm">
           <Building2 className="h-5 w-5" />
         </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Customers</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Manage customer records, pricing, and destinations</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Our Customers</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Manage customer records, pricing, and destinations</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -461,34 +462,34 @@ export default function CustomersPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
           </button>
 )}
-          <div className="flex flex-col items-end rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <div className="flex flex-col items-end rounded-xl border border-separator-border bg-background-primary-default px-4 py-3 shadow-sm">
+            <p className="text-caption-1-semibold text-text-secondary">
               {activeTab === "list" ? "Total Customers" : activeTab === "destinations" ? "Total Destinations" : activeTab === "pricing" ? "Total Pricing Rules" : "Final Pricing Entries"}
             </p>
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="text-title-1-semibold text-accent-text">
               {activeTab === "list" ? customers.length : activeTab === "destinations" ? destinations.length : activeTab === "pricing" ? pricing.length : finalPricing.length}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-gray-200">
+      <div className="flex items-center gap-2 border-b border-separator-border">
         {TABS.filter((tab) => tab.id !== "finalPricing" || canSeeFinalPricing).map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              "border-b-2 px-4 py-2 text-body-medium transition-colors",
               activeTab === tab.id
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-accent-solid text-accent-text"
+                : "border-transparent text-text-secondary hover:text-text-primary"
             )}
           >
             {tab.label}
@@ -506,7 +507,7 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={handleAddCustomer}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               Add Customer
@@ -548,7 +549,7 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={handleAddPricing}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               Add Pricing
@@ -598,7 +599,7 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={handleAddDestination}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               Add Destination
@@ -640,7 +641,7 @@ export default function CustomersPage() {
       {activeTab === "finalPricing" && !loadingFinalPricing && (
         <div className="animate-stagger flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-text-secondary">
               Accounts-adjusted hire amounts used for Driver Batta calculation.
             </p>
             <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -648,7 +649,7 @@ export default function CustomersPage() {
               <button
                 type="button"
                 onClick={() => { setEditingFinalPricing(null); setFinalPricingDialogOpen(true); }}
-                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
               >
                 <Plus className="h-4 w-4" />
                 Add Final Pricing
@@ -657,32 +658,30 @@ export default function CustomersPage() {
           </div>
 
           {finalPricing.length === 0 ? (
-            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-              No final pricing entries yet. Click &ldquo;Add Final Pricing&rdquo; to create one.
-            </div>
+            <EmptyState size="compact" illustration="no-data" title="No final pricing entries yet" description="Click &ldquo;Add Final Pricing&rdquo; to create one" />
           ) : (
-            <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
+            <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
               <table className="w-full min-w-[820px] text-left text-sm whitespace-nowrap">
                 <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>
-                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Route</th>
-                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actual Hire Amount (₹)</th>
-                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Hire Amount as per Accounts (₹)</th>
-                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actions</th>
+                  <tr className="border-b border-separator-border bg-fill-1">
+                    <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Customer Name</th>
+                    <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Route</th>
+                    <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Actual Hire Amount (₹)</th>
+                    <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Hire Amount as per Accounts (₹)</th>
+                    <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-separator-border">
                   {paginatedFinalPricing.map((entry) => {
                     const customer = customers.find((c) => c.id === entry.customerId);
                     return (
-                      <tr key={entry.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{entry.customerDestination ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-700">
+                      <tr key={entry.id} className="hover:bg-fill-2">
+                        <td className="px-4 py-3 font-medium text-text-primary">{customer?.name ?? "—"}</td>
+                        <td className="px-4 py-3 text-text-secondary">{entry.customerDestination ?? "—"}</td>
+                        <td className="px-4 py-3 text-text-primary">
                           {entry.actualHireAmount ? `₹${parseFloat(entry.actualHireAmount).toLocaleString("en-IN")}` : "—"}
                         </td>
-                        <td className="px-4 py-3 font-semibold text-blue-700">
+                        <td className="px-4 py-3 font-semibold text-accent-text">
                           {entry.accountsHireAmount ? `₹${parseFloat(entry.accountsHireAmount).toLocaleString("en-IN")}` : "—"}
                         </td>
                         <td className="px-4 py-3">
@@ -690,7 +689,7 @@ export default function CustomersPage() {
                             <button
                               type="button"
                               onClick={() => { setEditingFinalPricing(entry); setFinalPricingDialogOpen(true); }}
-                              className="rounded p-1 text-blue-600 hover:bg-blue-50"
+                              className="rounded p-1 text-accent-text hover:bg-accent-surface-strong"
                               title="Edit"
                             >
                               <Pencil className="h-4 w-4" />
@@ -698,7 +697,7 @@ export default function CustomersPage() {
                             <button
                               type="button"
                               onClick={() => handleDeleteFinalPricing(entry.id)}
-                              className="rounded p-1 text-red-500 hover:bg-red-50"
+                              className="rounded p-1 text-danger-text hover:bg-danger-surface-strong"
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -759,7 +758,7 @@ export default function CustomersPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by customer name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -767,36 +766,34 @@ export default function CustomersPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No customer edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No customer edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Customer</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Customer</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.customerName}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.customerName}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

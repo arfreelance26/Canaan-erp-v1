@@ -26,31 +26,31 @@ export type StageColor =
 
 // Full-row tint + colored left bar (per the chosen "full row tint" style).
 const ROW: Record<StageColor, string> = {
-  gray: "border-l-4 border-l-gray-300 hover:bg-gray-50",
-  amber: "border-l-4 border-l-amber-400 bg-amber-50 hover:bg-amber-100/70",
-  yellow: "border-l-4 border-l-yellow-400 bg-yellow-50 hover:bg-yellow-100/70",
-  blue: "border-l-4 border-l-blue-400 bg-blue-50 hover:bg-blue-100/70",
-  emerald: "border-l-4 border-l-emerald-400 bg-emerald-50 hover:bg-emerald-100/70",
-  rose: "border-l-4 border-l-rose-400 bg-rose-50 hover:bg-rose-100/70",
-  red: "border-l-4 border-l-red-400 bg-red-50 hover:bg-red-100/70",
-  orange: "border-l-4 border-l-orange-400 bg-orange-50 hover:bg-orange-100/70",
-  purple: "border-l-4 border-l-purple-400 bg-purple-50 hover:bg-purple-100/70",
-  indigo: "border-l-4 border-l-indigo-400 bg-indigo-50 hover:bg-indigo-100/70",
-  teal: "border-l-4 border-l-teal-400 bg-teal-50 hover:bg-teal-100/70",
+  gray: "border-l-4 border-l-border-button-default hover:bg-fill-2",
+  amber: "border-l-4 border-l-warning-border-strong bg-warning-surface hover:bg-warning-surface-strong/70",
+  yellow: "border-l-4 border-l-warning-border-strong bg-warning-surface hover:bg-warning-surface-strong/70",
+  blue: "border-l-4 border-l-accent-border-strong bg-accent-surface hover:bg-accent-surface-strong/70",
+  emerald: "border-l-4 border-l-success-border-strong bg-success-surface hover:bg-success-surface-strong/70",
+  rose: "border-l-4 border-l-danger-border-strong bg-danger-surface hover:bg-danger-surface-strong/70",
+  red: "border-l-4 border-l-danger-border-strong bg-danger-surface hover:bg-danger-surface-strong/70",
+  orange: "border-l-4 border-l-orange-border-strong bg-orange-surface hover:bg-orange-surface-strong/70",
+  purple: "border-l-4 border-l-purple-border-strong bg-purple-surface hover:bg-purple-surface-strong/70",
+  indigo: "border-l-4 border-l-purple-border-strong bg-purple-surface hover:bg-purple-surface-strong/70",
+  teal: "border-l-4 border-l-teal-border-strong bg-teal-surface hover:bg-teal-surface-strong/70",
 };
 
 const BADGE: Record<StageColor, string> = {
-  gray:    "bg-gray-100    text-gray-700    dark:text-gray-900",
-  amber:   "bg-amber-100   text-amber-700   dark:text-amber-900",
-  yellow:  "bg-yellow-100  text-yellow-700  dark:text-yellow-900",
-  blue:    "bg-blue-100    text-blue-700    dark:text-blue-900",
-  emerald: "bg-emerald-100 text-emerald-700 dark:text-emerald-900",
-  rose:    "bg-rose-100    text-rose-700    dark:text-rose-900",
-  red:     "bg-red-100     text-red-700     dark:text-red-900",
-  orange:  "bg-orange-100  text-orange-700  dark:text-orange-900",
-  purple:  "bg-purple-100  text-purple-700  dark:text-purple-900",
-  indigo:  "bg-indigo-100  text-indigo-700  dark:text-indigo-900",
-  teal:    "bg-teal-100    text-teal-700    dark:text-teal-900",
+  gray:    "bg-fill-2 text-text-primary",
+  amber:   "bg-warning-surface-strong text-warning-text",
+  yellow:  "bg-warning-surface-strong text-warning-text",
+  blue:    "bg-accent-surface-strong text-accent-text",
+  emerald: "bg-success-surface-strong text-success-text",
+  rose:    "bg-danger-surface-strong text-danger-text",
+  red:     "bg-danger-surface-strong text-danger-text",
+  orange:  "bg-orange-surface-strong text-orange-text",
+  purple:  "bg-purple-surface-strong text-purple-text",
+  indigo:  "bg-purple-surface-strong text-purple-text",
+  teal:    "bg-teal-surface-strong text-teal-text",
 };
 
 /** All stage colors in a fixed order, for cycling through a palette by index. */
@@ -66,5 +66,5 @@ export function stageRowClass(color: StageColor): string {
 
 /** Pill className for a status badge in the matching stage color. */
 export function stageBadgeClass(color: StageColor): string {
-  return `inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${BADGE[color]}`;
+  return `inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-caption-1-semibold ${BADGE[color]}`;
 }

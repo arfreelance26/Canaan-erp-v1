@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { RiLogoutBoxRLine as LogOut, RiArrowLeftSLine as ChevronLeft } from "@remixicon/react";
 import { sidebarSections, type NavSection } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -11,12 +11,6 @@ import { editApprovalsApi, deletionApprovalsApi, chatApi, paymentRequestsApi, ma
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useOpenShift } from "@/hooks/useOpenShift";
 import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
-import { useBirthday } from "@/context/BirthdayContext";
-import { useSeason } from "@/context/SeasonContext";
-import { useFounding } from "@/context/FoundingContext";
-import { LogoShine, YearsBadge } from "./FoundingDecor";
-import { PineGarland, Snowfall, Streamers } from "./SeasonDecor";
-import { Bunting, StringLights, BirthdayBadge, Balloons } from "./BirthdayDecor";
 
 // Allowed hrefs per software designation (Admin gets everything)
 const ROLE_HREFS: Record<string, string[] | "all"> = {
@@ -154,19 +148,6 @@ function getFilteredSections(role: string): NavSection[] {
     .filter((section) => section.items.length > 0);
 }
 
-// Role → accent color for the profile card's role pill. A quick, genuinely
-// useful visual cue in an app used by many different roles side by side —
-// not decoration.
-const ROLE_ACCENT: Record<string, string> = {
-  Admin: "bg-slate-800/10 text-slate-700",
-  "Commercial Manager": "bg-blue-50 text-blue-600",
-  "Assistant Commercial Manager": "bg-blue-50 text-blue-600",
-  Accounts: "bg-emerald-50 text-emerald-600",
-  Maintenance: "bg-amber-50 text-amber-600",
-  "Yard Supervisor": "bg-violet-50 text-violet-600",
-  "Trip Sheet Register": "bg-teal-50 text-teal-600",
-  Auditor: "bg-rose-50 text-rose-600",
-};
 
 // Strips one trailing slash, but never reduces "/" itself to "" — used to
 // compare a route href against usePathname() under next.config.ts's
@@ -201,14 +182,6 @@ const ATTENDANCE_LOCK_HREFS = ["/attendance/mark", "/connect/chat"];
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHoverChange, locked }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  const birthday = useBirthday();
-  const season = useSeason();
-  const founding = useFounding();
-  // On the Dashboard a birthday outranks the Christmas decorations for the day.
-  const dashDecor = birthday.decorated ? "birthday" : founding.decorated ? "founding" : season.decorated ? "christmas" : null;
-  // The active menu item's colours follow the celebration on every page, not
-  // just the Dashboard (same order: birthday, then founding, then December).
-  const menuTheme = birthday.festive ? "birthday" : founding.festive ? "founding" : season.festive ? "christmas" : null;
 
   // Logout is gated on closing an open self-checked-in shift first — see
   // CloseShiftBeforeLogoutDialog for why this isn't skippable.
@@ -355,7 +328,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
       {/* Mobile backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-0 z-40 bg-scrim/50 md:hidden"
           onClick={onMobileClose}
         />
       )}
@@ -367,7 +340,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         // Shared — solid bg, not translucent: the page behind is flat white/navy
         // anyway, so backdrop-blur here bought nothing visually while forcing the
         // browser to recompute a blur sample every frame this panel resizes.
-        "flex flex-col border-r border-gray-200/70 bg-white shadow-sm overflow-hidden",
+        "flex flex-col border-r border-separator-border bg-background-primary-default overflow-hidden",
         // `position: fixed` at EVERY breakpoint, not just mobile — this is the
         // whole fix. A fixed element is removed from document flow, so
         // animating its `width` never forces AppShell's main-content column
@@ -377,188 +350,85 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         // expensive reflow was happening on the OTHER side, in whatever page
         // is currently mounted). AppShell reserves the equivalent horizontal
         // space with a plain, non-animated spacer div instead.
-        "fixed inset-y-0 left-0 z-50 h-screen w-[310px] [contain:layout_style] [will-change:width,transform] transition-[width,transform] duration-200 ease-out",
+        "fixed inset-y-0 left-0 z-50 h-screen w-64 [contain:layout_style] [will-change:width,transform] transition-[width,transform] duration-200 ease-out",
         mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
-        collapsed ? "md:w-16" : "md:w-[310px]"
+        collapsed ? "md:w-16" : "md:w-64"
       )}
     >
-      {/* Christmas snow drifting down / birthday balloons rising up the sidebar
-          (Dashboard only) — negative z
-          inside the aside's stacking context: over its background, under the
-          logo, menu and profile card. */}
-      {dashDecor === "christmas" && <Snowfall count={collapsed ? 30 : 46} className="-z-10" glitter={season.day === "newyearday"} />}
-      {dashDecor === "birthday" && <Balloons count={collapsed ? 5 : 11} className="-z-10" />}
-
-      {/* Header — logo + toggle */}
-      <div className="relative flex h-[88px] shrink-0 items-center justify-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-transparent dark:border-white/[0.06] dark:from-transparent">
-        {dashDecor === "birthday" && <Bunting />}
-        {dashDecor === "christmas" && (season.day === "newyearday" ? <Streamers /> : <PineGarland />)}
-        {/* Small icon — centered, in flow only when collapsed */}
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label="Expand sidebar"
-          className={cn(
-            "flex flex-col items-center gap-1.5 transition-all duration-300",
-            collapsed ? "relative opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-75 pointer-events-none absolute"
-          )}
-        >
-          <div className="p-1.5">
-            <img src="/logo.png" alt="Canaan" width={36} height={36} className="object-contain dark:hidden" />
-            <img src="/logo-dark.png" alt="Canaan" width={36} height={36} className="hidden object-contain dark:block" />
-          </div>
-        </button>
-
-        {/* Full logo + collapse button — absolutely positioned, in flow only when expanded */}
-        <div className={cn(
-          "absolute inset-0 flex items-center justify-between px-4 transition-all duration-300",
-          collapsed ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"
-        )}>
-          <div className="relative flex items-center gap-3 px-3 py-1">
-            {/* Dark mode has its own logo (navy parts in off-white) — no white plate. */}
-            <span className="relative block dark:hidden">
-              <img src="/companylogo.png" alt="Canaan Global" className="h-[72px] w-auto object-contain" />
-              {dashDecor === "founding" && <LogoShine src="/companylogo.png" />}
-            </span>
-            <span className="relative hidden dark:block">
-              <img src="/companylogo-dark.png" alt="Canaan Global" className="h-[72px] w-auto object-contain" />
-              {dashDecor === "founding" && <LogoShine src="/companylogo-dark.png" />}
-            </span>
-            {dashDecor === "founding" && <YearsBadge years={founding.years} />}
-          </div>
+      {/* Header — logo + collapse toggle */}
+      <div className="relative flex h-16 shrink-0 items-center border-b border-separator-border">
+        {collapsed ? (
           <button
             type="button"
             onClick={onToggle}
-            aria-label="Collapse sidebar"
-            className="ml-2 shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            aria-label="Expand sidebar"
+            className="mx-auto flex size-10 items-center justify-center rounded-lg outline-none transition-colors hover:bg-fill-2 focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <img src="/logo.png" alt="Canaan" width={28} height={28} className="object-contain dark:hidden" />
+            <img src="/logo-dark.png" alt="Canaan" width={28} height={28} className="hidden object-contain dark:block" />
           </button>
-        </div>
+        ) : (
+          <div className="flex w-full items-center justify-between gap-2 pl-4 pr-3">
+            {/* Dark mode has its own logo (navy parts in off-white). */}
+            <img src="/companylogo.png" alt="Canaan Global" className="h-11 w-auto object-contain dark:hidden" />
+            <img src="/companylogo-dark.png" alt="Canaan Global" className="hidden h-11 w-auto object-contain dark:block" />
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label="Collapse sidebar"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-icon-tertiary outline-none transition-colors hover:bg-fill-2 hover:text-foreground-icon-primary focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {!collapsed && (
-        season.festive ? <StringLights variant="christmas" intense={season.day === "christmas"} />
-          : founding.festive ? <StringLights variant="brand" />
-          : birthday.festive ? <StringLights />
-          : null
-      )}
-
-      {/* Expand chevron — only shown when collapsed. Conditionally rendered
-          instead of height-animated: an animated h-0 forces a layout pass on
-          this element every frame of the width transition for no visible gain. */}
-      {collapsed && (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label="Expand sidebar"
-          className="mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      )}
-
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4">
-        {sections.map((section) => (
-          <div key={section.title} className="mb-4">
-            {/* Section title / divider — conditionally rendered rather than
-                max-height/width-animated, same reasoning as the chevron above.
-                A small waypoint dot precedes the label — ties section headers
-                to the same "route" language as the nav rail below. */}
-            {!collapsed && (
-              <p className="flex items-center gap-1.5 px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-600/90 dark:text-gray-500">
-                <span className="h-1 w-1 shrink-0 rounded-full bg-blue-300" />
-                {section.title}
-              </p>
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
+        {sections.map((section, i) => (
+          <div key={section.title} className={cn(i > 0 && (collapsed ? "mt-3" : "mt-5"))}>
+            {collapsed ? (
+              i > 0 && <div className="mx-auto mb-3 h-px w-6 bg-separator-border" />
+            ) : (
+              <p className="px-3 pb-1.5 text-caption-1-medium text-text-tertiary">{section.title}</p>
             )}
-            {collapsed && <div className="mx-auto mb-2 h-px w-8 bg-gray-200" />}
 
-            <ul className="space-y-0.5">
+            <ul className="flex flex-col gap-0.5">
               {section.items.map((item) => {
-                // next.config.ts sets trailingSlash: true, so the real
-                // pathname for every route except "/" itself carries a
-                // trailing slash (e.g. "/insights/pl-summary/") while every
-                // href here is written without one — a bare equality check
-                // only ever matched the root Dashboard link. Normalize both
-                // sides (strip a trailing slash, but never turn "/" into "").
+                // trailingSlash: true makes every pathname except "/" end in "/";
+                // hrefs don't, so normalise both sides before comparing.
                 const isActive = stripTrailingSlash(pathname) === stripTrailingSlash(item.href);
                 const Icon = item.icon;
                 const badge = badgeFor(item.href);
                 return (
-                  <li key={item.href} className="relative">
-                    {/* Active-route rail — a short vertical bar at the row's
-                        left edge, evoking a highway lane marker rather than
-                        the generic "filled box" every dashboard sidebar uses.
-                        Absolute + fixed height, so it costs nothing during
-                        the width transition. */}
-                    {isActive && (
-                      <span className={cn(
-                        "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full",
-                        menuTheme === "birthday" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
-                          : menuTheme === "christmas" ? "bg-gradient-to-b from-[#e53935] to-[#9b1c1c]"
-                          : menuTheme === "founding" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
-                          : "bg-blue-600 dark:bg-blue-400"
-                      )} />
-                    )}
+                  <li key={item.href}>
                     <Link
                       href={item.href}
                       title={collapsed ? item.label : undefined}
+                      aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        // Only color/transform animate — padding is NOT transitioned:
-                        // it would force a layout reflow on every item, every frame,
-                        // for the whole 300ms the sidebar width is animating.
-                        "relative flex items-center rounded-lg transition-[color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5",
-                        collapsed ? "justify-center px-0 py-2" : "gap-2.5 py-1.5 pl-4 pr-2.5 text-[14px] font-medium tracking-[-0.006em]",
+                        "relative flex h-[34px] items-center rounded-lg text-body-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+                        collapsed ? "justify-center" : "gap-2.5 px-2.5",
                         isActive
-                          ? "text-gray-900 font-semibold"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          ? "bg-fill-2 text-text-primary shadow-[inset_0_0_0_1px_var(--color-separator-border)]"
+                          : "text-text-secondary hover:bg-fill-1 hover:text-text-primary"
                       )}
                     >
-                      {/* Icon chip — a small tinted waypoint that lights up
-                          solid blue on the active route, quiet everywhere else. */}
-                      <span className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200",
-                        isActive
-                          ? menuTheme === "birthday"
-                            ? "text-white shadow-[0_2px_8px_-2px_rgba(154,116,20,0.55)] [background:linear-gradient(135deg,#f3d98b_-20%,#c9a227_45%,#9a7414_120%)]"
-                            : menuTheme === "christmas"
-                            ? "text-white ring-1 ring-[#e3b341] shadow-[0_2px_8px_-2px_rgba(155,28,28,0.55)] [background:linear-gradient(135deg,#e53935_-10%,#b71c1c_55%,#7f1010_120%)]"
-                            : menuTheme === "founding"
-                            ? "text-[#f3d98b] ring-1 ring-[#e3b341] shadow-[0_2px_8px_-2px_rgba(27,43,94,0.55)] [background:linear-gradient(135deg,#2b3f9f_-10%,#1b2b5e_55%,#0f1a38_120%)]"
-                            : "bg-blue-600 text-white shadow-sm shadow-blue-600/30 dark:bg-blue-300 dark:shadow-none"
-                          : "text-gray-400"
-                      )}>
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      {/* Label — opacity-only fade; the real clip comes for free
-                          from the parent Link's own (already-animating) width. */}
-                      {!collapsed && (
-                        <span className="flex flex-1 items-center gap-1.5 truncate opacity-100 transition-opacity duration-200">
-                          <span className="truncate">{item.label}</span>
-                          {/* A pulsing dot catches the eye even before the
-                              number registers — same ping-ring device as
-                              "Current Trips"'s live indicator, not a new motif. */}
-                          {badge > 0 && (
-                            <span className="relative flex h-2 w-2 shrink-0">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      {/* Badge count pill */}
+                      <Icon
+                        className={cn(
+                          "size-[18px] shrink-0",
+                          isActive ? "text-accent-text" : "text-foreground-icon-tertiary"
+                        )}
+                      />
+                      {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                       {badge > 0 && !collapsed && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                        <span className="min-w-5 rounded-md bg-danger-surface px-1.5 text-center font-mono text-caption-1-medium tabular-nums text-danger-text">
                           {badge > 99 ? "99+" : badge}
                         </span>
                       )}
-                      {/* Badge dot — only when collapsed */}
                       {badge > 0 && collapsed && (
-                        <span className="absolute right-1.5 top-1.5 flex h-2.5 w-2.5">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-                        </span>
+                        <span className="absolute right-2 top-1.5 size-2 rounded-full bg-danger-solid ring-2 ring-background-primary-default" />
                       )}
                     </Link>
                   </li>
@@ -569,51 +439,30 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         ))}
       </nav>
 
-      {/* User area */}
-      <div className={cn(
-        "shrink-0 border-t border-gray-100 transition-all duration-300 dark:border-white/[0.06]",
-        collapsed ? "px-2 py-3" : "px-3 py-3"
-      )}>
-        <div
-          className={cn(
-            "group flex items-center rounded-2xl border border-gray-200/70 bg-white shadow-[0_2px_10px_-4px_rgba(27,43,94,0.12)] transition-[border-color,box-shadow] duration-300 hover:border-blue-200/70 hover:shadow-[0_6px_20px_-4px_rgba(27,43,94,0.18)]",
-            collapsed ? "justify-center p-1.5" : "gap-2.5 py-2 pl-2 pr-1.5"
-          )}
-        >
-          <span className="relative shrink-0">
+      {/* User */}
+      <div className="shrink-0 border-t border-separator-border p-2">
+        <div className={cn("flex items-center rounded-lg", collapsed ? "justify-center py-1" : "gap-2.5 py-1.5 pl-1.5 pr-1")}>
           {user?.photoUrl ? (
-            <img
-              src={user.photoUrl}
-              alt={user.name}
-              className="h-9 w-9 shrink-0 rounded-full object-cover shadow-inner ring-2 ring-white dark:ring-gray-300"
-            />
+            <img src={user.photoUrl} alt={user.name} className="size-8 shrink-0 rounded-full object-cover" />
           ) : (
-            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-[#1B2B5E] text-sm font-semibold text-white shadow-sm ring-2 ring-white dark:ring-gray-300">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text-strong">
               {getInitials(user?.name ?? "U")}
-              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-gray-100" />
             </div>
           )}
-          {birthday.decorated && birthday.mine && <BirthdayBadge />}
-          </span>
           {!collapsed && (
             <>
-              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                <span className="truncate text-[14px] font-semibold leading-tight tracking-[-0.01em] text-gray-900">{user?.name ?? "—"}</span>
-                <span className={cn(
-                  "mt-1 inline-flex w-fit items-center truncate rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]",
-                  ROLE_ACCENT[user?.softwareDesignation ?? ""] ?? "bg-blue-50 text-blue-600"
-                )}>
-                  {user?.softwareDesignation ?? ""}
-                </span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-body-medium text-text-primary">{user?.name ?? "—"}</span>
+                <span className="truncate text-caption-1-regular text-text-tertiary">{user?.softwareDesignation ?? ""}</span>
               </div>
               <button
                 type="button"
                 aria-label="Log out"
                 title="Log out"
                 onClick={handleLogoutClick}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-icon-tertiary outline-none transition-colors hover:bg-danger-surface hover:text-danger-text focus-visible:ring-2 focus-visible:ring-border-focus-ring"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="size-4" />
               </button>
             </>
           )}

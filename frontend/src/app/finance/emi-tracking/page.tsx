@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, CheckCircle2, AlertTriangle, Landmark, History, Pencil, Trash2 } from "lucide-react";
+import { RiAddLine as Plus, RiCheckboxCircleLine as CheckCircle2, RiAlertLine as AlertTriangle, RiBankLine as Landmark, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
 import { EmiFormDialog, DRAFT_KEY as EMI_DRAFT_KEY } from "@/components/finance/EmiFormDialog";
 import { ViewEmiRecordDialog } from "@/components/finance/ViewEmiRecordDialog";
@@ -10,7 +10,7 @@ import { EmiInsightsDialog } from "@/components/finance/EmiInsightsDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { financeApi, type EmiRecordEditEventRow } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -25,6 +25,7 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useNotifications } from "@/context/NotificationContext";
 import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<EmiRecordEditEventRow["event"], typeof Plus> = {
   "EMI Created": Plus,
   "EMI Edited": Pencil,
@@ -32,9 +33,9 @@ const EDIT_EVENT_ICON: Record<EmiRecordEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<EmiRecordEditEventRow["event"], string> = {
-  "EMI Created": "bg-blue-100 text-blue-700",
-  "EMI Edited": "bg-amber-100 text-amber-700",
-  "EMI Deleted": "bg-red-100 text-red-700",
+  "EMI Created": "bg-accent-surface-strong text-accent-text",
+  "EMI Edited": "bg-warning-surface-strong text-warning-text",
+  "EMI Deleted": "bg-danger-surface-strong text-danger-text",
 };
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -189,12 +190,12 @@ export default function EmiTrackingPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
           <Landmark className="h-5 w-5" />
         </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">EMI Tracking</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">EMI Tracking</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Track loan EMIs for trucks and other financed assets
             </p>
           </div>
@@ -204,7 +205,7 @@ export default function EmiTrackingPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -213,7 +214,7 @@ export default function EmiTrackingPage() {
           <button
             type="button"
             onClick={handleAdd}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add EMI Entry
@@ -242,36 +243,36 @@ export default function EmiTrackingPage() {
         <button
           type="button"
           onClick={() => setStatusFilter("Active")}
-          className={`rounded-xl border bg-white p-4 text-left transition-all ${
-            statusFilter === "Active" ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-blue-200"
+          className={`rounded-xl border bg-background-primary-default p-4 text-left transition ${
+            statusFilter === "Active" ? "border-accent-solid ring-2 ring-accent-border" : "border-separator-border hover:border-accent-border"
           }`}
         >
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Active EMIs</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{summary.active}</p>
+          <p className="text-caption-1-medium text-text-secondary">Active EMIs</p>
+          <p className="mt-1 text-title-1-semibold text-text-primary">{summary.active}</p>
         </button>
         <button
           type="button"
           onClick={() => setStatusFilter("Overdue")}
-          className={`rounded-xl border bg-white p-4 text-left transition-all ${
-            statusFilter === "Overdue" ? "border-red-500 ring-2 ring-red-100" : "border-gray-200 hover:border-red-200"
+          className={`rounded-xl border bg-background-primary-default p-4 text-left transition ${
+            statusFilter === "Overdue" ? "border-danger-solid ring-2 ring-danger-border" : "border-separator-border hover:border-danger-border"
           }`}
         >
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Overdue</p>
-          <p className={`mt-1 text-2xl font-bold ${summary.overdue > 0 ? "text-red-600" : "text-gray-900"}`}>{summary.overdue}</p>
+          <p className="text-caption-1-medium text-text-secondary">Overdue</p>
+          <p className={`mt-1 text-title-1-semibold ${summary.overdue > 0 ? "text-danger-text" : "text-text-primary"}`}>{summary.overdue}</p>
         </button>
         <button
           type="button"
           onClick={() => setStatusFilter("Completed")}
-          className={`rounded-xl border bg-white p-4 text-left transition-all ${
-            statusFilter === "Completed" ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200 hover:border-emerald-200"
+          className={`rounded-xl border bg-background-primary-default p-4 text-left transition ${
+            statusFilter === "Completed" ? "border-success-solid ring-2 ring-success-border" : "border-separator-border hover:border-success-border"
           }`}
         >
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Completed EMI Records</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{summary.completed}</p>
+          <p className="text-caption-1-medium text-text-secondary">Completed EMI Records</p>
+          <p className="mt-1 text-title-1-semibold text-text-primary">{summary.completed}</p>
         </button>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total Monthly EMI</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{formatCurrency(summary.monthlyTotal)}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Total Monthly EMI</p>
+          <p className="mt-1 text-title-1-semibold text-text-primary">{formatCurrency(summary.monthlyTotal)}</p>
         </div>
       </div>
 
@@ -280,16 +281,14 @@ export default function EmiTrackingPage() {
       ) : statusFilter === "Overdue" ? (
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Overdue EMI</h2>
-            <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+            <AlertTriangle className="h-5 w-5 text-danger-text" />
+            <h2 className="text-title-3-semibold text-text-primary">Overdue EMI</h2>
+            <span className="rounded-full bg-danger-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-danger-text">
               {overdueRecords.length} record{overdueRecords.length !== 1 ? "s" : ""} past End Date, not yet Completed
             </span>
           </div>
           {overdueRecords.length === 0 ? (
-            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-              No overdue EMI records.
-            </div>
+            <EmptyState size="compact" illustration="no-data" title="No overdue EMI records" />
           ) : (
             <EmiTrackingTable records={overdueRecords} onView={handleView} onViewInsights={handleViewInsights} onEdit={handleEdit} onDelete={handleDelete} />
           )}
@@ -297,9 +296,9 @@ export default function EmiTrackingPage() {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Completed EMI</h2>
-            <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+            <CheckCircle2 className="h-5 w-5 text-success-text" />
+            <h2 className="text-title-3-semibold text-text-primary">Completed EMI</h2>
+            <span className="rounded-full bg-success-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-success-text">
               {completedRecords.length} loan{completedRecords.length !== 1 ? "s" : ""} repaid
             </span>
           </div>
@@ -340,7 +339,7 @@ export default function EmiTrackingPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by EMI name, truck registration, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -349,39 +348,37 @@ export default function EmiTrackingPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No EMI edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No EMI edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">EMI</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">EMI</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.emiName}</p>
-                            {ev.truckRegistration && <p className="text-[11px] text-gray-400">{ev.truckRegistration}</p>}
+                            <p className="font-semibold text-text-primary">{ev.emiName}</p>
+                            {ev.truckRegistration && <p className="text-[11px] text-text-tertiary">{ev.truckRegistration}</p>}
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

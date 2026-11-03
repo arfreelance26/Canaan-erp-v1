@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { KeyRound, Lock, Loader2, MessageSquare, Mic, Image as ImageIcon, FileText, ShieldOff, History, Unlock, ShieldAlert, Eye, ArrowLeft } from "lucide-react";
+import { RiKey2Line as KeyRound, RiLockLine as Lock, RiLoader4Line as Loader2, RiMessage3Line as MessageSquare, RiMicLine as Mic, RiImageLine as ImageIcon, RiFileTextLine as FileText, RiShieldLine as ShieldOff, RiHistoryLine as History, RiLockUnlockLine as Unlock, RiShieldFlashLine as ShieldAlert, RiEyeLine as Eye, RiArrowLeftLine as ArrowLeft } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { chatOwnerApi } from "@/lib/api";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 import { formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import { Avatar, getInitials, formatTime, senderColor } from "@/components/chat/shared";
 import type { ChatOwnerConversation, ChatMessage, ChatOwnerHistoryEntry } from "@/types/chat";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 /** Title + avatar name for a direct or group owner-view thread — no "me" to
  * exclude from the label, since the owner isn't a participant in these. */
 function threadTitle(c: Pick<ChatOwnerConversation, "kind" | "title" | "members">): string {
@@ -208,8 +209,8 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
               type="button"
               onClick={() => { setShowHistory((v) => !v); setShowChangePw(false); }}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium hover:bg-gray-50",
-                showHistory ? "border-brand-navy/30 bg-brand-navy/5 text-brand-navy" : "border-gray-200 text-gray-600"
+                "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-caption-1-medium hover:bg-fill-2",
+                showHistory ? "border-accent-solid/30 bg-accent-solid/5 text-accent-text-strong" : "border-separator-border text-text-secondary"
               )}
             >
               <History className="h-3.5 w-3.5" />
@@ -218,7 +219,7 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
             <button
               type="button"
               onClick={() => { setShowChangePw((v) => !v); setShowHistory(false); }}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+              className="flex items-center gap-1.5 rounded-lg border border-separator-border px-2.5 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2"
             >
               <KeyRound className="h-3.5 w-3.5" />
               Change password
@@ -229,12 +230,12 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
     >
       {!unlocked ? (
         <form onSubmit={handleUnlock} className="flex flex-col items-center gap-4 px-2 py-4 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-warning-surface text-warning-text">
             <Lock className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-gray-900">Every conversation, read-only</p>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="text-body-semibold text-text-primary">Every conversation, read-only</p>
+            <p className="mt-1 text-xs text-text-secondary">
               This is a separate password, not your login. Every time it&apos;s used is recorded.
             </p>
           </div>
@@ -244,20 +245,20 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Owner password"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-center tracking-widest"
+            className="w-full rounded-lg border border-border-button-default px-3 py-2 text-sm text-center"
           />
-          {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+          {error && <p className="text-caption-1-medium text-danger-text">{error}</p>}
           <div className="relative w-full">
             <button
               type="submit"
               disabled={unlocking || unlockSuccess || !password.trim()}
               className={cn(
-                "relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-100",
-                unlockSuccess ? "bg-emerald-600 animate-owner-unlock-pop" : "bg-brand-navy hover:opacity-90 disabled:opacity-50"
+                "relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg px-4 py-2.5 text-body-semibold text-on-solid transition-colors disabled:opacity-100",
+                unlockSuccess ? "bg-success-solid animate-owner-unlock-pop" : "bg-accent-solid hover:opacity-90 disabled:opacity-50"
               )}
             >
               {unlockSuccess && (
-                <span className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-white/30 animate-owner-unlock-sweep" />
+                <span className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-on-solid/30 animate-owner-unlock-sweep" />
               )}
               {unlocking ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -275,35 +276,35 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
           {showChangePw && (
             <form
               onSubmit={handleChangePassword}
-              className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50/60 p-4 sm:flex-row sm:flex-wrap sm:items-end"
+              className="flex flex-col gap-3 rounded-xl border border-separator-border bg-fill-1 p-4 sm:flex-row sm:flex-wrap sm:items-end"
             >
-              <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+              <label className="flex flex-col gap-1 text-caption-1-medium text-text-secondary">
                 Current password
                 <input
                   type="password"
                   value={currentPw}
                   onChange={(e) => setCurrentPw(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-40"
+                  className="w-full rounded-lg border border-border-button-default px-3 py-2 text-sm sm:w-40"
                   required
                 />
               </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+              <label className="flex flex-col gap-1 text-caption-1-medium text-text-secondary">
                 New password
                 <input
                   type="password"
                   value={newPw}
                   onChange={(e) => setNewPw(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-40"
+                  className="w-full rounded-lg border border-border-button-default px-3 py-2 text-sm sm:w-40"
                   required
                 />
               </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+              <label className="flex flex-col gap-1 text-caption-1-medium text-text-secondary">
                 Confirm new password
                 <input
                   type="password"
                   value={confirmPw}
                   onChange={(e) => setConfirmPw(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-40"
+                  className="w-full rounded-lg border border-border-button-default px-3 py-2 text-sm sm:w-40"
                   required
                 />
               </label>
@@ -311,44 +312,44 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
                 <button
                   type="submit"
                   disabled={changingPw}
-                  className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  className="rounded-lg bg-accent-solid px-4 py-2 text-body-semibold text-on-solid hover:opacity-90 disabled:opacity-50"
                 >
                   {changingPw ? "Saving…" : "Save"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowChangePw(false); setChangePwError(""); }}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                  className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-3"
                 >
                   Cancel
                 </button>
               </div>
-              {changePwError && <p className="w-full text-xs font-medium text-red-600">{changePwError}</p>}
+              {changePwError && <p className="w-full text-caption-1-medium text-danger-text">{changePwError}</p>}
             </form>
           )}
 
           {showHistory ? (
-            <div className="flex h-[70vh] flex-col overflow-hidden rounded-xl border border-gray-200">
-              <div className="flex shrink-0 items-center gap-2 border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
+            <div className="flex h-[70vh] flex-col overflow-hidden rounded-xl border border-separator-border">
+              <div className="flex shrink-0 items-center gap-2 border-b border-separator-border bg-fill-1 px-4 py-2.5">
                 <button
                   type="button"
                   onClick={() => setShowHistory(false)}
-                  className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700"
+                  className="flex items-center gap-1 text-caption-1-medium text-text-secondary hover:text-text-primary"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
                   Back
                 </button>
-                <p className="ml-1 text-sm font-semibold text-gray-900">Owner View history</p>
+                <p className="ml-1 text-body-semibold text-text-primary">Owner View history</p>
               </div>
               <div className="flex-1 overflow-y-auto">
                 {loadingHistory ? (
-                  <div className="flex h-full items-center justify-center text-gray-400">
+                  <div className="flex h-full items-center justify-center text-text-tertiary">
                     <Loader2 className="h-5 w-5 animate-spin" />
                   </div>
                 ) : history.length === 0 ? (
-                  <p className="pt-10 text-center text-sm text-gray-400">No history yet.</p>
+                  <EmptyState size="compact" illustration="no-data" title="No history yet" />
                 ) : (
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-separator-border">
                     {history.map((h) => {
                       const Icon = historyIcon(h.event);
                       const denied = h.outcome === "denied";
@@ -357,27 +358,27 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
                           <span
                             className={cn(
                               "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                              denied ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600"
+                              denied ? "bg-danger-surface text-danger-text" : "bg-success-surface text-success-text"
                             )}
                           >
                             {denied ? <ShieldAlert className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                              <span className="text-sm font-semibold text-gray-900">
+                              <span className="text-body-semibold text-text-primary">
                                 {HISTORY_LABELS[h.event] ?? h.event}
                               </span>
                               <span
                                 className={cn(
-                                  "text-[11px] font-medium",
-                                  denied ? "text-red-500" : "text-emerald-600"
+                                  "text-caption-2-medium",
+                                  denied ? "text-danger-text" : "text-success-text"
                                 )}
                               >
                                 {h.outcome}
                               </span>
-                              <span className="text-[11px] text-gray-400">{formatDateTime(h.createdAt)}</span>
+                              <span className="text-[11px] text-text-tertiary">{formatDateTime(h.createdAt)}</span>
                             </div>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-text-secondary">
                               {h.actorName ?? "Unknown"}
                               {h.resource ? ` · ${h.resource}` : ""}
                               {h.detail ? ` · ${h.detail}` : ""}
@@ -391,15 +392,15 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
               </div>
             </div>
           ) : (
-          <div className="flex h-[70vh] gap-0 overflow-hidden rounded-xl border border-gray-200">
+          <div className="flex h-[70vh] gap-0 overflow-hidden rounded-xl border border-separator-border">
           {/* Conversation list */}
-          <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-r border-gray-100 bg-gray-50/60">
+          <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-r border-separator-border bg-fill-1">
             {loadingList ? (
-              <div className="flex flex-1 items-center justify-center text-gray-400">
+              <div className="flex flex-1 items-center justify-center text-text-tertiary">
                 <Loader2 className="h-5 w-5 animate-spin" />
               </div>
             ) : conversations.length === 0 ? (
-              <p className="p-4 text-center text-xs text-gray-400">No conversations yet.</p>
+              <p className="p-4 text-center text-xs text-text-tertiary">No conversations yet.</p>
             ) : (
               conversations.map((c) => {
                 const title = threadTitle(c);
@@ -418,19 +419,19 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
                     type="button"
                     onClick={() => setActiveId(c.id)}
                     className={cn(
-                      "flex items-center gap-3 border-b border-gray-100 px-3 py-2.5 text-left transition-colors",
-                      activeId === c.id ? "bg-white shadow-[inset_3px_0_0_#1b2b5e]" : "hover:bg-white/70"
+                      "flex items-center gap-3 border-b border-separator-border px-3 py-2.5 text-left transition-colors",
+                      activeId === c.id ? "bg-background-primary-default shadow-md" : "hover:bg-fill-2"
                     )}
                   >
                     <Avatar name={title} size={40} group={c.kind === "group"} />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-semibold text-gray-900">{title}</span>
+                        <span className="truncate text-body-semibold text-text-primary">{title}</span>
                         {c.lastMessageAt && (
-                          <span className="shrink-0 text-[11px] text-gray-400">{formatTime(c.lastMessageAt)}</span>
+                          <span className="shrink-0 text-[11px] text-text-tertiary">{formatTime(c.lastMessageAt)}</span>
                         )}
                       </span>
-                      <span className="truncate text-xs text-gray-400">{preview}</span>
+                      <span className="truncate text-xs text-text-tertiary">{preview}</span>
                     </span>
                   </button>
                 );
@@ -439,31 +440,31 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
           </div>
 
           {/* Thread */}
-          <div className="flex min-w-0 flex-1 flex-col bg-white">
+          <div className="flex min-w-0 flex-1 flex-col bg-background-primary-default">
             {!active ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-300">
-                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-text-tertiary">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-fill-2">
                   <MessageSquare className="h-7 w-7" />
                 </span>
-                <p className="text-sm font-medium text-gray-400">Owner View</p>
-                <p className="text-xs text-gray-400">Pick a conversation on the left to view it.</p>
+                <p className="text-body-medium text-text-tertiary">Owner View</p>
+                <p className="text-xs text-text-tertiary">Pick a conversation on the left to view it.</p>
               </div>
             ) : (
               <>
-                <div className="flex shrink-0 items-center gap-3 border-b border-gray-100 px-4 py-2.5">
+                <div className="flex shrink-0 items-center gap-3 border-b border-separator-border px-4 py-2.5">
                   <Avatar name={threadTitle(active)} size={36} group={active.kind === "group"} />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-900">{threadTitle(active)}</p>
-                    <p className="truncate text-xs text-gray-400">{active.members.map((m) => m.name).join(", ")}</p>
+                    <p className="truncate text-body-semibold text-text-primary">{threadTitle(active)}</p>
+                    <p className="truncate text-xs text-text-tertiary">{active.members.map((m) => m.name).join(", ")}</p>
                   </div>
                 </div>
-                <div ref={threadRef} className="flex-1 overflow-y-auto bg-gray-50/40 px-4 py-3">
+                <div ref={threadRef} className="flex-1 overflow-y-auto bg-fill-1 px-4 py-3">
                   {loadingMessages ? (
-                    <div className="flex h-full items-center justify-center text-gray-400">
+                    <div className="flex h-full items-center justify-center text-text-tertiary">
                       <Loader2 className="h-5 w-5 animate-spin" />
                     </div>
                   ) : messages.length === 0 ? (
-                    <p className="pt-10 text-center text-sm text-gray-400">No messages in this conversation.</p>
+                    <EmptyState size="compact" illustration="inbox-empty" title="No messages in this conversation" />
                   ) : (
                     <div className="flex flex-col gap-3">
                       {messages.map((m) => {
@@ -472,7 +473,7 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
                           <div key={m.id} className="flex items-start gap-2">
                             <div
                               className={cn(
-                                "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white",
+                                "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-caption-2-semibold text-on-solid",
                                 color.bg
                               )}
                             >
@@ -480,18 +481,18 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
                             </div>
                             <div className="flex min-w-0 max-w-lg flex-col gap-0.5">
                               <div className="flex items-baseline gap-2">
-                                <span className={cn("text-xs font-semibold", color.text)}>{m.senderName ?? "—"}</span>
-                                <span className="text-[11px] text-gray-400">{formatTime(m.createdAt)}</span>
+                                <span className={cn("text-caption-1-semibold", color.text)}>{m.senderName ?? "—"}</span>
+                                <span className="text-[11px] text-text-tertiary">{formatTime(m.createdAt)}</span>
                               </div>
-                              <div className="rounded-2xl rounded-tl-sm bg-white px-3 py-2 text-sm text-gray-800 shadow-sm">
+                              <div className="rounded-2xl rounded-tl-sm bg-background-primary-default px-3 py-2 text-sm text-text-primary shadow-sm">
                                 {m.deleted ? (
-                                  <span className="italic text-gray-400">Message deleted</span>
+                                  <span className="italic text-text-tertiary">Message deleted</span>
                                 ) : m.contentType === "text" ? (
                                   m.text
                                 ) : (
                                   <span
                                     title="Attachments aren't retrievable in Owner View, by design — this view can only show what was said, not the files themselves"
-                                    className="flex cursor-default items-center gap-1.5 rounded-lg bg-gray-100 px-2 py-1.5 text-gray-400"
+                                    className="flex cursor-default items-center gap-1.5 rounded-lg bg-fill-2 px-2 py-1.5 text-text-tertiary"
                                   >
                                     {m.contentType === "voice" ? (
                                       <Mic className="h-3.5 w-3.5" />

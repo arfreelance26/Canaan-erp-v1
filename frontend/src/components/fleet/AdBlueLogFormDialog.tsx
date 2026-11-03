@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { Droplets, Save } from "lucide-react";
+import { RiDropLine as Droplets, RiSave3Line as Save } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import type { AdBlueLog } from "@/types/adblue-log";
 import { adblueLogsApi, type AdBlueManufacturer } from "@/lib/api";
@@ -25,13 +25,13 @@ type AdBlueLogFormDialogProps = {
 };
 
 const inputClass =
-  "mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors";
+  "mt-1 block w-full rounded-lg border border-border-button-default bg-background-primary-default px-3 py-2 text-sm text-text-primary placeholder-text-placeholder focus:border-accent-solid focus:outline-none focus:ring-1 focus:ring-accent-solid transition-colors";
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
+      <label className="mb-1 block text-body-medium text-text-primary">
+        {label} {required && <span className="text-danger-text">*</span>}
       </label>
       {children}
     </div>
@@ -137,13 +137,13 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
 
   return (
     <Dialog open={open} onClose={onClose} title={log ? "Edit AdBlue Log" : "Enter AdBlue Log"}>
-      <div className="mb-6 flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100/50 text-blue-600">
+      <div className="mb-6 flex items-center gap-3 rounded-lg border border-separator-border bg-fill-1 p-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-surface-strong/50 text-accent-text">
           <Droplets className="h-5 w-5" />
         </div>
         <div>
-          <p className="font-semibold text-gray-900">{truck.registrationNumber}</p>
-          <p className="text-sm text-gray-500">{truck.modelName}</p>
+          <p className="font-semibold text-text-primary">{truck.registrationNumber}</p>
+          <p className="text-sm text-text-secondary">{truck.modelName}</p>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
             className={inputClass}
             placeholder="e.g. 60.00"
           />
-          {priceSource && <p className="mt-1 text-xs text-blue-600">{priceSource} — change it if this fill cost differently.</p>}
+          {priceSource && <p className="mt-1 text-xs text-accent-text">{priceSource} — change it if this fill cost differently.</p>}
         </Field>
 
         <Field label="Total Adblue Cost (₹)" required>
@@ -197,11 +197,11 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
             required
             readOnly
             value={form.totalCost}
-            className={`${inputClass} cursor-not-allowed bg-green-50 text-green-800`}
+            className={`${inputClass} cursor-not-allowed bg-success-surface text-success-text-strong`}
             placeholder="Enter quantity and cost per litre"
           />
           {form.totalCost && (
-            <p className="mt-1 text-xs text-green-700">
+            <p className="mt-1 text-xs text-success-text">
               Auto-calculated: {form.litres} L × ₹{Number(form.pricePerLitre).toFixed(2)} = ₹{form.totalCost}
             </p>
           )}
@@ -227,22 +227,22 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
               className={`${inputClass} resize-none`}
               placeholder="Explain why this log needs to be changed…"
             />
-            <p className="mt-1 text-xs text-amber-700">Requires approval — the log changes once this request is approved.</p>
+            <p className="mt-1 text-xs text-warning-text">Requires approval — the log changes once this request is approved.</p>
           </Field>
         )}
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+        <div className="flex justify-end gap-3 border-t border-separator-border pt-4">
           <button
             type="button"
             onClick={() => { if (!log) clearFormDraft(draftKey); onClose(); }}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-border-button-default bg-background-primary-default px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!form.totalCost || saving || (requiresApproval && !reason.trim())}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid shadow-sm hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             {requiresApproval ? "Submit Request" : log ? "Save Changes" : "Save AdBlue Log"}

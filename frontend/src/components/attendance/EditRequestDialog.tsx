@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, ShieldAlert } from "lucide-react";
+import { RiCloseLine as X, RiShieldFlashLine as ShieldAlert } from "@remixicon/react";
 import type { EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
 
 type Props = {
@@ -43,18 +43,18 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/60 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div className="absolute inset-0 bg-scrim/40" onClick={handleClose} />
+      <div className="relative w-full max-w-md rounded-2xl border border-separator-border bg-background-primary-default shadow-2xl">
+        <div className="flex items-center justify-between border-b border-separator-border px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${directAction ? "bg-red-100" : "bg-amber-100"}`}>
-              <ShieldAlert className={`h-4 w-4 ${directAction ? "text-red-600" : "text-amber-600"}`} />
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${directAction ? "bg-danger-surface-strong" : "bg-warning-surface-strong"}`}>
+              <ShieldAlert className={`h-4 w-4 ${directAction ? "text-danger-text" : "text-warning-text"}`} />
             </div>
             <div>
-              <h2 className="text-[15px] font-semibold text-gray-900">
+              <h2 className="text-[15px] font-semibold text-text-primary">
                 {directAction ? `${action} ${resourceType}` : `Request ${action} Access`}
               </h2>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-[11px] text-text-secondary">
                 {directAction ? "This action cannot be undone" : rejectionContext ? "Kumar (Commercial Manager) approval required" : "Admin approval required"}
               </p>
             </div>
@@ -62,7 +62,7 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
           <button
             type="button"
             onClick={handleClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-text-secondary"
           >
             <X className="h-4 w-4" />
           </button>
@@ -70,12 +70,12 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
 
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
           {rejectionContext && (
-            <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3">
-              <p className="text-[11px] font-bold text-rose-700 mb-1">Accounts Rejection Reason:</p>
-              <p className="text-sm text-rose-700">{rejectionContext}</p>
+            <div className="rounded-xl bg-danger-surface border border-danger-border px-4 py-3">
+              <p className="text-caption-2-semibold text-danger-text mb-1">Accounts Rejection Reason:</p>
+              <p className="text-sm text-danger-text">{rejectionContext}</p>
             </div>
           )}
-          <div className={`rounded-xl border px-4 py-3 text-sm ${directAction ? "bg-red-50 border-red-200 text-red-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+          <div className={`rounded-xl border px-4 py-3 text-sm ${directAction ? "bg-danger-surface border-danger-border text-danger-text-strong" : "bg-warning-surface border-warning-border text-warning-text-strong"}`}>
             {directAction
               ? <>You are about to <span className="font-semibold">{action.toLowerCase()}</span>:{" "}
                   <span className="font-semibold">{resourceName}</span>
@@ -84,13 +84,13 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
               ? <>Requesting edit approval from <span className="font-semibold">Kumar (Commercial Manager)</span> for: <span className="font-semibold">{resourceName}</span></>
               : <>You are requesting <span className="font-semibold">{action}</span> access for:{" "}
                   <span className="font-semibold">{resourceName}</span>
-                  <span className="ml-1 text-amber-600">({resourceType})</span></>
+                  <span className="ml-1 text-warning-text">({resourceType})</span></>
             }
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-gray-700">
-              {directAction ? `Reason for ${action.toLowerCase()}?` : "Reason of the Edit Request?"} <span className="text-red-500">*</span>
+            <label className="text-body-2-medium text-text-primary">
+              {directAction ? `Reason for ${action.toLowerCase()}?` : "Reason of the Edit Request?"} <span className="text-danger-text">*</span>
             </label>
             <textarea
               value={reason}
@@ -98,7 +98,7 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
               placeholder={directAction ? "Describe why this is being deleted..." : "Describe why you need to make this change..."}
               rows={4}
               required
-              className="w-full resize-none rounded-lg border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              className="w-full resize-none rounded-lg border border-separator-border bg-background-primary-default px-3 py-2.5 text-sm text-text-primary outline-none transition placeholder:text-text-placeholder focus:border-accent-solid focus:bg-background-primary-default focus:ring-4 focus:ring-accent-solid/10"
             />
           </div>
 
@@ -106,14 +106,14 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting || !reason.trim()}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed ${directAction ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"}`}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-body-medium text-on-solid disabled:opacity-50 disabled:cursor-not-allowed ${directAction ? "bg-danger-solid hover:bg-danger-solid-hover" : "bg-warning-solid hover:bg-warning-solid-hover"}`}
             >
               {submitting ? (directAction ? "Deleting..." : "Sending...") : (directAction ? `${action}` : "Send Request")}
             </button>

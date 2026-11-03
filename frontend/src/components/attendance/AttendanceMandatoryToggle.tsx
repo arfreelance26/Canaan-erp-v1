@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ShieldCheck, ShieldOff, Loader2 } from "lucide-react";
+import { RiShieldCheckLine as ShieldCheck, RiShieldLine as ShieldOff, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { securityApi } from "@/lib/api";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 
 // Standalone header control for the "Set Marking Attendance as Mandatory"
@@ -43,10 +43,10 @@ export function AttendanceMandatoryToggle() {
       disabled={saving}
       title="Requires staff to mark attendance before using the rest of the app"
       className={cn(
-        "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-semibold shadow-sm transition-all duration-300 hover:scale-105 disabled:opacity-60 disabled:hover:scale-100",
+        "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-body-semibold shadow-sm transition duration-300 disabled:opacity-60",
         mandatory
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+          ? "border-success-border bg-success-surface text-success-text hover:bg-success-surface-strong"
+          : "border-border-button-default bg-background-primary-default text-text-primary hover:bg-fill-2"
       )}
     >
       {saving ? (

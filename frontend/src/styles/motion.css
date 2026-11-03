@@ -1,0 +1,41 @@
+/* ---------------------------------------------------------------------------
+ * CSS motion recipes (BoardUI motion language). JS-driven motion lives in
+ * src/lib/motion (anime.js); these cover mount animations for overlays.
+ *
+ *   animate-modal-in     panel condenses in: 300ms, scale .96 + 4px blur
+ *   animate-scrim-in     backdrop fades in: 300ms ease-out
+ *   animate-pop-in       menus / popovers: 150ms, scale .96 + 2px blur
+ *
+ * Fill mode is `backwards`: nothing lingers after the entrance, so a settled
+ * panel never becomes the containing block for position:fixed children.
+ * --------------------------------------------------------------------------- */
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96); filter: blur(4px); }
+  to   { opacity: 1; transform: scale(1);    filter: blur(0); }
+}
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); filter: blur(2px); }
+  to   { opacity: 1; transform: scale(1);    filter: blur(0); }
+}
+
+@utility animate-modal-in {
+  animation: modal-in 300ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+@utility animate-scrim-in {
+  animation: scrim-in 300ms ease-out backwards;
+}
+@utility animate-pop-in {
+  animation: pop-in 150ms ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-in,
+  .animate-scrim-in,
+  .animate-pop-in {
+    animation: none;
+  }
+}

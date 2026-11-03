@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Eye, FileText, Paperclip, X } from "lucide-react";
+import { RiEyeLine as Eye, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiCloseLine as X } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileViewer } from "@/components/ui/FileViewer";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -298,7 +298,7 @@ export function TyreInventoryFormDialog({
               readOnly
               disabled
               value={costPerKm ? `₹ ${Number(costPerKm).toLocaleString("en-IN", { minimumFractionDigits: 4 })}` : ""}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               placeholder={
                 !form.cost
                   ? "Enter Purchase Cost first"
@@ -313,8 +313,8 @@ export function TyreInventoryFormDialog({
               label text would be forwarded to the first toggle button. */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-gray-700">Maintenance By</span>
-              <div role="radiogroup" aria-label="Maintenance by" className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+              <span className="text-body-medium text-text-primary">Maintenance By</span>
+              <div role="radiogroup" aria-label="Maintenance by" className="flex shrink-0 gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
                 {MAINTENANCE_BY_TYPES.map((t) => (
                   <button
                     key={t}
@@ -326,10 +326,10 @@ export function TyreInventoryFormDialog({
                       // A vendor name and a typed person's name aren't interchangeable.
                       setForm((prev) => ({ ...prev, maintenanceByType: t, maintenanceBy: "", vendorId: "" }));
                     }}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
+                    className={`rounded-full px-3 py-1 text-caption-1-semibold transition duration-200 ${
                       maintenanceByType === t
-                        ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
-                        : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+                        ? "bg-accent-solid text-on-solid shadow-md"
+                        : "text-text-secondary hover:bg-fill-2 hover:text-text-primary"
                     }`}
                   >
                     {t}
@@ -385,17 +385,17 @@ export function TyreInventoryFormDialog({
             forward clicks to the view/remove buttons. */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-gray-700">Proof of Payment/Invoice</span>
-            <span className="text-xs text-gray-400">PDF or image · max 15 MB</span>
+            <span className="text-body-medium text-text-primary">Proof of Payment/Invoice</span>
+            <span className="text-xs text-text-tertiary">PDF or image · max 15 MB</span>
           </div>
           {proofFile || savedProof ? (
-            <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-2.5 py-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-blue-50 text-blue-600">
+            <div className="flex items-center gap-3 rounded-lg border border-separator-border bg-background-primary-default px-2.5 py-2">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-accent-surface text-accent-text">
                 <FileText className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-gray-800">{proofFile ? proofFile.name : savedProof}</span>
-                <span className="block text-xs text-gray-400">
+                <span className="block truncate text-sm text-text-primary">{proofFile ? proofFile.name : savedProof}</span>
+                <span className="block text-xs text-text-tertiary">
                   {proofFile
                     ? `${fileSize(proofFile.size)} · uploads when you save`
                     : initialData?.proofSizeBytes ? `${fileSize(initialData.proofSizeBytes)} · saved` : "Saved"}
@@ -405,12 +405,12 @@ export function TyreInventoryFormDialog({
                 type="button"
                 onClick={() => setViewingProof(true)}
                 aria-label="View proof"
-                className="rounded-full p-1 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                className="rounded-full p-1 text-text-tertiary transition-colors hover:bg-accent-surface-strong hover:text-accent-text"
               >
                 <Eye className="h-4 w-4" />
               </button>
               <label
-                className="cursor-pointer rounded-full px-2 py-0.5 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+                className="cursor-pointer rounded-full px-2 py-0.5 text-caption-1-semibold text-accent-text transition-colors hover:bg-accent-surface-strong"
               >
                 Replace
                 <input
@@ -428,13 +428,13 @@ export function TyreInventoryFormDialog({
                   setProofError("");
                 }}
                 aria-label="Remove proof"
-                className="rounded-full p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                className="rounded-full p-1 text-text-tertiary transition-colors hover:bg-danger-surface-strong hover:text-danger-text"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           ) : (
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-600 transition-colors hover:border-blue-400 hover:bg-blue-50/40 hover:text-blue-700">
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border-button-default px-4 py-4 text-sm text-text-secondary transition-colors hover:border-accent-border-strong hover:bg-accent-surface-strong/40 hover:text-accent-text">
               <Paperclip className="h-4 w-4" />
               Upload a PDF or image (max 15 MB)
               <input
@@ -446,12 +446,12 @@ export function TyreInventoryFormDialog({
             </label>
           )}
           {removeProof && !proofFile && (
-            <p className="text-xs text-amber-700">
+            <p className="text-xs text-warning-text">
               The saved proof will be removed when you save.{" "}
               <button type="button" onClick={() => setRemoveProof(false)} className="font-semibold underline">Undo</button>
             </p>
           )}
-          {proofError && <p className="text-xs text-red-600">{proofError}</p>}
+          {proofError && <p className="text-xs text-danger-text">{proofError}</p>}
         </div>
 
         <FileViewer
@@ -463,19 +463,19 @@ export function TyreInventoryFormDialog({
           load={() => (proofFile ? Promise.resolve<Blob>(proofFile) : tyreApi.fetchProofBlob(initialData!.id))}
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger-text">{error}</p>}
 
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {initialData ? "Save Changes" : "Add Tyre"}
           </button>

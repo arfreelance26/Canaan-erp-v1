@@ -51,10 +51,10 @@ export function TransactionHistoryDialog({
                 type="button"
                 onClick={() => setFilter(value)}
                 className={cn(
-                  "rounded-full px-4 py-1.5 text-sm font-medium shadow-sm transition-all",
+                  "rounded-full px-4 py-1.5 text-body-medium shadow-sm transition",
                   filter === value
-                    ? "bg-blue-600 text-white shadow-blue-200"
-                    : "border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                    ? "bg-accent-solid text-on-solid"
+                    : "border border-separator-border bg-background-primary-default text-text-secondary hover:border-border-button-default hover:bg-fill-2"
                 )}
               >
                 {value}
@@ -64,56 +64,56 @@ export function TransactionHistoryDialog({
         )}
 
         {filteredTransactions.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+          <div className="rounded-xl border border-separator-border bg-background-primary-default p-6 text-center text-sm text-text-secondary">
             No transactions yet.
           </div>
         ) : (
-          <div className="overflow-auto max-h-72 rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-auto max-h-72 rounded-xl border border-separator-border bg-background-primary-default">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                <tr className="border-b border-separator-border bg-fill-1">
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                     Type
                   </th>
-                  <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                     Amount
                   </th>
                   {showTypeFilters && (
-                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                    <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                       Trip Number
                     </th>
                   )}
-                  <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                     Note
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-600">{formatDate(transaction.date)}</td>
+                  <tr key={transaction.id} className="hover:bg-fill-2">
+                    <td className="px-4 py-3 text-text-secondary">{formatDate(transaction.date)}</td>
                     <td className="px-4 py-3">
                       <span
                         className={cn(
-                          "rounded-full px-2.5 py-1 text-xs font-medium",
+                          "rounded-full px-2.5 py-1 text-caption-1-medium",
                           transaction.type === "Advance"
-                            ? "bg-yellow-50 text-yellow-700"
-                            : "bg-green-50 text-green-700"
+                            ? "bg-warning-surface text-warning-text"
+                            : "bg-success-surface text-success-text"
                         )}
                       >
                         {transaction.type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">
+                    <td className="px-4 py-3 font-medium text-text-primary">
                       {formatCurrency(transaction.amount)}
                     </td>
                     {showTypeFilters && (
-                      <td className="px-4 py-3 text-gray-600">{transaction.tripNumber || "—"}</td>
+                      <td className="px-4 py-3 text-text-secondary">{transaction.tripNumber || "—"}</td>
                     )}
-                    <td className="px-4 py-3 text-gray-600">{transaction.note || "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">{transaction.note || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -125,7 +125,7 @@ export function TransactionHistoryDialog({
           <button
             type="button"
             onClick={onClose}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Close
           </button>

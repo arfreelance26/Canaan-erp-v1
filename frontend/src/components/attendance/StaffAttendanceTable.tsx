@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, XCircle, CalendarOff, Loader2, LogOut } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiCalendarCloseLine as CalendarOff, RiLoader4Line as Loader2, RiLogoutBoxRLine as LogOut } from "@remixicon/react";
 import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 import { getStaffAttendanceForDate } from "@/lib/attendance-data";
@@ -9,6 +9,7 @@ import { formatDateTime } from "@/lib/format-date";
 import type { Staff } from "@/types/staff";
 import type { StaffAttendanceRecord } from "@/types/attendance";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type StaffAttendanceTableProps = {
   staff: Staff[];
   records: StaffAttendanceRecord[];
@@ -26,14 +27,14 @@ type StaffAttendanceTableProps = {
 const columns = ["Photo", "Staff ID", "Name", "Role", "Attendance", "Shift", "Marked At", "Source"];
 
 const sourceStyles: Record<string, string> = {
-  Web: "bg-blue-50 text-blue-700",
-  App: "bg-purple-50 text-purple-700",
+  Web: "bg-accent-surface text-accent-text",
+  App: "bg-purple-surface text-purple-text",
 };
 
 const statusOptions = [
-  { value: "Present", label: "Present", icon: CheckCircle2, activeClass: "border-green-500 bg-green-50 text-green-700" },
-  { value: "Absent", label: "Absent", icon: XCircle, activeClass: "border-red-500 bg-red-50 text-red-700" },
-  { value: "On Leave", label: "On Leave", icon: CalendarOff, activeClass: "border-yellow-500 bg-yellow-50 text-yellow-700" },
+  { value: "Present", label: "Present", icon: CheckCircle2, activeClass: "border-success-solid bg-success-surface text-success-text" },
+  { value: "Absent", label: "Absent", icon: XCircle, activeClass: "border-danger-solid bg-danger-surface text-danger-text" },
+  { value: "On Leave", label: "On Leave", icon: CalendarOff, activeClass: "border-warning-solid bg-warning-surface text-warning-text" },
 ];
 
 function AttendanceRadioGroup({
@@ -84,8 +85,8 @@ function AttendanceRadioGroup({
           <label
             key={value}
             className={cn(
-              "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-              checked ? activeClass : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50",
+              "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption-1-medium transition-colors",
+              checked ? activeClass : "border-separator-border bg-background-primary-default text-text-secondary hover:border-border-button-default hover:bg-fill-2",
               saving && "opacity-50"
             )}
           >
@@ -103,14 +104,14 @@ function AttendanceRadioGroup({
           </label>
         );
       })}
-      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-text-tertiary" />}
       {canCloseShift && (
         <button
           type="button"
           onClick={handleCloseShift}
           disabled={closing}
           title="Close this shift now, on their behalf"
-          className="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-full border border-warning-border-strong bg-warning-surface px-2.5 py-1 text-caption-1-medium text-warning-text transition-colors hover:bg-warning-surface-strong disabled:opacity-50"
         >
           {closing ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
           Close Shift
@@ -134,19 +135,19 @@ function relativeAgo(iso: string): string {
 
 function ShiftCell({ record, isToday }: { record: StaffAttendanceRecord | undefined; isToday: boolean }) {
   if (!record || record.status !== "Present" || !record.checkInTime) {
-    return <span className="text-gray-400">—</span>;
+    return <span className="text-text-tertiary">—</span>;
   }
   if (record.checkOutTime) {
-    return <span className="text-gray-600">{record.checkInTime} → {record.checkOutTime}</span>;
+    return <span className="text-text-secondary">{record.checkInTime} → {record.checkOutTime}</span>;
   }
   if (!isToday) {
-    return <span className="text-gray-600">{record.checkInTime} → <span className="italic text-amber-600">open</span></span>;
+    return <span className="text-text-secondary">{record.checkInTime} → <span className="italic text-warning-text">open</span></span>;
   }
   return (
-    <span className="flex flex-col text-gray-600">
+    <span className="flex flex-col text-text-secondary">
       <span>{record.checkInTime}</span>
       {record.lastActiveAt && (
-        <span className="text-[11px] text-gray-400" title="When this person was last actually active">
+        <span className="text-[11px] text-text-tertiary" title="When this person was last actually active">
           last active {relativeAgo(record.lastActiveAt)}
         </span>
       )}
@@ -157,35 +158,33 @@ function ShiftCell({ record, isToday }: { record: StaffAttendanceRecord | undefi
 export function StaffAttendanceTable({ staff, records, date, onMark, onCloseShift, isToday }: StaffAttendanceTableProps) {
   if (staff.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No staff records yet. Add staff under &ldquo;Our Staff&rdquo; to get started.
-      </div>
+      <EmptyState size="compact" illustration="no-data" title="No staff records yet" description="Add staff under &ldquo;Our Staff&rdquo; to get started" />
     );
   }
 
   return (
-    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[1000px] text-left text-sm whitespace-nowrap">
         <thead className="sticky top-0 z-10">
-          <tr className="border-b border-gray-200 bg-gray-50">
+          <tr className="border-b border-separator-border bg-fill-1">
             {columns.map((column) => (
-              <th key={column} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <th key={column} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                 {column}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-separator-border">
           {staff.map((member) => {
             const record = getStaffAttendanceForDate(records, member.id, date);
             return (
-              <tr key={member.id} className="hover:bg-gray-50">
+              <tr key={member.id} className="hover:bg-fill-2">
                 <td className="px-4 py-3">
                   <Avatar photoUrl={member.photoUrl} label={member.name} size={44} />
                 </td>
-                <td className="px-4 py-3 font-medium text-gray-900">{member.staffId}</td>
-                <td className="px-4 py-3 text-gray-600">{member.name}</td>
-                <td className="px-4 py-3 text-gray-600">{member.softwareDesignation}</td>
+                <td className="px-4 py-3 font-medium text-text-primary">{member.staffId}</td>
+                <td className="px-4 py-3 text-text-secondary">{member.name}</td>
+                <td className="px-4 py-3 text-text-secondary">{member.softwareDesignation}</td>
                 <td className="px-4 py-3">
                   <AttendanceRadioGroup
                     staffId={member.id}
@@ -198,14 +197,14 @@ export function StaffAttendanceTable({ staff, records, date, onMark, onCloseShif
                 <td className="px-4 py-3">
                   <ShiftCell record={record || undefined} isToday={isToday} />
                 </td>
-                <td className="px-4 py-3 text-gray-600">{formatDateTime(record?.markedAt)}</td>
+                <td className="px-4 py-3 text-text-secondary">{formatDateTime(record?.markedAt)}</td>
                 <td className="px-4 py-3">
                   {record ? (
-                    <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", sourceStyles[record.source] ?? "bg-gray-100 text-gray-600")}>
+                    <span className={cn("rounded-full px-2.5 py-1 text-caption-1-medium", sourceStyles[record.source] ?? "bg-fill-2 text-text-secondary")}>
                       {record.source}
                     </span>
                   ) : (
-                    <span className="text-gray-400">—</span>
+                    <span className="text-text-tertiary">—</span>
                   )}
                 </td>
               </tr>

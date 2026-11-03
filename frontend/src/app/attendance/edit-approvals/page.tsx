@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
-import { ShieldAlert, ShieldCheck, ShieldX, Clock, User, History, Check, X } from "lucide-react";
+import { RiShieldFlashLine as ShieldAlert, RiShieldCheckLine as ShieldCheck, RiShieldCrossLine as ShieldX, RiTimeLine as Clock, RiUserLine as User, RiHistoryLine as History, RiCheckLine as Check, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { editApprovalsApi, type EditApprovalEditEventRow } from "@/lib/api";
 import type { EditApprovalRequest } from "@/types/edit-approval";
@@ -13,18 +13,19 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
-import { showSuccess, showError, confirmDelete, confirmAction } from "@/lib/swal";
-import { Trash2 } from "lucide-react";
+import { showSuccess, showError, confirmDelete, confirmAction } from "@/lib/feedback";
+import { RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<EditApprovalEditEventRow["event"], typeof Check> = {
   "Edit Request Approved": Check,
   "Edit Request Rejected": X,
 };
 
 const EDIT_EVENT_COLOR: Record<EditApprovalEditEventRow["event"], string> = {
-  "Edit Request Approved": "bg-emerald-100 text-emerald-700",
-  "Edit Request Rejected": "bg-red-100 text-red-700",
+  "Edit Request Approved": "bg-success-surface-strong text-success-text",
+  "Edit Request Rejected": "bg-danger-surface-strong text-danger-text",
 };
 
 type FilterValue = "Pending" | "Approved" | "Completed" | "Rejected";
@@ -234,12 +235,12 @@ export default function EditApprovalsPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-border bg-purple-surface text-purple-text shadow-sm">
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Edit Approvals</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Edit Approvals</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Review and approve non-Admin requests to edit or delete customer, vendor, driver, and truck records
             </p>
           </div>
@@ -248,7 +249,7 @@ export default function EditApprovalsPage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -258,21 +259,21 @@ export default function EditApprovalsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:max-w-2xl">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Pending</p>
-          <p className="mt-1 text-2xl font-bold text-yellow-600">{summary.Pending}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Pending</p>
+          <p className="mt-1 text-title-1-semibold text-warning-text">{summary.Pending}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Approved</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">{summary.Approved}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Approved</p>
+          <p className="mt-1 text-title-1-semibold text-success-text">{summary.Approved}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Completed</p>
-          <p className="mt-1 text-2xl font-bold text-gray-600">{summary.Completed}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Completed</p>
+          <p className="mt-1 text-title-1-semibold text-text-secondary">{summary.Completed}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Rejected</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{summary.Rejected}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Rejected</p>
+          <p className="mt-1 text-title-1-semibold text-danger-text">{summary.Rejected}</p>
         </div>
       </div>
 
@@ -284,17 +285,17 @@ export default function EditApprovalsPage() {
             type="button"
             onClick={() => setFilter(f)}
             className={cn(
-              "relative rounded-full px-4 py-2 text-sm font-medium shadow-sm transition-all",
+              "relative rounded-full px-4 py-2 text-body-medium shadow-sm transition",
               filter === f
-                ? "bg-blue-600 text-white"
-                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                ? "bg-accent-solid text-on-solid"
+                : "border border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2"
             )}
           >
             {f}
             {f === "Pending" && summary.Pending > 0 && (
               <span className={cn(
-                "absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold ring-2",
-                filter === f ? "bg-amber-400 text-amber-900 ring-blue-600" : "bg-red-500 text-white ring-white"
+                "absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-caption-2-semibold ring-2",
+                filter === f ? "bg-warning-solid text-warning-text-strong ring-accent-solid" : "bg-danger-solid text-on-solid ring-background-primary-default"
               )}>
                 {summary.Pending}
               </span>
@@ -326,15 +327,15 @@ export default function EditApprovalsPage() {
 
       {/* Bulk delete bar */}
       {selected.size > 0 && (
-        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <span className="text-sm font-medium text-red-800">
+        <div className="flex items-center justify-between rounded-xl border border-danger-border bg-danger-surface px-4 py-3">
+          <span className="text-body-medium text-danger-text-strong">
             {selected.size} request{selected.size > 1 ? "s" : ""} selected
           </span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setSelected(new Set())}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-border-button-default bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary hover:bg-fill-2"
             >
               Clear
             </button>
@@ -342,7 +343,7 @@ export default function EditApprovalsPage() {
               type="button"
               disabled={deleting}
               onClick={handleBulkDelete}
-              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-danger-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-danger-solid-hover disabled:opacity-50"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {deleting ? "Deleting…" : `Delete ${selected.size}`}
@@ -352,17 +353,14 @@ export default function EditApprovalsPage() {
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm">
+      <div className="overflow-x-auto rounded-xl border border-separator-border bg-background-primary-default shadow-sm">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <ShieldAlert className="h-8 w-8 text-gray-200" />
-            <p className="text-sm font-medium text-gray-500">No edit approval requests</p>
-          </div>
+          <EmptyState size="compact" illustration="all-done" title="No edit approval requests" />
         ) : (
           <div className="overflow-auto max-h-[58vh]">
             <table className="w-full text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <tr className="border-b border-separator-border bg-fill-1 text-left text-caption-1-semibold text-text-secondary">
                   <th className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -374,7 +372,7 @@ export default function EditApprovalsPage() {
                             : new Set(filtered.map((r) => r.id))
                         )
                       }
-                      className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                      className="h-4 w-4 rounded border-border-button-default accent-danger-solid"
                       title="Select all"
                     />
                   </th>
@@ -387,40 +385,40 @@ export default function EditApprovalsPage() {
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-separator-border">
                 {filtered.map((req) => {
                   const isExpired = isRequestExpired(req);
                   return (
-                    <tr key={req.id} className={cn("transition-colors", selected.has(req.id) ? "bg-red-50/60" : "hover:bg-white/60")}>
+                    <tr key={req.id} className={cn("transition-colors", selected.has(req.id) ? "bg-danger-surface/60" : "hover:bg-fill-2")}>
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
                           checked={selected.has(req.id)}
                           onChange={() => toggleRow(req.id)}
-                          className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                          className="h-4 w-4 rounded border-border-button-default accent-danger-solid"
                         />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100">
-                            <User className="h-3.5 w-3.5 text-blue-600" />
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-surface-strong">
+                            <User className="h-3.5 w-3.5 text-accent-text" />
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900">{req.staffName}</p>
-                            {req.staffCode && <p className="text-[11px] text-gray-400">{req.staffCode}</p>}
+                            <p className="font-medium text-text-primary">{req.staffName}</p>
+                            {req.staffCode && <p className="text-[11px] text-text-tertiary">{req.staffCode}</p>}
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{req.resourceName}</p>
-                        <p className="text-[11px] text-gray-400">{req.resourceType}</p>
+                        <p className="font-medium text-text-primary">{req.resourceName}</p>
+                        <p className="text-[11px] text-text-tertiary">{req.resourceType}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span className={cn(
-                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-caption-1-semibold",
                           req.action === "Edit"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-red-100 text-red-700"
+                            ? "bg-accent-surface-strong text-accent-text"
+                            : "bg-danger-surface-strong text-danger-text"
                         )}>
                           {req.action}
                         </span>
@@ -429,28 +427,28 @@ export default function EditApprovalsPage() {
                         <button
                           type="button"
                           onClick={() => setViewing(req)}
-                          className="block max-w-[220px] truncate text-left text-blue-600 hover:text-blue-800 hover:underline"
+                          className="block max-w-[220px] truncate text-left text-accent-text hover:text-accent-text-strong hover:underline"
                           title="Click to view full request"
                         >
                           {req.reason}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(req.createdAt)}</td>
+                      <td className="px-4 py-3 text-text-secondary whitespace-nowrap">{formatDate(req.createdAt)}</td>
                       <td className="px-4 py-3">
                         {req.status === "Pending" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-700">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-warning-text">
                             <Clock className="h-3 w-3" /> Pending
                           </span>
                         )}
                         {req.status === "Approved" && (
                           <div>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-success-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-success-text">
                               <ShieldCheck className="h-3 w-3" /> Approved
                             </span>
                             {req.expiresAt && (
                               <p className={cn(
                                 "mt-0.5 text-[11px]",
-                                isExpired ? "text-red-500 font-medium" : "text-gray-400"
+                                isExpired ? "text-danger-text font-medium" : "text-text-tertiary"
                               )}>
                                 {isExpired ? "Expired" : timeLeft(req.expiresAt)}
                               </p>
@@ -458,7 +456,7 @@ export default function EditApprovalsPage() {
                           </div>
                         )}
                         {req.status === "Rejected" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-danger-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-danger-text">
                             <ShieldX className="h-3 w-3" /> Rejected
                           </span>
                         )}
@@ -468,7 +466,7 @@ export default function EditApprovalsPage() {
                           <button
                             type="button"
                             onClick={() => setViewing(req)}
-                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="rounded-lg border border-border-button-default px-3 py-1.5 text-caption-1-medium text-text-primary hover:bg-fill-2 transition-colors"
                           >
                             View
                           </button>
@@ -484,14 +482,14 @@ export default function EditApprovalsPage() {
                                     handleApprove(req.id);
                                   }
                                 }}
-                                className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                                className="rounded-lg bg-success-solid px-3 py-1.5 text-caption-1-medium text-on-solid hover:bg-success-solid-hover transition-colors"
                               >
                                 Approve
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleReject(req.id)}
-                                className="rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
+                                className="rounded-lg bg-danger-surface-strong px-3 py-1.5 text-caption-1-medium text-danger-text hover:bg-danger-surface-strong transition-colors"
                               >
                                 Reject
                               </button>
@@ -517,34 +515,34 @@ export default function EditApprovalsPage() {
       >
         {deleteApproveReq && (
           <div className="flex flex-col gap-4 text-sm">
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+            <div className="rounded-lg border border-danger-border bg-danger-surface px-4 py-3 text-danger-text-strong">
               <p className="font-semibold">This will permanently delete trip:</p>
-              <p className="mt-0.5 font-bold">{deleteApproveReq.resourceName}</p>
-              <p className="mt-1 text-xs text-red-600">All related data (booking sheet, trip sheet, invoice) will be deleted. This cannot be undone.</p>
+              <p className="mt-0.5 font-semibold">{deleteApproveReq.resourceName}</p>
+              <p className="mt-1 text-xs text-danger-text">All related data (booking sheet, trip sheet, invoice) will be deleted. This cannot be undone.</p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Commercial Manager&apos;s Reason</p>
-              <p className="mt-1 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-gray-700">
+              <p className="text-caption-2-semibold text-text-tertiary">Commercial Manager&apos;s Reason</p>
+              <p className="mt-1 rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-text-primary">
                 {deleteApproveReq.reason}
               </p>
             </div>
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                Admin Note <span className="text-red-500">*</span>
+              <label className="text-caption-2-semibold text-text-tertiary">
+                Admin Note <span className="text-danger-text">*</span>
               </label>
               <textarea
                 value={deleteApproveNote}
                 onChange={(e) => setDeleteApproveNote(e.target.value)}
                 placeholder="Enter the reason for approving this deletion…"
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                className="mt-1 w-full rounded-lg border border-separator-border px-3 py-2 text-sm text-text-primary outline-none focus:border-danger-border-strong focus:ring-2 focus:ring-danger-border"
               />
             </div>
-            <div className="flex justify-end gap-2 border-t border-gray-100 pt-2">
+            <div className="flex justify-end gap-2 border-t border-separator-border pt-2">
               <button
                 type="button"
                 onClick={() => { setDeleteApproveReq(null); setDeleteApproveNote(""); }}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                className="rounded-lg border border-border-button-default bg-background-primary-default px-4 py-2 text-caption-1-medium text-text-secondary hover:bg-fill-2"
               >
                 Cancel
               </button>
@@ -552,7 +550,7 @@ export default function EditApprovalsPage() {
                 type="button"
                 disabled={!deleteApproveNote.trim()}
                 onClick={handleApproveDelete}
-                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="rounded-lg bg-danger-solid px-4 py-2 text-caption-1-medium text-on-solid hover:bg-danger-solid-hover disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Confirm Delete
               </button>
@@ -567,24 +565,24 @@ export default function EditApprovalsPage() {
           <div className="flex flex-col gap-4 text-sm">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Requested By</p>
-                <p className="mt-0.5 font-medium text-gray-900">{viewing.staffName}</p>
-                {viewing.staffCode && <p className="text-[11px] text-gray-400">{viewing.staffCode}</p>}
+                <p className="text-caption-2-semibold text-text-tertiary">Requested By</p>
+                <p className="mt-0.5 font-medium text-text-primary">{viewing.staffName}</p>
+                {viewing.staffCode && <p className="text-[11px] text-text-tertiary">{viewing.staffCode}</p>}
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Requested At</p>
-                <p className="mt-0.5 text-gray-700">{formatDate(viewing.createdAt)}</p>
+                <p className="text-caption-2-semibold text-text-tertiary">Requested At</p>
+                <p className="mt-0.5 text-text-primary">{formatDate(viewing.createdAt)}</p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Resource</p>
-                <p className="mt-0.5 font-medium text-gray-900">{viewing.resourceName}</p>
-                <p className="text-[11px] text-gray-400">{viewing.resourceType}</p>
+                <p className="text-caption-2-semibold text-text-tertiary">Resource</p>
+                <p className="mt-0.5 font-medium text-text-primary">{viewing.resourceName}</p>
+                <p className="text-[11px] text-text-tertiary">{viewing.resourceType}</p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Action</p>
+                <p className="text-caption-2-semibold text-text-tertiary">Action</p>
                 <span className={cn(
-                  "mt-0.5 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                  viewing.action === "Edit" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
+                  "mt-0.5 inline-flex items-center rounded-full px-2.5 py-0.5 text-caption-1-semibold",
+                  viewing.action === "Edit" ? "bg-accent-surface-strong text-accent-text" : "bg-danger-surface-strong text-danger-text"
                 )}>
                   {viewing.action}
                 </span>
@@ -592,21 +590,21 @@ export default function EditApprovalsPage() {
             </div>
 
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Reason</p>
-              <p className="mt-1 whitespace-pre-wrap rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-gray-700">
+              <p className="text-caption-2-semibold text-text-tertiary">Reason</p>
+              <p className="mt-1 whitespace-pre-wrap rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-text-primary">
                 {viewing.reason || "—"}
               </p>
             </div>
 
             {viewing.proposedChanges && (viewing.resourceType === "FuelLog" || viewing.resourceType === "MaintenanceRecord" || viewing.resourceType === "AdBlueLog") && (
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Proposed Changes</p>
-                <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                <p className="text-caption-2-semibold text-text-tertiary">Proposed Changes</p>
+                <div className="mt-1 rounded-lg border border-accent-border bg-accent-surface px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                   {/* vendor_id is an internal link — maintenance_by already shows the vendor's name. */}
                   {Object.entries(viewing.proposedChanges).filter(([k]) => k !== "vendor_id").map(([k, v]) => (
                     <div key={k} className="flex gap-1.5">
-                      <span className="text-blue-400 capitalize min-w-[90px]">{viewing.resourceType === "AdBlueLog" && k === "supplier" ? "filling location" : k.replace(/_/g, " ")}:</span>
-                      <span className="font-semibold text-blue-900">{String(v ?? "—")}</span>
+                      <span className="text-accent-text capitalize min-w-[90px]">{viewing.resourceType === "AdBlueLog" && k === "supplier" ? "filling location" : k.replace(/_/g, " ")}:</span>
+                      <span className="font-semibold text-accent-text-strong">{String(v ?? "—")}</span>
                     </div>
                   ))}
                 </div>
@@ -615,19 +613,19 @@ export default function EditApprovalsPage() {
 
             {viewing.adminNote && (
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Admin Note</p>
-                <p className="mt-1 whitespace-pre-wrap rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-amber-800">
+                <p className="text-caption-2-semibold text-text-tertiary">Admin Note</p>
+                <p className="mt-1 whitespace-pre-wrap rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-warning-text-strong">
                   {viewing.adminNote}
                 </p>
               </div>
             )}
 
-            <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between border-t border-separator-border pt-4">
               <span className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                viewing.status === "Pending" ? "bg-yellow-100 text-yellow-700"
-                  : viewing.status === "Approved" ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-700"
+                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption-1-semibold",
+                viewing.status === "Pending" ? "bg-warning-surface-strong text-warning-text"
+                  : viewing.status === "Approved" ? "bg-success-surface-strong text-success-text"
+                  : "bg-danger-surface-strong text-danger-text"
               )}>
                 {viewing.status}
               </span>
@@ -636,7 +634,7 @@ export default function EditApprovalsPage() {
                   <button
                     type="button"
                     onClick={() => { handleReject(viewing.id); setViewing(null); }}
-                    className="rounded-lg bg-red-100 px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
+                    className="rounded-lg bg-danger-surface-strong px-4 py-2 text-caption-1-medium text-danger-text hover:bg-danger-surface-strong transition-colors"
                   >
                     Reject
                   </button>
@@ -651,7 +649,7 @@ export default function EditApprovalsPage() {
                         setViewing(null);
                       }
                     }}
-                    className="rounded-lg bg-green-600 px-4 py-2 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                    className="rounded-lg bg-success-solid px-4 py-2 text-caption-1-medium text-on-solid hover:bg-success-solid-hover transition-colors"
                   >
                     Approve
                   </button>
@@ -673,7 +671,7 @@ export default function EditApprovalsPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by staff, resource, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -683,37 +681,35 @@ export default function EditApprovalsPage() {
               ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No decisions have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No decisions have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Staff</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Resource</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Staff</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Resource</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.staffName}</td>
-                          <td className="px-3 py-2 text-gray-600">
-                            {ev.resourceName} <span className="text-[11px] text-gray-400">({ev.resourceType})</span>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.staffName}</td>
+                          <td className="px-3 py-2 text-text-secondary">
+                            {ev.resourceName} <span className="text-[11px] text-text-tertiary">({ev.resourceType})</span>
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Download, Eye, FileSpreadsheet, X } from "lucide-react";
+import { RiBarChartBoxLine as BarChart3, RiMessage3Line as MessageSquare, RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp, RiDownloadLine as Download, RiEyeLine as Eye, RiFileExcel2Line as FileSpreadsheet, RiCloseLine as X } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { attendanceApi } from "@/lib/api";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { AttendanceSummaryRow, DriverAttendanceRemark } from "@/types/attendance";
 import { formatDate } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Category = "driver" | "staff";
 type ViewMode = "summary" | "datewise";
 
@@ -44,20 +45,20 @@ function dateRange(from: string, to: string): string[] {
 
 // Register cell display: single-letter code + color per attendance status.
 const STATUS_DISPLAY: Record<string, { abbr: string; cls: string; title: string }> = {
-  "Present":     { abbr: "P", cls: "bg-green-100 text-green-700",   title: "Present" },
-  "Absent":      { abbr: "A", cls: "bg-red-100 text-red-600",       title: "Absent" },
-  "On Leave":    { abbr: "L", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-600 dark:text-yellow-50", title: "On Leave" },
-  "Leave":       { abbr: "L", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-600 dark:text-yellow-50", title: "Leave" },
-  "On Trip":     { abbr: "T", cls: "bg-blue-100 text-blue-700 dark:bg-sky-600 dark:text-sky-50",           title: "On Trip" },
-  "On Halt":     { abbr: "H", cls: "bg-orange-100 text-orange-700 dark:bg-orange-600 dark:text-orange-50", title: "On Halt" },
-  "On Workshop": { abbr: "W", cls: "bg-purple-100 text-purple-700 dark:bg-purple-600 dark:text-purple-50", title: "On Workshop" },
-  "Holiday":     { abbr: "H", cls: "bg-blue-100 text-blue-700 dark:bg-blue-600 dark:text-blue-50",         title: "Holiday" },
-  "Not Marked":  { abbr: ".", cls: "bg-gray-50 text-gray-300",      title: "Not Marked" },
+  "Present":     { abbr: "P", cls: "bg-success-surface-strong text-success-text",   title: "Present" },
+  "Absent":      { abbr: "A", cls: "bg-danger-surface-strong text-danger-text",       title: "Absent" },
+  "On Leave":    { abbr: "L", cls: "bg-warning-surface-strong text-warning-text", title: "On Leave" },
+  "Leave":       { abbr: "L", cls: "bg-warning-surface-strong text-warning-text", title: "Leave" },
+  "On Trip":     { abbr: "T", cls: "bg-accent-surface-strong text-accent-text",           title: "On Trip" },
+  "On Halt":     { abbr: "H", cls: "bg-orange-surface-strong text-orange-text", title: "On Halt" },
+  "On Workshop": { abbr: "W", cls: "bg-purple-surface-strong text-purple-text", title: "On Workshop" },
+  "Holiday":     { abbr: "H", cls: "bg-accent-surface-strong text-accent-text",         title: "Holiday" },
+  "Not Marked":  { abbr: ".", cls: "bg-fill-1 text-text-tertiary",      title: "Not Marked" },
 };
 
 function RemarksList({ remarks }: { remarks: DriverAttendanceRemark[] }) {
   const [expanded, setExpanded] = useState(false);
-  if (remarks.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  if (remarks.length === 0) return <span className="text-xs text-text-tertiary">—</span>;
 
   const preview = remarks.slice(0, 2);
   const rest = remarks.slice(2);
@@ -66,18 +67,18 @@ function RemarksList({ remarks }: { remarks: DriverAttendanceRemark[] }) {
     <div className="flex flex-col gap-1 max-w-[280px]">
       {preview.map((r) => (
         <div key={r.id} className="flex items-start gap-1.5">
-          <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-gray-400" />
-          <span className="text-xs text-gray-700 whitespace-normal break-words">
-            <span className="font-medium text-gray-500">{formatDate(r.date)}:</span> {r.remark}
+          <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-text-tertiary" />
+          <span className="text-xs text-text-primary whitespace-normal break-words">
+            <span className="font-medium text-text-secondary">{formatDate(r.date)}:</span> {r.remark}
           </span>
         </div>
       ))}
 
       {rest.length > 0 && expanded && rest.map((r) => (
         <div key={r.id} className="flex items-start gap-1.5">
-          <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-gray-400" />
-          <span className="text-xs text-gray-700 whitespace-normal break-words">
-            <span className="font-medium text-gray-500">{formatDate(r.date)}:</span> {r.remark}
+          <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-text-tertiary" />
+          <span className="text-xs text-text-primary whitespace-normal break-words">
+            <span className="font-medium text-text-secondary">{formatDate(r.date)}:</span> {r.remark}
           </span>
         </div>
       ))}
@@ -86,7 +87,7 @@ function RemarksList({ remarks }: { remarks: DriverAttendanceRemark[] }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1 text-xs text-blue-600 hover:underline w-fit"
+          className="flex items-center gap-1 text-xs text-accent-text hover:underline w-fit"
         >
           {expanded ? (
             <><ChevronUp className="h-3 w-3" /> Show less</>
@@ -478,12 +479,12 @@ export default function AttendanceReportPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <BarChart3 className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Attendance Report</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Attendance Report</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               {isDriver
                 ? "On Trip, On Halt, Leave, and On Workshop counts for drivers over any date range"
                 : "Present, Absent, and On Leave day counts for staff over any date range"}
@@ -492,10 +493,10 @@ export default function AttendanceReportPage() {
         </div>
         {latestDate && (
           <div className="flex flex-col items-end sm:text-right">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <span className="text-caption-1-semibold text-text-secondary">
               Latest {isDriver ? "Driver" : "Staff"} Attendance Marked
             </span>
-            <span className="mt-0.5 inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-sm font-medium text-blue-700 border border-blue-100">
+            <span className="mt-0.5 inline-flex items-center rounded-full bg-accent-surface px-2.5 py-1 text-body-medium text-accent-text border border-accent-border">
               {formatDate(latestDate)}
             </span>
           </div>
@@ -513,8 +514,8 @@ export default function AttendanceReportPage() {
                 type="button"
                 onClick={() => { setCategory(c); setSearch(""); }}
                 className={cn(
-                  "h-10 rounded-full px-4 text-sm font-medium transition-all duration-300 hover:scale-105",
-                  category === c ? "bg-blue-600 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50"
+                  "h-10 rounded-full px-4 text-body-medium transition duration-300",
+                  category === c ? "bg-accent-solid text-on-solid shadow-sm" : "border border-separator-border bg-background-primary-default text-text-secondary shadow-sm hover:bg-fill-2"
                 )}
               >
                 {c === "driver" ? "Drivers" : "Staff"}
@@ -529,15 +530,15 @@ export default function AttendanceReportPage() {
         />
 
         {/* View toggle: aggregated Summary vs day-by-day Register */}
-        <div className="inline-flex h-10 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="inline-flex h-10 items-center rounded-full border border-separator-border bg-background-primary-default p-1 shadow-sm">
           {([["summary", "Summary"], ["datewise", "Date-wise"]] as [ViewMode, string][]).map(([mode, label]) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
               className={cn(
-                "h-8 rounded-full px-3.5 text-sm font-medium transition-colors",
-                viewMode === mode ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
+                "h-8 rounded-full px-3.5 text-body-medium transition-colors",
+                viewMode === mode ? "bg-accent-solid text-on-solid shadow-sm" : "text-text-secondary hover:text-text-primary"
               )}
             >
               {label}
@@ -552,7 +553,7 @@ export default function AttendanceReportPage() {
             onClick={() => setShowReportModal(true)}
             disabled={filteredRows.length === 0}
             title={filteredRows.length === 0 ? "No data to view" : "View and download report"}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Eye className="h-4 w-4" />
             View
@@ -565,8 +566,8 @@ export default function AttendanceReportPage() {
       ) : viewMode === "datewise" ? (
         <>
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs">
-            <span className="font-semibold uppercase tracking-wider text-gray-500">Legend</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-separator-border bg-background-primary-default px-4 py-3 text-xs">
+            <span className="font-semibold text-text-secondary">Legend</span>
             {(isDriver
               ? ["On Trip", "On Halt", "Leave", "On Workshop", "Not Marked"]
               : ["Present", "Absent", "On Leave", "Holiday", "Not Marked"]
@@ -574,18 +575,18 @@ export default function AttendanceReportPage() {
               const d = STATUS_DISPLAY[s] ?? STATUS_DISPLAY["Not Marked"];
               return (
                 <span key={s} className="inline-flex items-center gap-1.5">
-                  <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold", d.cls)}>{d.abbr}</span>
-                  <span className="text-gray-600">{s}</span>
+                  <span className={cn("flex h-5 w-5 items-center justify-center rounded text-caption-2-semibold", d.cls)}>{d.abbr}</span>
+                  <span className="text-text-secondary">{s}</span>
                 </span>
               );
             })}
           </div>
 
-          <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default">
             <table className="border-collapse text-sm">
               <thead className="sticky top-0 z-20">
-                <tr className="bg-gray-50">
-                  <th className="sticky left-0 z-30 min-w-[180px] border-b border-r border-gray-200 bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <tr className="bg-fill-1">
+                  <th className="sticky left-0 z-30 min-w-[180px] border-b border-r border-separator-border bg-fill-1 px-4 py-3 text-left text-caption-1-semibold text-text-secondary">
                     {isDriver ? "Driver" : "Staff"}
                   </th>
                   {dates.map((d) => {
@@ -599,30 +600,28 @@ export default function AttendanceReportPage() {
                         key={d}
                         title={isSunday ? `${formatDate(d)} — Sunday` : holidayName ? `${formatDate(d)} — ${holidayName}` : undefined}
                         className={cn(
-                          "min-w-[34px] border-b border-gray-200 px-1 py-2 text-center text-[10px] font-semibold",
-                          isSunday ? "bg-red-50" : isHoliday ? "bg-blue-50" : ""
+                          "min-w-[34px] border-b border-separator-border px-1 py-2 text-center text-caption-2-semibold",
+                          isSunday ? "bg-danger-surface" : isHoliday ? "bg-accent-surface" : ""
                         )}
                       >
-                        <div className={isSunday ? "text-red-500" : isHoliday ? "text-blue-600" : "text-gray-700"}>{dd}</div>
-                        <div className={isSunday ? "text-red-400" : isHoliday ? "text-blue-400" : "text-gray-400"}>{dt.toLocaleDateString("en-IN", { weekday: "narrow" })}</div>
+                        <div className={isSunday ? "text-danger-text" : isHoliday ? "text-accent-text" : "text-text-primary"}>{dd}</div>
+                        <div className={isSunday ? "text-danger-text" : isHoliday ? "text-accent-text" : "text-text-tertiary"}>{dt.toLocaleDateString("en-IN", { weekday: "narrow" })}</div>
                       </th>
                     );
                   })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={dates.length + 1} className="px-4 py-10 text-center text-sm text-gray-400">
-                      {search ? "No results match your search." : `No ${isDriver ? "drivers" : "staff"} found.`}
-                    </td>
+                    <td colSpan={dates.length + 1} className="p-0"><EmptyState size="compact" illustration="not-found" title={search ? "No results match your search" : `No ${isDriver ? "drivers" : "staff"} found`} /></td>
                   </tr>
                 ) : (
                   filteredRows.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-2">
-                        <div className="whitespace-nowrap font-medium text-gray-900">{r.name}</div>
-                        <div className="text-xs text-gray-400">{r.code}</div>
+                    <tr key={r.id} className="hover:bg-fill-2">
+                      <td className="sticky left-0 z-10 border-r border-separator-border bg-background-primary-default px-4 py-2">
+                        <div className="whitespace-nowrap font-medium text-text-primary">{r.name}</div>
+                        <div className="text-xs text-text-tertiary">{r.code}</div>
                       </td>
                       {dates.map((d) => {
                         // Drivers key the status map by driver code; staff records
@@ -641,7 +640,7 @@ export default function AttendanceReportPage() {
                           : `${formatDate(d)} — ${disp.title}`;
                         return (
                           <td key={d} className="px-1 py-2 text-center" title={cellTitle}>
-                            <span className={cn("inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold", disp.cls)}>
+                            <span className={cn("inline-flex h-6 w-6 items-center justify-center rounded text-caption-2-semibold", disp.cls)}>
                               {disp.abbr}
                             </span>
                           </td>
@@ -658,65 +657,63 @@ export default function AttendanceReportPage() {
         <>
           {isDriver ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                <p className="text-xs font-medium tracking-wider text-blue-500 uppercase">On Trip</p>
-                <p className="mt-1 text-2xl font-bold text-blue-700">{driverTotals.onTrip}</p>
+              <div className="rounded-xl border border-accent-border bg-accent-surface p-4">
+                <p className="text-caption-1-medium text-accent-text">On Trip</p>
+                <p className="mt-1 text-title-1-semibold text-accent-text">{driverTotals.onTrip}</p>
               </div>
-              <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-                <p className="text-xs font-medium tracking-wider text-orange-500 uppercase">On Halt</p>
-                <p className="mt-1 text-2xl font-bold text-orange-700">{driverTotals.onHalt}</p>
+              <div className="rounded-xl border border-orange-border bg-orange-surface p-4">
+                <p className="text-caption-1-medium text-orange-text">On Halt</p>
+                <p className="mt-1 text-title-1-semibold text-orange-text">{driverTotals.onHalt}</p>
               </div>
-              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-                <p className="text-xs font-medium tracking-wider text-yellow-500 uppercase">Leave</p>
-                <p className="mt-1 text-2xl font-bold text-yellow-700">{driverTotals.leave}</p>
+              <div className="rounded-xl border border-warning-border bg-warning-surface p-4">
+                <p className="text-caption-1-medium text-warning-text">Leave</p>
+                <p className="mt-1 text-title-1-semibold text-warning-text">{driverTotals.leave}</p>
               </div>
-              <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
-                <p className="text-xs font-medium tracking-wider text-purple-500 uppercase">On Workshop</p>
-                <p className="mt-1 text-2xl font-bold text-purple-700">{driverTotals.onWorkshop}</p>
+              <div className="rounded-xl border border-purple-border bg-purple-surface p-4">
+                <p className="text-caption-1-medium text-purple-text">On Workshop</p>
+                <p className="mt-1 text-title-1-semibold text-purple-text">{driverTotals.onWorkshop}</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Not Marked</p>
-                <p className="mt-1 text-2xl font-bold text-gray-500">{driverTotals.notMarked}</p>
+              <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+                <p className="text-caption-1-medium text-text-secondary">Not Marked</p>
+                <p className="mt-1 text-title-1-semibold text-text-secondary">{driverTotals.notMarked}</p>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total Present</p>
-                <p className="mt-1 text-2xl font-bold text-green-600">{staffTotals.present}</p>
+              <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+                <p className="text-caption-1-medium text-text-secondary">Total Present</p>
+                <p className="mt-1 text-title-1-semibold text-success-text">{staffTotals.present}</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total Absent</p>
-                <p className="mt-1 text-2xl font-bold text-red-600">{staffTotals.absent}</p>
+              <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+                <p className="text-caption-1-medium text-text-secondary">Total Absent</p>
+                <p className="mt-1 text-title-1-semibold text-danger-text">{staffTotals.absent}</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total On Leave</p>
-                <p className="mt-1 text-2xl font-bold text-yellow-600">{staffTotals.onLeave}</p>
+              <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+                <p className="text-caption-1-medium text-text-secondary">Total On Leave</p>
+                <p className="mt-1 text-title-1-semibold text-warning-text">{staffTotals.onLeave}</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total Not Marked</p>
-                <p className="mt-1 text-2xl font-bold text-gray-500">{staffTotals.notMarked}</p>
+              <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+                <p className="text-caption-1-medium text-text-secondary">Total Not Marked</p>
+                <p className="mt-1 text-title-1-semibold text-text-secondary">{staffTotals.notMarked}</p>
               </div>
             </div>
           )}
 
-          <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default">
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
+                <tr className="border-b border-separator-border bg-fill-1">
                   {(isDriver ? driverColumns : staffColumns).map((col) => (
-                    <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">
+                    <th key={col} className="px-4 py-3 text-caption-1-semibold text-text-secondary whitespace-nowrap">
                       {col}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={isDriver ? 9 : 7} className="px-4 py-10 text-center text-sm text-gray-400">
-                      {search ? "No results match your search." : `No ${isDriver ? "drivers" : "staff"} found.`}
-                    </td>
+                    <td colSpan={isDriver ? 9 : 7} className="p-0"><EmptyState size="compact" illustration="not-found" title={search ? "No results match your search" : `No ${isDriver ? "drivers" : "staff"} found`} /></td>
                   </tr>
                 ) : isDriver ? (
                   filteredRows.map((r) => {
@@ -724,18 +721,18 @@ export default function AttendanceReportPage() {
                     const pct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
                     const driverRemarks = remarksByDriver[r.code] ?? [];
                     return (
-                      <tr key={r.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.code}</td>
-                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.name}</td>
-                        <td className="px-4 py-3 font-semibold text-blue-700">{r.onTrip}</td>
-                        <td className="px-4 py-3 font-semibold text-orange-600">{r.onHalt}</td>
-                        <td className="px-4 py-3 font-semibold text-yellow-700">{r.leave}</td>
-                        <td className="px-4 py-3 font-semibold text-purple-700">{r.onWorkshop}</td>
-                        <td className="px-4 py-3 text-gray-500">{r.notMarked}</td>
+                      <tr key={r.id} className="hover:bg-fill-2">
+                        <td className="px-4 py-3 font-medium text-text-primary whitespace-nowrap">{r.code}</td>
+                        <td className="px-4 py-3 text-text-primary whitespace-nowrap">{r.name}</td>
+                        <td className="px-4 py-3 font-semibold text-accent-text">{r.onTrip}</td>
+                        <td className="px-4 py-3 font-semibold text-orange-text">{r.onHalt}</td>
+                        <td className="px-4 py-3 font-semibold text-warning-text">{r.leave}</td>
+                        <td className="px-4 py-3 font-semibold text-purple-text">{r.onWorkshop}</td>
+                        <td className="px-4 py-3 text-text-secondary">{r.notMarked}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className={cn(
-                            "rounded-full px-2.5 py-1 text-xs font-semibold",
-                            pct >= 90 ? "bg-green-100 text-green-700" : pct >= 70 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"
+                            "rounded-full px-2.5 py-1 text-caption-1-semibold",
+                            pct >= 90 ? "bg-success-surface-strong text-success-text" : pct >= 70 ? "bg-warning-surface-strong text-warning-text" : "bg-danger-surface-strong text-danger-text"
                           )}>
                             {pct}%
                           </span>
@@ -750,17 +747,17 @@ export default function AttendanceReportPage() {
                   filteredRows.map((r) => {
                     const pct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
                     return (
-                      <tr key={r.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.code}</td>
-                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.name}</td>
-                        <td className="px-4 py-3 font-semibold text-green-700">{r.present}</td>
-                        <td className="px-4 py-3 font-semibold text-red-600">{r.absent}</td>
-                        <td className="px-4 py-3 font-semibold text-yellow-700">{r.onLeave}</td>
-                        <td className="px-4 py-3 text-gray-500">{r.notMarked}</td>
+                      <tr key={r.id} className="hover:bg-fill-2">
+                        <td className="px-4 py-3 font-medium text-text-primary whitespace-nowrap">{r.code}</td>
+                        <td className="px-4 py-3 text-text-primary whitespace-nowrap">{r.name}</td>
+                        <td className="px-4 py-3 font-semibold text-success-text">{r.present}</td>
+                        <td className="px-4 py-3 font-semibold text-danger-text">{r.absent}</td>
+                        <td className="px-4 py-3 font-semibold text-warning-text">{r.onLeave}</td>
+                        <td className="px-4 py-3 text-text-secondary">{r.notMarked}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className={cn(
-                            "rounded-full px-2.5 py-1 text-xs font-semibold",
-                            pct >= 90 ? "bg-green-100 text-green-700" : pct >= 70 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"
+                            "rounded-full px-2.5 py-1 text-caption-1-semibold",
+                            pct >= 90 ? "bg-success-surface-strong text-success-text" : pct >= 70 ? "bg-warning-surface-strong text-warning-text" : "bg-danger-surface-strong text-danger-text"
                           )}>
                             {pct}%
                           </span>
@@ -776,35 +773,35 @@ export default function AttendanceReportPage() {
       )}
 
       {showReportModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
-          <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+          <div className="w-full max-w-5xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
               <div>
-                <p className="font-semibold text-gray-900">{isDriver ? "Driver" : "Staff"} Attendance {viewMode === "datewise" ? "Register" : "Report"}</p>
-                <p className="text-xs text-gray-500">
+                <p className="font-semibold text-text-primary">{isDriver ? "Driver" : "Staff"} Attendance {viewMode === "datewise" ? "Register" : "Report"}</p>
+                <p className="text-xs text-text-secondary">
                   Period: {fromDate === toDate ? formatDate(fromDate) : `${formatDate(fromDate)} – ${formatDate(toDate)}`} · {filteredRows.length} {isDriver ? "driver" : "staff"}{filteredRows.length !== 1 ? "s" : ""}
                 </p>
               </div>
-              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3"><X className="h-4 w-4" /></button>
             </div>
 
             <div className="overflow-auto p-4">
               {viewMode === "datewise" ? (
                 <table className="border-collapse text-xs">
                   <thead className="sticky top-0 z-10">
-                    <tr className="bg-gray-50">
-                      <th className="sticky left-0 z-20 min-w-[150px] border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-500">{isDriver ? "Driver" : "Staff"}</th>
+                    <tr className="bg-fill-1">
+                      <th className="sticky left-0 z-20 min-w-[150px] border-b border-r border-separator-border bg-fill-1 px-3 py-2 text-left font-semibold text-text-secondary">{isDriver ? "Driver" : "Staff"}</th>
                       {dates.map((d) => (
-                        <th key={d} className="min-w-[28px] border-b border-gray-200 px-1 py-2 text-center font-semibold text-gray-600">{Number(d.split("-")[2])}</th>
+                        <th key={d} className="min-w-[28px] border-b border-separator-border px-1 py-2 text-center font-semibold text-text-secondary">{Number(d.split("-")[2])}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-separator-border">
                     {filteredRows.map((r) => (
-                      <tr key={r.id} className="hover:bg-gray-50">
-                        <td className="sticky left-0 z-10 border-r border-gray-200 bg-white px-3 py-1.5">
-                          <div className="whitespace-nowrap font-medium text-gray-900">{r.name}</div>
-                          <div className="text-[10px] text-gray-400">{r.code}</div>
+                      <tr key={r.id} className="hover:bg-fill-2">
+                        <td className="sticky left-0 z-10 border-r border-separator-border bg-background-primary-default px-3 py-1.5">
+                          <div className="whitespace-nowrap font-medium text-text-primary">{r.name}</div>
+                          <div className="text-[10px] text-text-tertiary">{r.code}</div>
                         </td>
                         {dates.map((d) => {
                           const recorded = statusMap[isDriver ? r.code : r.id]?.[d];
@@ -814,7 +811,7 @@ export default function AttendanceReportPage() {
                           const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
                           return (
                             <td key={d} className="px-1 py-1.5 text-center">
-                              <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold", disp.cls)}>{disp.abbr}</span>
+                              <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded text-caption-2-semibold", disp.cls)}>{disp.abbr}</span>
                             </td>
                           );
                         })}
@@ -825,41 +822,41 @@ export default function AttendanceReportPage() {
               ) : (
                 <table className="w-full text-left text-sm">
                   <thead className="sticky top-0 z-10">
-                    <tr className="border-b border-gray-200 bg-gray-50">
+                    <tr className="border-b border-separator-border bg-fill-1">
                       {(isDriver
                         ? ["#", "Driver ID", "Name", "On Trip", "On Halt", "Leave", "On Workshop", "Not Marked", "Active %"]
                         : ["#", "Staff ID", "Name", "Present", "Absent", "On Leave", "Not Marked", "% Present"]
                       ).map((col) => (
-                        <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                        <th key={col} className="px-3 py-2.5 text-caption-1-semibold text-text-secondary whitespace-nowrap">{col}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-separator-border">
                     {filteredRows.map((r, idx) => {
                       const active = r.onTrip + r.onHalt + r.onWorkshop;
                       const dPct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
                       const sPct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
                       return (
-                        <tr key={r.id} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 text-gray-400 text-xs">{idx + 1}</td>
-                          <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{r.code}</td>
-                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{r.name}</td>
+                        <tr key={r.id} className="hover:bg-fill-2">
+                          <td className="px-3 py-2 text-text-tertiary text-xs">{idx + 1}</td>
+                          <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{r.code}</td>
+                          <td className="px-3 py-2 text-text-primary whitespace-nowrap">{r.name}</td>
                           {isDriver ? (
                             <>
-                              <td className="px-3 py-2 font-semibold text-blue-700">{r.onTrip}</td>
-                              <td className="px-3 py-2 font-semibold text-orange-600">{r.onHalt}</td>
-                              <td className="px-3 py-2 font-semibold text-yellow-700">{r.leave}</td>
-                              <td className="px-3 py-2 font-semibold text-purple-700">{r.onWorkshop}</td>
-                              <td className="px-3 py-2 text-gray-500">{r.notMarked}</td>
-                              <td className="px-3 py-2 text-gray-700">{dPct}%</td>
+                              <td className="px-3 py-2 font-semibold text-accent-text">{r.onTrip}</td>
+                              <td className="px-3 py-2 font-semibold text-orange-text">{r.onHalt}</td>
+                              <td className="px-3 py-2 font-semibold text-warning-text">{r.leave}</td>
+                              <td className="px-3 py-2 font-semibold text-purple-text">{r.onWorkshop}</td>
+                              <td className="px-3 py-2 text-text-secondary">{r.notMarked}</td>
+                              <td className="px-3 py-2 text-text-primary">{dPct}%</td>
                             </>
                           ) : (
                             <>
-                              <td className="px-3 py-2 font-semibold text-green-700">{r.present}</td>
-                              <td className="px-3 py-2 font-semibold text-red-600">{r.absent}</td>
-                              <td className="px-3 py-2 font-semibold text-yellow-700">{r.onLeave}</td>
-                              <td className="px-3 py-2 text-gray-500">{r.notMarked}</td>
-                              <td className="px-3 py-2 text-gray-700">{sPct}%</td>
+                              <td className="px-3 py-2 font-semibold text-success-text">{r.present}</td>
+                              <td className="px-3 py-2 font-semibold text-danger-text">{r.absent}</td>
+                              <td className="px-3 py-2 font-semibold text-warning-text">{r.onLeave}</td>
+                              <td className="px-3 py-2 text-text-secondary">{r.notMarked}</td>
+                              <td className="px-3 py-2 text-text-primary">{sPct}%</td>
                             </>
                           )}
                         </tr>
@@ -875,7 +872,7 @@ export default function AttendanceReportPage() {
                 type="button"
                 onClick={handleDownloadExcel}
                 disabled={filteredRows.length === 0}
-                className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 rounded-lg border border-success-border-strong bg-success-surface px-4 py-2 text-body-semibold text-success-text hover:bg-success-surface-strong disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FileSpreadsheet className="h-4 w-4" />
                 Download Excel
@@ -884,7 +881,7 @@ export default function AttendanceReportPage() {
                 type="button"
                 onClick={async () => { await handleDownloadPDF(); }}
                 disabled={downloading || filteredRows.length === 0}
-                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 rounded-lg bg-danger-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-danger-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="h-4 w-4" />
                 {downloading ? "Generating…" : "Download PDF"}

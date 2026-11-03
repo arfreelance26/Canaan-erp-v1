@@ -1,8 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, CheckCircle2, Copy, Globe, Loader2, RefreshCw, Server, XCircle } from "lucide-react";
+import {
+  RiCheckLine,
+  RiCheckboxCircleLine,
+  RiCloseCircleLine,
+  RiFileCopyLine,
+  RiGlobalLine,
+  RiLoader4Line,
+  RiRefreshLine,
+  RiServerLine,
+  type RemixiconComponentType,
+} from "@remixicon/react";
+import { Button } from "@/components/base/buttons/button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Illustration } from "@/components/illustrations/Illustration";
 import { checkConnection, onProblem, type ConnectionStatus, type Problem } from "@/lib/connection-problem";
 
 function messageFor(problem: Problem, status: ConnectionStatus): string {
@@ -18,17 +30,17 @@ function messageFor(problem: Problem, status: ConnectionStatus): string {
   return canRetry ? "This record couldn't be prepared. Please try again." : "That didn't go through. Please try again.";
 }
 
-function StatusLine({ icon: Icon, label, ok }: { icon: typeof Globe; label: string; ok: boolean | null }) {
+function StatusLine({ icon: Icon, label, ok }: { icon: RemixiconComponentType; label: string; ok: boolean | null }) {
   return (
-    <div className="flex items-center gap-3 px-3.5 py-2.5">
-      <Icon className="h-4 w-4 shrink-0 text-gray-400" />
-      <span className="flex-1 text-sm font-medium text-gray-700">{label}</span>
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Icon className="size-4 shrink-0 text-foreground-icon-tertiary" aria-hidden />
+      <span className="flex-1 text-body-medium text-text-primary">{label}</span>
       {ok === null ? (
-        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+        <RiLoader4Line className="size-4 animate-spin text-foreground-icon-tertiary" aria-label="Checking" />
       ) : ok ? (
-        <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Working" />
+        <RiCheckboxCircleLine className="size-4 text-notification-success-foreground" aria-label="Working" />
       ) : (
-        <XCircle className="h-4 w-4 text-red-500" aria-label="Not working" />
+        <RiCloseCircleLine className="size-4 text-foreground-icon-error" aria-label="Not working" />
       )}
     </div>
   );
@@ -81,47 +93,41 @@ export function ProblemCardHost() {
     >
       {problem && (
         <div className="flex flex-col gap-4">
-          <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-gray-50">
-            <StatusLine icon={Globe} label="Your internet" ok={status?.internet ?? null} />
-            <StatusLine icon={Server} label="Canaan server" ok={status?.server ?? null} />
+          {status && (!status.internet || !status.server) && (
+            <Illustration name={!status.internet ? "offline" : "server-down"} className="mx-auto h-28" />
+          )}
+          <div className="divide-y divide-separator-border rounded-xl border border-separator-border bg-background-secondary-default">
+            <StatusLine icon={RiGlobalLine} label="Your internet" ok={status?.internet ?? null} />
+            <StatusLine icon={RiServerLine} label="Canaan server" ok={status?.server ?? null} />
           </div>
 
-          <p className="text-sm text-gray-600">{status ? messageFor(problem, status) : "Checking your connection…"}</p>
+          <p className="text-body-regular text-text-secondary">{status ? messageFor(problem, status) : "Checking your connection…"}</p>
 
           {problem.reference && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3.5 py-2">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-separator-border px-4 py-2">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Reference code</p>
-                <p className="font-mono text-sm font-semibold text-gray-800">{problem.reference}</p>
+                <p className="text-caption-1-regular text-text-tertiary">Reference code</p>
+                <p className="font-mono text-body-medium text-text-primary tabular-nums">{problem.reference}</p>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="small"
                 onClick={copyReference}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                leadingIcon={copied ? RiCheckLine : RiFileCopyLine}
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? "Copied" : "Copy"}
-              </button>
+              </Button>
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={close}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-            >
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={close}>
               Close
-            </button>
+            </Button>
             {problem.onRetry && (
-              <button
-                type="button"
-                onClick={tryAgain}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Try Again
-              </button>
+              <Button onClick={tryAgain} leadingIcon={RiRefreshLine}>
+                Try again
+              </Button>
             )}
           </div>
         </div>

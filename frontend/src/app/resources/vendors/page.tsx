@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, Handshake, History, Pencil, Trash2, Undo2 } from "lucide-react";
+import { RiAddLine as Plus, RiCloseLine as X, RiShakeHandsLine as Handshake, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2 } from "@remixicon/react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
 import { VendorCategoryDialog } from "@/components/vendors/VendorCategoryDialog";
@@ -9,7 +9,7 @@ import { VendorRecordsDialog } from "@/components/vendors/VendorRecordsDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { vendorsApi, editApprovalsApi, type VendorEditEventRow } from "@/lib/api";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import type { Vendor } from "@/types/vendor";
 import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -23,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<VendorEditEventRow["event"], typeof Plus> = {
   "Vendor Created": Plus,
   "Vendor Edited": Pencil,
@@ -31,10 +32,10 @@ const EDIT_EVENT_ICON: Record<VendorEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<VendorEditEventRow["event"], string> = {
-  "Vendor Created": "bg-blue-100 text-blue-700",
-  "Vendor Edited": "bg-amber-100 text-amber-700",
-  "Vendor Deleted": "bg-red-100 text-red-700",
-  "Vendor Restored": "bg-emerald-100 text-emerald-700",
+  "Vendor Created": "bg-accent-surface-strong text-accent-text",
+  "Vendor Edited": "bg-warning-surface-strong text-warning-text",
+  "Vendor Deleted": "bg-danger-surface-strong text-danger-text",
+  "Vendor Restored": "bg-success-surface-strong text-success-text",
 };
 export default function VendorsPage() {
   const { user: authUser } = useAuth();
@@ -183,12 +184,12 @@ export default function VendorsPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
           <Handshake className="h-5 w-5" />
         </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Vendors</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Manage vendor records and contacts</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Our Vendors</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Manage vendor records and contacts</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -196,7 +197,7 @@ export default function VendorsPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -205,7 +206,7 @@ export default function VendorsPage() {
           <button
             type="button"
             onClick={() => setCategoryDialogOpen(true)}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-300 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:bg-fill-2 hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Vendor Category
@@ -213,7 +214,7 @@ export default function VendorsPage() {
           <button
             type="button"
             onClick={handleAdd}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Vendor
@@ -250,28 +251,28 @@ export default function VendorsPage() {
         const fmtDate = (d: string) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
         const Field = ({ label, value }: { label: string; value: string }) => (
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</span>
-            <span className="text-sm font-medium text-gray-800">{value || "—"}</span>
+            <span className="text-caption-1-medium text-text-tertiary">{label}</span>
+            <span className="text-body-medium text-text-primary">{value || "—"}</span>
           </div>
         );
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingVendor(null); }}>
-            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingVendor(null); }}>
+            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-background-primary-default shadow-2xl">
               <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
                 <div>
-                  <p className="font-semibold text-gray-900">{v.name}</p>
+                  <p className="font-semibold text-text-primary">{v.name}</p>
                   <div className="mt-1 flex items-center gap-2">
-                    {v.category && <span className="text-xs text-gray-500">{v.category}</span>}
+                    {v.category && <span className="text-xs text-text-secondary">{v.category}</span>}
                   </div>
                 </div>
-                <button type="button" onClick={() => setViewingVendor(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                <button type="button" onClick={() => setViewingVendor(null)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3">
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-6">
                 <div>
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-blue-600">Contact Information</p>
+                  <p className="mb-3 text-caption-1-semibold text-accent-text">Contact Information</p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="Contact Number" value={v.contactNumber} />
                     <Field label="Email" value={v.email} />
@@ -279,7 +280,7 @@ export default function VendorsPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-blue-600">Tax & Compliance</p>
+                  <p className="mb-3 text-caption-1-semibold text-accent-text">Tax & Compliance</p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="GSTIN" value={v.gstin} />
                     <Field label="PAN" value={v.pan} />
@@ -317,7 +318,7 @@ export default function VendorsPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by vendor name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -325,36 +326,34 @@ export default function VendorsPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No vendor edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No vendor edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Vendor</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Vendor</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.vendorName}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.vendorName}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, AlertTriangle, ArrowUp, ClipboardList, Eye, Loader2, Monitor, Pause, Play, ShieldAlert, X } from "lucide-react";
+import { RiPulseLine as Activity, RiAlertLine as AlertTriangle, RiArrowUpLine as ArrowUp, RiFileList3Line as ClipboardList, RiEyeLine as Eye, RiLoader4Line as Loader2, RiComputerLine as Monitor, RiPauseLine as Pause, RiPlayLine as Play, RiShieldFlashLine as ShieldAlert, RiCloseLine as X } from "@remixicon/react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   activityApi,
@@ -23,11 +23,12 @@ import { TablePagination } from "@/components/ui/TablePagination";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { areaName, screenName } from "@/lib/screen-names";
 import { cn } from "@/lib/utils";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { TAB_CLOSED_LABEL } from "@/hooks/useActivityTracking";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const PAGE_SIZE = 50;
 const EXPORT_LIMIT = 500; // the most GET /activity/events returns in one call
 const FALLBACK_POLL_MS = 30_000;
@@ -40,15 +41,15 @@ const KIND_LABEL: Record<string, string> = {
   login_failed: "Failed logins", logout: "Logouts", view: "Page views", click: "Clicks",
 };
 const KIND_STYLE: Record<string, string> = {
-  save: "bg-blue-50 text-blue-700",
-  delete: "bg-red-50 text-red-700",
-  export: "bg-violet-50 text-violet-700",
-  login: "bg-emerald-50 text-emerald-700",
-  login_failed: "bg-amber-50 text-amber-700",
-  logout: "bg-gray-100 text-gray-600",
-  view: "bg-sky-50 text-sky-700",
-  click: "bg-indigo-50 text-indigo-700",
-  reads: "bg-gray-100 text-gray-600",
+  save: "bg-accent-surface text-accent-text",
+  delete: "bg-danger-surface text-danger-text",
+  export: "bg-purple-surface text-purple-text",
+  login: "bg-success-surface text-success-text",
+  login_failed: "bg-warning-surface text-warning-text",
+  logout: "bg-fill-2 text-text-secondary",
+  view: "bg-teal-surface text-teal-text",
+  click: "bg-purple-surface text-purple-text",
+  reads: "bg-fill-2 text-text-secondary",
 };
 const CHART_SERIES = [
   { key: "saves", label: "Saves", color: "#2563eb" },
@@ -62,9 +63,9 @@ const CHART_SERIES = [
 const CHART_TICK = "#7d8fab";
 const CHART_AXIS = "rgba(120,135,180,0.4)";
 const SEVERITY_STYLE: Record<ActivityAlert["severity"], string> = {
-  high: "border-red-200 bg-red-50 text-red-800",
-  medium: "border-amber-200 bg-amber-50 text-amber-800",
-  low: "border-gray-200 bg-gray-50 text-gray-700",
+  high: "border-danger-border bg-danger-surface text-danger-text-strong",
+  medium: "border-warning-border bg-warning-surface text-warning-text-strong",
+  low: "border-separator-border bg-fill-1 text-text-primary",
 };
 
 type Describable = { kind: string; route: string; label: string | null; status: number | null };
@@ -131,23 +132,23 @@ function HourTooltip({ active, payload, label }: { active?: boolean; payload?: H
   const shown = payload.filter((p) => Number(p.value) > 0).reverse();
   const total = shown.reduce((n, p) => n + Number(p.value), 0);
   return (
-    <div className="min-w-[150px] rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1.5 font-semibold text-gray-900">{hourLabel(Number(label))}</p>
+    <div className="min-w-[150px] rounded-xl border border-separator-border bg-background-primary-default px-3 py-2 text-xs shadow-lg">
+      <p className="mb-1.5 font-semibold text-text-primary">{hourLabel(Number(label))}</p>
       {shown.length === 0 ? (
-        <p className="text-gray-500">No actions</p>
+        <p className="text-text-secondary">No actions</p>
       ) : (
         <ul className="space-y-1">
           {shown.map((p) => (
-            <li key={String(p.dataKey)} className="flex items-center justify-between gap-4 text-gray-600">
+            <li key={String(p.dataKey)} className="flex items-center justify-between gap-4 text-text-secondary">
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
                 {p.name}
               </span>
-              <span className="font-semibold text-gray-900">{p.value}</span>
+              <span className="font-semibold text-text-primary">{p.value}</span>
             </li>
           ))}
           {shown.length > 1 && (
-            <li className="flex justify-between gap-4 border-t border-gray-200 pt-1 font-semibold text-gray-900">
+            <li className="flex justify-between gap-4 border-t border-separator-border pt-1 font-semibold text-text-primary">
               <span>Total</span>
               <span>{total}</span>
             </li>
@@ -506,12 +507,12 @@ export default function ActivityLogPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <Activity className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Activity Log</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Activity Log</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               What everyone did in the app
               {updatedAt ? ` · updated ${clock(new Date(updatedAt).toISOString())}` : ""}
             </p>
@@ -524,15 +525,15 @@ export default function ActivityLogPage() {
             disabled={day !== today && rangeTo < today}
             title={day !== today && rangeTo < today ? "Live updates apply to today only" : undefined}
             className={cn(
-              "flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-              liveActive ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+              "flex items-center gap-2 rounded-full border px-3.5 py-2 text-body-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+              liveActive ? "border-success-border bg-success-surface text-success-text" : "border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2",
             )}
           >
             {liveActive ? (
               <>
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-success-solid opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-success-solid" />
                 </span>
                 Live
                 <Pause className="h-3.5 w-3.5" />
@@ -551,7 +552,7 @@ export default function ActivityLogPage() {
             type="button"
             onClick={openExport}
             disabled={preparingExport}
-            className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-4 py-2 text-body-semibold text-text-primary transition-colors hover:bg-fill-2 disabled:opacity-60"
           >
             {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
             View
@@ -559,7 +560,7 @@ export default function ActivityLogPage() {
           <button
             type="button"
             onClick={() => setReportOpen(true)}
-            className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-full bg-accent-solid px-4 py-2 text-body-semibold text-on-solid shadow-sm transition-colors hover:bg-accent-solid-hover disabled:opacity-50"
           >
             <ClipboardList className="h-4 w-4" />
             Download Report
@@ -570,8 +571,8 @@ export default function ActivityLogPage() {
       {/* Alerts */}
       {overview && overview.alerts.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-            <ShieldAlert className="h-4 w-4 text-red-500" /> Needs attention
+          <h2 className="flex items-center gap-1.5 text-body-semibold text-text-primary">
+            <ShieldAlert className="h-4 w-4 text-danger-text" /> Needs attention
           </h2>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
             {overview.alerts.map((a, i) => (
@@ -595,24 +596,24 @@ export default function ActivityLogPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {kpis.map((c) => (
-          <div key={c.label} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <p className="text-xs font-medium text-gray-500">{c.label}</p>
-            <p className={cn("text-2xl font-bold", c.warn ? "text-amber-600" : "text-gray-900")}>{c.value.toLocaleString("en-IN")}</p>
+          <div key={c.label} className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+            <p className="text-caption-1-medium text-text-secondary">{c.label}</p>
+            <p className={cn("text-title-1-semibold", c.warn ? "text-warning-text" : "text-text-primary")}>{c.value.toLocaleString("en-IN")}</p>
           </div>
         ))}
       </div>
 
       {/* Online now + hourly chart */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-            <Monitor className="h-4 w-4 text-emerald-600" /> Online now
+        <section className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <h2 className="mb-1 flex items-center gap-1.5 text-body-semibold text-text-primary">
+            <Monitor className="h-4 w-4 text-success-text" /> Online now
           </h2>
-          <p className="mb-3 text-xs text-gray-400">Active = did something in the last 5 min · Idle = tab open, no action</p>
+          <p className="mb-3 text-xs text-text-tertiary">Active = did something in the last 5 min · Idle = tab open, no action</p>
           {day !== today ? (
-            <p className="py-6 text-center text-sm text-gray-400">Only shown for today.</p>
+            <p className="py-6 text-center text-sm text-text-tertiary">Only shown for today.</p>
           ) : !overview || overview.online.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400">Nobody is using the app right now.</p>
+            <p className="py-6 text-center text-sm text-text-tertiary">Nobody is using the app right now.</p>
           ) : (
             <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
               {overview.online.map((o) => (
@@ -620,16 +621,16 @@ export default function ActivityLogPage() {
                   <button
                     type="button"
                     onClick={() => openDrawer(o.userName)}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-gray-50"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-fill-2"
                   >
-                    <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", o.status === "active" ? "bg-emerald-500" : "bg-amber-400")} />
+                    <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", o.status === "active" ? "bg-success-solid" : "bg-warning-solid")} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-gray-800">{o.userName}</span>
-                      <span className="block truncate text-xs text-gray-400">
+                      <span className="block truncate text-body-medium text-text-primary">{o.userName}</span>
+                      <span className="block truncate text-xs text-text-tertiary">
                         {o.screen ? screenName(o.screen) : "—"}{o.role ? ` · ${o.role}` : ""}
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs text-gray-400">{ago(o.lastAt, now)}</span>
+                    <span className="shrink-0 text-xs text-text-tertiary">{ago(o.lastAt, now)}</span>
                   </button>
                 </li>
               ))}
@@ -637,9 +638,9 @@ export default function ActivityLogPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-gray-200 bg-white p-4 lg:col-span-2">
-          <h2 className="mb-1 text-sm font-semibold text-gray-900">Activity by hour</h2>
-          <p className="mb-2 text-xs text-gray-400">Actions people took each hour (IST). Background screen refreshes aren&apos;t counted.</p>
+        <section className="rounded-xl border border-separator-border bg-background-primary-default p-4 lg:col-span-2">
+          <h2 className="mb-1 text-body-semibold text-text-primary">Activity by hour</h2>
+          <p className="mb-2 text-xs text-text-tertiary">Actions people took each hour (IST). Background screen refreshes aren&apos;t counted.</p>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={overview?.hourly ?? []} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
@@ -655,7 +656,7 @@ export default function ActivityLogPage() {
           </div>
           <div className="mt-2 flex flex-wrap gap-3">
             {CHART_SERIES.map((s) => (
-              <span key={s.key} className="flex items-center gap-1.5 text-xs text-gray-500">
+              <span key={s.key} className="flex items-center gap-1.5 text-xs text-text-secondary">
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} /> {s.label}
               </span>
             ))}
@@ -665,13 +666,13 @@ export default function ActivityLogPage() {
 
       {/* By employee + top screens */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-        <section className="rounded-xl border border-gray-200 bg-white p-4 xl:col-span-3">
-          <h2 className="mb-1 text-sm font-semibold text-gray-900">By employee</h2>
-          <p className="mb-3 text-xs text-gray-400">Click a name to open their day in detail.</p>
+        <section className="rounded-xl border border-separator-border bg-background-primary-default p-4 xl:col-span-3">
+          <h2 className="mb-1 text-body-semibold text-text-primary">By employee</h2>
+          <p className="mb-3 text-xs text-text-tertiary">Click a name to open their day in detail.</p>
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap text-left text-sm">
-              <thead className="text-xs uppercase tracking-wider text-gray-500">
-                <tr className="border-b border-gray-200">
+              <thead className="text-xs text-text-secondary">
+                <tr className="border-b border-separator-border">
                   <th className="px-3 py-2">Employee</th>
                   <th className="px-3 py-2">First</th>
                   <th className="px-3 py-2">Last</th>
@@ -689,28 +690,28 @@ export default function ActivityLogPage() {
               <tbody>
                 {summary.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="px-3 py-6 text-center text-gray-400">No activity on this day.</td>
+                    <td colSpan={12} className="p-0"><EmptyState size="compact" illustration="no-data" title="No activity on this day" /></td>
                   </tr>
                 )}
                 {summary.map((r) => (
-                  <tr key={r.userName} className={cn("border-b border-gray-100 hover:bg-gray-50", drawerUser === r.userName && "bg-blue-50/60")}>
+                  <tr key={r.userName} className={cn("border-b border-separator-border hover:bg-fill-2", drawerUser === r.userName && "bg-accent-surface/60")}>
                     <td className="px-3 py-2">
                       <button type="button" onClick={() => openDrawer(r.userName)} className="text-left">
-                        <span className="block font-medium text-blue-700 hover:underline">{r.userName}</span>
-                        {r.role && <span className="block text-xs text-gray-400">{r.role}</span>}
+                        <span className="block font-medium text-accent-text hover:underline">{r.userName}</span>
+                        {r.role && <span className="block text-xs text-text-tertiary">{r.role}</span>}
                       </button>
                     </td>
-                    <td className="px-3 py-2 tabular-nums text-gray-600">{clock(r.firstAt)}</td>
-                    <td className="px-3 py-2 tabular-nums text-gray-600">{clock(r.lastAt)}</td>
-                    <td className="px-3 py-2 tabular-nums text-gray-600">{duration(r.activeMinutes)}</td>
+                    <td className="px-3 py-2 tabular-nums text-text-secondary">{clock(r.firstAt)}</td>
+                    <td className="px-3 py-2 tabular-nums text-text-secondary">{clock(r.lastAt)}</td>
+                    <td className="px-3 py-2 tabular-nums text-text-secondary">{duration(r.activeMinutes)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.saves}</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", r.deletes > 0 && "font-semibold text-red-600")}>{r.deletes}</td>
+                    <td className={cn("px-3 py-2 text-right tabular-nums", r.deletes > 0 && "font-semibold text-danger-text")}>{r.deletes}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.exports}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.logins}</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", r.failedLogins > 0 && "font-semibold text-amber-600")}>{r.failedLogins}</td>
+                    <td className={cn("px-3 py-2 text-right tabular-nums", r.failedLogins > 0 && "font-semibold text-warning-text")}>{r.failedLogins}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.views}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.clicks}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-gray-400">{r.reads}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-text-tertiary">{r.reads}</td>
                   </tr>
                 ))}
               </tbody>
@@ -718,21 +719,21 @@ export default function ActivityLogPage() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-1 text-sm font-semibold text-gray-900">Most-used screens</h2>
-          <p className="mb-3 text-xs text-gray-400">Times opened, and by how many people.</p>
+        <section className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <h2 className="mb-1 text-body-semibold text-text-primary">Most-used screens</h2>
+          <p className="mb-3 text-xs text-text-tertiary">Times opened, and by how many people.</p>
           {!overview || overview.topScreens.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400">No screens opened.</p>
+            <p className="py-6 text-center text-sm text-text-tertiary">No screens opened.</p>
           ) : (
             <ul className="flex flex-col gap-2.5">
               {overview.topScreens.map((s) => (
                 <li key={s.route}>
                   <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate text-gray-800">{screenName(s.route)}</span>
-                    <span className="shrink-0 text-xs tabular-nums text-gray-500">{s.views} · {s.users} {s.users === 1 ? "person" : "people"}</span>
+                    <span className="truncate text-text-primary">{screenName(s.route)}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-text-secondary">{s.views} · {s.users} {s.users === 1 ? "person" : "people"}</span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-gray-100">
-                    <div className="h-1.5 rounded-full bg-sky-500" style={{ width: `${(s.views / maxScreenViews) * 100}%` }} />
+                  <div className="h-1.5 rounded-full bg-fill-2">
+                    <div className="h-1.5 rounded-full bg-teal-solid" style={{ width: `${(s.views / maxScreenViews) * 100}%` }} />
                   </div>
                 </li>
               ))}
@@ -743,15 +744,15 @@ export default function ActivityLogPage() {
 
       {/* Notes storage — sizes and counts only; note content is private to its owner */}
       {notesUsage.length > 0 && (
-        <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-1 text-sm font-semibold text-gray-900">Notes storage</h2>
-          <p className="mb-3 text-xs text-gray-400">
+        <section className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <h2 className="mb-1 text-body-semibold text-text-primary">Notes storage</h2>
+          <p className="mb-3 text-xs text-text-tertiary">
             How much each person keeps in Notes and saved today. Note content is private — only sizes are shown.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap text-left text-sm">
-              <thead className="text-xs uppercase tracking-wider text-gray-500">
-                <tr className="border-b border-gray-200">
+              <thead className="text-xs text-text-secondary">
+                <tr className="border-b border-separator-border">
                   <th className="px-3 py-2">Employee</th>
                   <th className="px-3 py-2 text-right">Notes</th>
                   <th className="px-3 py-2 text-right">Stored</th>
@@ -762,13 +763,13 @@ export default function ActivityLogPage() {
               </thead>
               <tbody>
                 {notesUsage.map((r) => (
-                  <tr key={r.staffId} className="border-b border-gray-100">
-                    <td className="px-3 py-2 font-medium text-gray-800">{r.name}</td>
+                  <tr key={r.staffId} className="border-b border-separator-border">
+                    <td className="px-3 py-2 font-medium text-text-primary">{r.name}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.count}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{(r.bytesUsed / 1000).toFixed(1)} KB</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.writesToday}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{(r.writtenToday / 1_000_000).toFixed(2)} MB</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", r.blockedToday > 0 && "font-semibold text-amber-600")}>
+                    <td className={cn("px-3 py-2 text-right tabular-nums", r.blockedToday > 0 && "font-semibold text-warning-text")}>
                       {r.blockedToday}
                     </td>
                   </tr>
@@ -780,12 +781,12 @@ export default function ActivityLogPage() {
       )}
 
       {/* Events */}
-      <section ref={observeEvents} className="rounded-xl border border-gray-200 bg-white p-4">
+      <section ref={observeEvents} className="rounded-xl border border-separator-border bg-background-primary-default p-4">
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <h2 className="mr-auto text-sm font-semibold text-gray-900">
+          <h2 className="mr-auto text-body-semibold text-text-primary">
             Events
             {eventsSeen && !eventsLoading && (
-              <span className="ml-2 text-xs font-normal text-gray-400">{eventsTotal.toLocaleString("en-IN")} total</span>
+              <span className="ml-2 text-caption-1-regular text-text-tertiary">{eventsTotal.toLocaleString("en-IN")} total</span>
             )}
           </h2>
           <PillSearch placeholder="Filter by employee…" value={search} onChange={setSearch} />
@@ -793,12 +794,12 @@ export default function ActivityLogPage() {
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm"
+            className="rounded-full border border-separator-border bg-background-primary-default px-3 py-2 text-sm"
           >
             <option value="">All roles</option>
             {roles.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5 text-xs text-text-secondary">
             <div className="w-36"><DatePickerInput value={rangeFrom} onChange={setRangeFrom} placeholder="From" /></div>
             <span>to</span>
             <div className="w-36"><DatePickerInput value={rangeTo} onChange={setRangeTo} placeholder="To" /></div>
@@ -813,8 +814,8 @@ export default function ActivityLogPage() {
                 type="button"
                 onClick={() => toggleKind(k)}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
-                  on ? cn(KIND_STYLE[k], "border-transparent ring-1 ring-current") : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50",
+                  "rounded-full border px-3 py-1 text-caption-1-semibold transition-colors",
+                  on ? cn(KIND_STYLE[k], "border-transparent ring-1 ring-current") : "border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2",
                 )}
               >
                 {KIND_LABEL[k]}
@@ -825,8 +826,8 @@ export default function ActivityLogPage() {
             type="button"
             onClick={() => setFailedOnly((v) => !v)}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
-              failedOnly ? "border-red-200 bg-red-50 text-red-700" : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50",
+              "rounded-full border px-3 py-1 text-caption-1-semibold transition-colors",
+              failedOnly ? "border-danger-border bg-danger-surface text-danger-text" : "border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2",
             )}
           >
             Failed only
@@ -835,7 +836,7 @@ export default function ActivityLogPage() {
             <button
               type="button"
               onClick={() => { setKinds([]); setFailedOnly(false); setRole(""); setSearch(""); setScreen(""); }}
-              className="ml-1 text-xs font-semibold text-gray-400 hover:text-gray-600"
+              className="ml-1 text-caption-1-semibold text-text-tertiary hover:text-text-secondary"
             >
               Clear filters
             </button>
@@ -847,7 +848,7 @@ export default function ActivityLogPage() {
             <button
               type="button"
               onClick={jumpToNewest}
-              className="absolute left-1/2 top-10 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-lg"
+              className="absolute left-1/2 top-10 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent-solid px-3 py-1 text-caption-1-semibold text-on-solid shadow-lg"
             >
               <ArrowUp className="h-3.5 w-3.5" /> {newCount} new event{newCount === 1 ? "" : "s"}
             </button>
@@ -858,8 +859,8 @@ export default function ActivityLogPage() {
             className={cn("max-h-[60vh] overflow-auto transition-opacity", eventsLoading && events.length > 0 && "opacity-60")}
           >
             <table className="w-full whitespace-nowrap text-left text-xs">
-              <thead className="sticky top-0 bg-white text-gray-500">
-                <tr className="border-b border-gray-200">
+              <thead className="sticky top-0 bg-background-primary-default text-text-secondary">
+                <tr className="border-b border-separator-border">
                   <th className="px-3 py-2">Time</th>
                   <th className="px-3 py-2">Employee</th>
                   <th className="px-3 py-2">Kind</th>
@@ -869,26 +870,26 @@ export default function ActivityLogPage() {
               </thead>
               <tbody>
                 {eventsLoading && events.length === 0 && (
-                  <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">Loading…</td></tr>
+                  <tr><td colSpan={5} className="px-3 py-6 text-center text-text-tertiary">Loading…</td></tr>
                 )}
                 {!eventsLoading && events.length === 0 && (
-                  <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No events match these filters.</td></tr>
+                  <tr><td colSpan={5} className="p-0"><EmptyState size="compact" illustration="not-found" title="No events match these filters" /></td></tr>
                 )}
                 {events.map((e) => (
-                  <tr key={e.id} className={cn("border-b border-gray-100", e.status != null && e.status >= 400 && "bg-red-50/40")}>
-                    <td className="px-3 py-1.5 text-gray-500">{formatDateTime(e.createdAt)}</td>
+                  <tr key={e.id} className={cn("border-b border-separator-border", e.status != null && e.status >= 400 && "bg-danger-surface/40")}>
+                    <td className="px-3 py-1.5 text-text-secondary">{formatDateTime(e.createdAt)}</td>
                     <td className="px-3 py-1.5">
-                      <button type="button" onClick={() => openDrawer(e.userName)} className="font-medium text-gray-800 hover:text-blue-700 hover:underline">
+                      <button type="button" onClick={() => openDrawer(e.userName)} className="font-medium text-text-primary hover:text-accent-text hover:underline">
                         {e.userName}
                       </button>
                     </td>
                     <td className="px-3 py-1.5">
-                      <span className={cn("rounded-full px-2 py-0.5 font-semibold", KIND_STYLE[e.kind] ?? "bg-gray-100 text-gray-600")}>
+                      <span className={cn("rounded-full px-2 py-0.5 font-semibold", KIND_STYLE[e.kind] ?? "bg-fill-2 text-text-secondary")}>
                         {KIND_LABEL[e.kind] ?? e.kind}
                       </span>
                     </td>
-                    <td className="px-3 py-1.5 text-gray-700">{describeActivity(e)}</td>
-                    <td className="px-3 py-1.5 text-gray-500">{e.ip ?? ""}</td>
+                    <td className="px-3 py-1.5 text-text-primary">{describeActivity(e)}</td>
+                    <td className="px-3 py-1.5 text-text-secondary">{e.ip ?? ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -910,12 +911,12 @@ export default function ActivityLogPage() {
       {/* Employee drawer */}
       {drawerUser && (
         <div className="fixed inset-0 z-[90] flex justify-end">
-          <div className="absolute inset-0 bg-black/30 animate-backdrop-in" onClick={() => setDrawerUser(null)} />
-          <aside className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+          <div className="absolute inset-0 bg-scrim/30 animate-scrim-in" onClick={() => setDrawerUser(null)} />
+          <aside className="relative flex h-full w-full max-w-md flex-col bg-background-primary-default shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-separator-border px-5 py-4">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">{drawerUser}</h2>
-                <p className="text-xs text-gray-500">
+                <h2 className="text-title-3-semibold text-text-primary">{drawerUser}</h2>
+                <p className="text-xs text-text-secondary">
                   {drawerRow?.role ?? ""}{drawerRow?.role ? " · " : ""}{day}
                 </p>
               </div>
@@ -923,7 +924,7 @@ export default function ActivityLogPage() {
                 type="button"
                 onClick={() => setDrawerUser(null)}
                 aria-label="Close"
-                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                className="rounded-full p-1 text-text-tertiary hover:bg-fill-3 hover:text-text-primary"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -938,9 +939,9 @@ export default function ActivityLogPage() {
                       { label: "Last", value: clock(drawerRow.lastAt) },
                       { label: "Span", value: duration(drawerRow.activeMinutes) },
                     ].map((s) => (
-                      <div key={s.label} className="rounded-lg bg-gray-50 px-3 py-2">
-                        <p className="text-[11px] text-gray-500">{s.label}</p>
-                        <p className="text-sm font-semibold text-gray-900 tabular-nums">{s.value}</p>
+                      <div key={s.label} className="rounded-lg bg-fill-1 px-3 py-2">
+                        <p className="text-[11px] text-text-secondary">{s.label}</p>
+                        <p className="text-body-semibold text-text-primary tabular-nums">{s.value}</p>
                       </div>
                     ))}
                   </div>
@@ -950,7 +951,7 @@ export default function ActivityLogPage() {
                       ["login", drawerRow.logins], ["login_failed", drawerRow.failedLogins],
                       ["view", drawerRow.views], ["click", drawerRow.clicks],
                     ].filter(([, n]) => Number(n) > 0).map(([k, n]) => (
-                      <span key={String(k)} className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", KIND_STYLE[String(k)])}>
+                      <span key={String(k)} className={cn("rounded-full px-2.5 py-0.5 text-caption-1-semibold", KIND_STYLE[String(k)])}>
                         {n} {KIND_LABEL[String(k)]}
                       </span>
                     ))}
@@ -960,11 +961,11 @@ export default function ActivityLogPage() {
 
               {drawerScreens.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500">Screens visited</h3>
+                  <h3 className="mb-1.5 text-caption-1-semibold text-text-secondary">Screens visited</h3>
                   <div className="flex flex-wrap gap-1.5">
                     {drawerScreens.map(([name, n]) => (
-                      <span key={name} className="rounded-full border border-gray-200 px-2.5 py-0.5 text-xs text-gray-700">
-                        {name} <span className="text-gray-400">×{n}</span>
+                      <span key={name} className="rounded-full border border-separator-border px-2.5 py-0.5 text-xs text-text-primary">
+                        {name} <span className="text-text-tertiary">×{n}</span>
                       </span>
                     ))}
                   </div>
@@ -972,30 +973,30 @@ export default function ActivityLogPage() {
               )}
 
               {drawerIps.length > 0 && (
-                <p className="mb-4 text-xs text-gray-500">
-                  <span className="font-semibold text-gray-600">IP{drawerIps.length > 1 ? "s" : ""}:</span> {drawerIps.join(", ")}
+                <p className="mb-4 text-xs text-text-secondary">
+                  <span className="font-semibold text-text-secondary">IP{drawerIps.length > 1 ? "s" : ""}:</span> {drawerIps.join(", ")}
                 </p>
               )}
 
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Timeline</h3>
+              <h3 className="mb-2 text-caption-1-semibold text-text-secondary">Timeline</h3>
               {timelineLoading && timeline.length === 0 && (
-                <p className="py-6 text-center text-sm text-gray-400">Loading timeline…</p>
+                <p className="py-6 text-center text-sm text-text-tertiary">Loading timeline…</p>
               )}
               {!timelineLoading && timeline.length === 0 && (
-                <p className="py-6 text-center text-sm text-gray-400">Nothing recorded for this person on this day.</p>
+                <p className="py-6 text-center text-sm text-text-tertiary">Nothing recorded for this person on this day.</p>
               )}
-              <ol className="flex flex-col border-l-2 border-gray-100 pl-4">
+              <ol className="flex flex-col border-l-2 border-separator-border pl-4">
                 {timeline.map((item, i) => (
                   <li key={`${item.time}-${i}`} className="relative flex items-start gap-3 py-1.5 text-sm">
                     <span className={cn(
-                      "absolute -left-[21px] top-3 h-2.5 w-2.5 rounded-full border-2 border-white",
-                      item.kind === "reads" ? "bg-gray-300" : item.status != null && item.status >= 400 ? "bg-red-400" : "bg-blue-400",
+                      "absolute -left-[21px] top-3 h-2.5 w-2.5 rounded-full border-2 border-background-primary-default",
+                      item.kind === "reads" ? "bg-fill-4" : item.status != null && item.status >= 400 ? "bg-danger-solid" : "bg-accent-solid",
                     )} />
-                    <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-gray-400">{clock(item.time)}</span>
-                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", KIND_STYLE[item.kind] ?? "bg-gray-100 text-gray-600")}>
+                    <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-text-tertiary">{clock(item.time)}</span>
+                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-caption-2-semibold", KIND_STYLE[item.kind] ?? "bg-fill-2 text-text-secondary")}>
                       {item.kind === "reads" ? "loads" : (KIND_LABEL[item.kind] ?? item.kind)}
                     </span>
-                    <span className={cn(item.kind === "reads" ? "text-gray-400" : "text-gray-800")}>{describeTimeline(item)}</span>
+                    <span className={cn(item.kind === "reads" ? "text-text-tertiary" : "text-text-primary")}>{describeTimeline(item)}</span>
                   </li>
                 ))}
               </ol>

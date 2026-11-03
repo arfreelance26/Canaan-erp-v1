@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
 import { PaymentDialog } from "@/components/compensation/PaymentDialog";
 import { TransactionHistoryDialog } from "@/components/compensation/TransactionHistoryDialog";
-import { Banknote, History, Plus, Trash2 } from "lucide-react";
+import { RiMoneyRupeeCircleLine as Banknote, RiHistoryLine as History, RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { staffApi, financeApi, type CompensationEditEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { CompensationTransaction } from "@/types/compensation";
@@ -13,7 +13,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
@@ -21,14 +21,15 @@ import { formatDateTime } from "@/lib/format-date";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<CompensationEditEventRow["event"], typeof Plus> = {
   "Transaction Added": Plus,
   "Transaction Deleted": Trash2,
 };
 
 const EDIT_EVENT_COLOR: Record<CompensationEditEventRow["event"], string> = {
-  "Transaction Added": "bg-blue-100 text-blue-700",
-  "Transaction Deleted": "bg-red-100 text-red-700",
+  "Transaction Added": "bg-accent-surface-strong text-accent-text",
+  "Transaction Deleted": "bg-danger-surface-strong text-danger-text",
 };
 
 export default function StaffCompensationPage() {
@@ -113,19 +114,19 @@ export default function StaffCompensationPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
             <Banknote className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Staff Compensation</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Pay salaries to staff members</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Staff Compensation</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Pay salaries to staff members</p>
           </div>
         </div>
         {isAdmin && (
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -188,7 +189,7 @@ export default function StaffCompensationPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by staff name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -196,35 +197,33 @@ export default function StaffCompensationPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No compensation edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No compensation edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[600px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Staff</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Transaction</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Staff</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Transaction</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.personName ?? "—"}</td>
-                          <td className="px-3 py-2 text-gray-600">{ev.txType} · ₹{Number(ev.amount).toLocaleString("en-IN")}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.personName ?? "—"}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.txType} · ₹{Number(ev.amount).toLocaleString("en-IN")}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

@@ -196,12 +196,12 @@ export function EmojiPicker({
     <div
       ref={panelRef}
       className={cn(
-        "absolute bottom-full left-0 z-20 mb-2 flex h-80 w-72 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl",
+        "absolute bottom-full left-0 z-20 mb-2 flex h-80 w-72 flex-col overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-xl",
         className,
       )}
     >
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <p className="mb-1.5 px-1 text-caption-2-semibold text-text-tertiary">
           {active.label}
         </p>
         <div className="grid grid-cols-7 gap-0.5">
@@ -210,7 +210,7 @@ export function EmojiPicker({
               key={`${emoji}-${i}`}
               type="button"
               onClick={() => pick(emoji)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-xl transition-colors hover:bg-gray-100 active:scale-90"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-xl transition-colors hover:bg-fill-3"
             >
               {emoji}
             </button>
@@ -218,7 +218,7 @@ export function EmojiPicker({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-t border-gray-100 bg-gray-50 px-1.5 py-1.5">
+      <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-t border-separator-border bg-fill-1 px-1.5 py-1.5">
         {tabs.map((cat) => (
           <button
             key={cat.label}
@@ -226,7 +226,7 @@ export function EmojiPicker({
             onClick={() => setActiveLabel(cat.label)}
             title={cat.label}
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base transition-colors ${
-              cat.label === active.label ? "bg-brand-navy/10" : "hover:bg-gray-100"
+              cat.label === active.label ? "bg-accent-solid/10" : "hover:bg-fill-3"
             }`}
           >
             {cat.icon}

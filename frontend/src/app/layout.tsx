@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
-import "./globals.css";
+import { Inter, JetBrains_Mono } from "next/font/google";
+import "@/styles/index.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { TyreInventoryProvider } from "@/context/TyreInventoryContext";
 import { TripWorkflowProvider } from "@/context/TripWorkflowContext";
@@ -14,24 +14,21 @@ import { FoundingProvider } from "@/context/FoundingContext";
 import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
 import { ChatProvider } from "@/context/ChatContext";
-import { Toaster } from "@/components/ui/sonner";
-import { ProblemCardHost } from "@/components/ui/ProblemCardHost";
+import { Toaster } from "@/components/feedback/Toaster";
+import { ConfirmHost } from "@/components/feedback/ConfirmHost";
+import { ProblemCardHost } from "@/components/feedback/ProblemCardHost";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Inter is BoardUI's interface face (styles/theme.css reads --font-inter);
+// JetBrains Mono backs `font-mono` for figures, IDs and codes.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  axes: ["opsz"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const mono = JetBrains_Mono({
+  variable: "--font-mono-source",
   subsets: ["latin"],
-});
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -47,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${plusJakartaSans.variable} h-full antialiased`}
+      className={`${inter.variable} ${mono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
@@ -61,10 +58,11 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="h-full bg-mesh-light font-sans text-gray-900">
+      <body className="h-full bg-mesh-light font-sans text-text-primary">
         <UppercaseInputs />
         <NoScrollNumberInputs />
         <Toaster />
+        <ConfirmHost />
         <ProblemCardHost />
         <ThemeProvider>
         <AuthProvider>

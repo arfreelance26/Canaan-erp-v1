@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, FileText, Download, ArrowLeft, Eye, Save, CheckCircle2 } from "lucide-react";
+import { RiCloseLine as X, RiLoader4Line as Loader2, RiFileTextLine as FileText, RiDownloadLine as Download, RiArrowLeftLine as ArrowLeft, RiEyeLine as Eye, RiSave3Line as Save, RiCheckboxCircleLine as CheckCircle2 } from "@remixicon/react";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
 import { buildLRHtml, generateLRConsignment, type LRConsignmentData } from "@/lib/generate-lr-consignment";
 import { tripsApi } from "@/lib/api";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 
 type Props = {
   open: boolean;
@@ -34,9 +34,9 @@ function getContainerNo(trip: Trip): string {
 }
 
 const roClass =
-  "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
+  "w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm text-text-primary cursor-not-allowed";
 const inClass =
-  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none";
+  "w-full rounded-lg border border-separator-border px-3 py-2 text-sm text-text-primary focus:border-accent-border-strong focus:outline-none";
 
 export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onSaved }: Props) {
   const [step, setStep]                        = useState<Step>("form");
@@ -191,11 +191,11 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className={`flex flex-col rounded-2xl bg-white shadow-2xl transition-all duration-200 ${
+        className={`flex flex-col rounded-2xl bg-background-primary-default shadow-2xl transition duration-200 ${
           isPreview ? "w-full max-w-5xl" : "w-full max-w-2xl"
         }`}
         style={{ maxHeight: "92vh" }}
@@ -204,24 +204,24 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-900/10">
-              <FileText className="h-4.5 w-4.5 text-blue-900" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-solid/10">
+              <FileText className="h-4.5 w-4.5 text-accent-text-strong" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-gray-900">
+              <h2 className="text-headline-semibold text-text-primary">
                 {isPreview ? "LR Preview" : "Lorry Receipt"}
               </h2>
-              <p className="text-xs text-gray-500">{trip.tripId} · Consignment Note</p>
+              <p className="text-xs text-text-secondary">{trip.tripId} · Consignment Note</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {lrSaved && !isPreview && (
-              <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              <span className="flex items-center gap-1 rounded-full bg-success-surface px-3 py-1 text-caption-1-semibold text-success-text">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Saved
               </span>
             )}
             <button type="button" onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 transition-colors">
+              className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3 transition-colors">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -232,36 +232,36 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
             <div>
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-indigo-500">
+              <p className="mb-3 text-caption-2-semibold text-purple-text">
                 Auto-filled from trip
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">No.</label>
+                  <label className="mb-1 block text-caption-1-medium text-text-secondary">No.</label>
                   <input readOnly value={trip.tripId} className={roClass} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Date (Booking Created)</label>
+                  <label className="mb-1 block text-caption-1-medium text-text-secondary">Date (Booking Created)</label>
                   <input readOnly value={fmtDate(trip.bookingCreatedDate)} className={roClass} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Source</label>
+                  <label className="mb-1 block text-caption-1-medium text-text-secondary">Source</label>
                   <input readOnly value={trip.origin || ""} className={roClass} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Destination</label>
+                  <label className="mb-1 block text-caption-1-medium text-text-secondary">Destination</label>
                   <input readOnly value={trip.destination || ""} className={roClass} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Truck No.</label>
+                  <label className="mb-1 block text-caption-1-medium text-text-secondary">Truck No.</label>
                   <input readOnly value={truckReg} className={`${roClass} font-mono text-xs`} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Container No.</label>
+                  <label className="mb-1 block text-caption-1-medium text-text-secondary">Container No.</label>
                   <input readOnly value={containerNo} className={`${roClass} font-mono text-xs`} />
                 </div>
                 <div className="col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Invoice No.</label>
+                  <label className="mb-1 block text-caption-1-medium text-text-secondary">Invoice No.</label>
                   {isInvoiced ? (
                     <input readOnly value={invoiceNo} className={roClass} />
                   ) : (
@@ -272,7 +272,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                         placeholder="Enter invoice no. if known"
                         className={inClass}
                       />
-                      <p className="mt-1 text-[11px] text-amber-600 font-medium">
+                      <p className="mt-1 text-caption-2-medium text-warning-text">
                         Invoice not yet generated — enter manually or leave blank
                       </p>
                     </div>
@@ -281,17 +281,17 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
               </div>
             </div>
 
-            <hr className="border-gray-100" />
+            <hr className="border-separator-border" />
 
             <div>
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              <p className="mb-3 text-caption-2-semibold text-text-tertiary">
                 Consignment Details
               </p>
               <div className="space-y-3">
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">CONSIGNOR</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">CONSIGNOR</label>
                     <textarea
                       value={consignor}
                       onChange={(e) => setConsignor(e.target.value)}
@@ -301,7 +301,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">CONSIGNEE</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">CONSIGNEE</label>
                     <textarea
                       value={consignee}
                       onChange={(e) => setConsignee(e.target.value)}
@@ -314,49 +314,49 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Ref No.</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">Ref No.</label>
                     <input value={refNo} onChange={(e) => setRefNo(e.target.value)} placeholder="Reference number" className={inClass} />
                   </div>
                   <div className="col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Description of Goods (Said to Contain)</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">Description of Goods (Said to Contain)</label>
                     <input value={descriptionOfGoods} onChange={(e) => setDescOf(e.target.value)} placeholder="Describe the goods" className={inClass} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">S.B / B.E No.</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">S.B / B.E No.</label>
                     <input value={sbBeNo} onChange={(e) => setSbBeNo(e.target.value)} placeholder="Shipping Bill / Bill of Entry No." className={inClass} />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Seal No. of Packages</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">Seal No. of Packages</label>
                     <input value={sealNo} onChange={(e) => setSealNo(e.target.value)} placeholder="Seal number" className={inClass} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Tare</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">Tare</label>
                     <input value={tare} onChange={(e) => setTare(e.target.value)} placeholder="Tare weight" className={inClass} />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Weight</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">Weight</label>
                     <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Gross weight" className={inClass} />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Value</label>
+                    <label className="mb-1 block text-caption-1-medium text-text-secondary">Value</label>
                     <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="Declared value" className={inClass} />
                   </div>
                 </div>
 
-                <div className="flex items-center gap-8 rounded-xl border border-gray-100 bg-gray-50/60 px-5 py-3">
+                <div className="flex items-center gap-8 rounded-xl border border-separator-border bg-fill-1 px-5 py-3">
                   <label className="flex cursor-pointer items-center gap-2.5">
-                    <input type="checkbox" checked={toPay} onChange={(e) => setToPay(e.target.checked)} className="h-4 w-4 rounded border-gray-300 accent-blue-900" />
-                    <span className="text-sm font-semibold text-gray-700">To Pay</span>
+                    <input type="checkbox" checked={toPay} onChange={(e) => setToPay(e.target.checked)} className="h-4 w-4 rounded border-border-button-default accent-accent-solid" />
+                    <span className="text-body-semibold text-text-primary">To Pay</span>
                   </label>
                   <label className="flex cursor-pointer items-center gap-2.5">
-                    <input type="checkbox" checked={toBeBilled} onChange={(e) => setToBeBilled(e.target.checked)} className="h-4 w-4 rounded border-gray-300 accent-blue-900" />
-                    <span className="text-sm font-semibold text-gray-700">To be Billed</span>
+                    <input type="checkbox" checked={toBeBilled} onChange={(e) => setToBeBilled(e.target.checked)} className="h-4 w-4 rounded border-border-button-default accent-accent-solid" />
+                    <span className="text-body-semibold text-text-primary">To be Billed</span>
                   </label>
                 </div>
 
@@ -367,10 +367,10 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
 
         {/* ── Preview Step ─────────────────────────────────────────────────── */}
         {isPreview && previewUrl && (
-          <div className="flex-1 overflow-hidden bg-gray-100 p-4">
+          <div className="flex-1 overflow-hidden bg-fill-2 p-4">
             <iframe
               src={previewUrl}
-              className="h-full w-full rounded-xl border border-gray-200 bg-white shadow-sm"
+              className="h-full w-full rounded-xl border border-separator-border bg-background-primary-default shadow-sm"
               style={{ minHeight: "600px" }}
               title="LR Preview"
             />
@@ -382,7 +382,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
           <div>
             {isPreview && (
               <button type="button" onClick={handleBack}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                className="flex items-center gap-2 rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2 transition-colors">
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </button>
@@ -391,7 +391,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
           <div className="flex items-center gap-3">
             {!isPreview && (
               <button type="button" onClick={onClose}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2 transition-colors">
                 Cancel
               </button>
             )}
@@ -403,7 +403,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-2 rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saving ? "Saving…" : lrSaved ? "Update" : "Save LR"}
@@ -415,7 +415,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                     <button
                       type="button"
                       onClick={handlePreview}
-                      className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-2 rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2 transition-colors"
                     >
                       <Eye className="h-4 w-4" />
                       Preview
@@ -424,7 +424,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                       type="button"
                       onClick={handleDownload}
                       disabled={downloading}
-                      className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      className="flex items-center gap-2 rounded-lg bg-accent-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                     >
                       {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                       {downloading ? "Downloading…" : "Download PDF"}
@@ -437,7 +437,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                 type="button"
                 onClick={handleDownload}
                 disabled={downloading}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 rounded-lg bg-accent-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 {downloading ? "Downloading…" : "Download PDF"}

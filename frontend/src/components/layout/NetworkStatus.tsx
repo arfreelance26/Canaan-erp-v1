@@ -2,18 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CloudOff, Wifi, WifiLow, WifiOff, WifiZero, X } from "lucide-react";
-import { showToast } from "@/lib/swal";
+import { RiCloudOffLine as CloudOff, RiWifiLine as Wifi, RiSignalWifi1Line as WifiLow, RiWifiOffLine as WifiOff, RiSignalWifiLine as WifiZero, RiCloseLine as X } from "@remixicon/react";
+import { showToast } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import { type ConnectionQuality, useConnectionQuality } from "@/hooks/useConnectionQuality";
 
 const LOOK: Record<ConnectionQuality, { label: string; icon: typeof Wifi; tone: string; dot: string }> = {
-  checking:    { label: "Checking…", icon: Wifi,     tone: "text-gray-400",    dot: "bg-gray-300" },
-  good:        { label: "Good",      icon: Wifi,     tone: "text-emerald-500", dot: "bg-emerald-500" },
-  fair:        { label: "Fair",      icon: WifiLow,  tone: "text-amber-500",   dot: "bg-amber-500" },
-  slow:        { label: "Slow",      icon: WifiZero, tone: "text-red-500",     dot: "bg-red-500" },
-  offline:     { label: "Offline",   icon: WifiOff,  tone: "text-red-500",     dot: "bg-red-500 animate-pulse" },
-  unreachable: { label: "No server", icon: CloudOff, tone: "text-red-500",     dot: "bg-red-500 animate-pulse" },
+  checking:    { label: "Checking…", icon: Wifi,     tone: "text-text-tertiary",    dot: "bg-fill-4" },
+  good:        { label: "Good",      icon: Wifi,     tone: "text-success-text", dot: "bg-success-solid" },
+  fair:        { label: "Fair",      icon: WifiLow,  tone: "text-warning-text",   dot: "bg-warning-solid" },
+  slow:        { label: "Slow",      icon: WifiZero, tone: "text-danger-text",     dot: "bg-danger-solid" },
+  offline:     { label: "Offline",   icon: WifiOff,  tone: "text-danger-text",     dot: "bg-danger-solid animate-pulse" },
+  unreachable: { label: "No server", icon: CloudOff, tone: "text-danger-text",     dot: "bg-danger-solid animate-pulse" },
 };
 
 function OfflineBanner({ unreachable, onDismiss }: { unreachable: boolean; onDismiss: () => void }) {
@@ -21,15 +21,15 @@ function OfflineBanner({ unreachable, onDismiss }: { unreachable: boolean; onDis
   return createPortal(
     <div
       role="alert"
-      className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-between gap-3 bg-red-600 px-4 py-3 text-white shadow-lg"
+      className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-between gap-3 bg-danger-solid px-4 py-3 text-on-solid shadow-lg"
     >
       <div className="flex items-center gap-3">
         <Icon className="h-5 w-5 shrink-0 animate-pulse" />
         <div>
-          <p className="text-sm font-bold leading-tight">
+          <p className="text-body-semibold leading-tight">
             {unreachable ? "Can't reach the server" : "No internet connection"}
           </p>
-          <p className="text-xs font-medium text-red-100">
+          <p className="text-caption-1-medium text-on-solid/80">
             {unreachable
               ? "Your internet is on, but the ERP server isn't answering. Retrying…"
               : "You are currently offline. Please check your network and try again."}
@@ -40,7 +40,7 @@ function OfflineBanner({ unreachable, onDismiss }: { unreachable: boolean; onDis
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="shrink-0 rounded-md p-1 hover:bg-red-700 transition-colors"
+        className="shrink-0 rounded-md p-1 hover:bg-danger-solid-hover transition-colors"
       >
         <X className="h-4 w-4" />
       </button>
@@ -52,15 +52,15 @@ function OfflineBanner({ unreachable, onDismiss }: { unreachable: boolean; onDis
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className="text-right font-semibold tabular-nums text-gray-800">{children}</span>
+      <span className="text-text-secondary">{label}</span>
+      <span className="text-right font-semibold tabular-nums text-text-primary">{children}</span>
     </div>
   );
 }
 
 /** Tiny line chart of the last 20 results. */
 function Spark({ values, className }: { values: number[]; className?: string }) {
-  if (values.length < 2) return <div className="h-8 rounded bg-gray-100" />;
+  if (values.length < 2) return <div className="h-8 rounded bg-fill-2" />;
   const max = Math.max(...values) || 1;
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${30 - (v / max) * 28}`).join(" ");
   return (
@@ -112,29 +112,29 @@ export function NetworkStatus() {
         onClick={() => setOpen((v) => !v)}
         aria-label={`Internet status: ${look.label}`}
         title={`Internet: ${look.label}${net.latency != null && !down ? ` · ${net.latency} ms` : ""}`}
-        className="group relative flex h-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-500/10 px-2.5 gap-1.5"
+        className="group relative flex h-10 items-center justify-center rounded-full border border-separator-border bg-background-primary-default shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-accent-solid/10 px-2.5 gap-1.5"
       >
-        <Icon className={cn("h-4 w-4 transition-transform duration-300 group-hover:scale-110", look.tone, down && "animate-pulse")} />
+        <Icon className={cn("h-4 w-4 transition-transform duration-300", look.tone, down && "animate-pulse")} />
         <span className={cn("hidden whitespace-nowrap text-[12px] font-semibold lg:inline", look.tone)}>
           {look.label}
-          {net.latency != null && !down && <span className="hidden font-medium tabular-nums text-gray-500 xl:inline"> · {net.latency} ms</span>}
+          {net.latency != null && !down && <span className="hidden font-medium tabular-nums text-text-secondary xl:inline"> · {net.latency} ms</span>}
         </span>
         <span className={cn("h-1.5 w-1.5 rounded-full", look.dot)} />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-[100] mt-3 w-72 origin-top-right rounded-2xl border border-gray-200 bg-white p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)]">
+        <div className="absolute right-0 z-[100] mt-3 w-72 origin-top-right rounded-2xl border border-separator-border bg-background-primary-default p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)]">
           <div className="mb-2 flex items-center gap-2">
             <Icon className={cn("h-4 w-4", look.tone)} />
-            <p className="text-sm font-semibold text-gray-800">Connection: {look.label}</p>
+            <p className="text-body-semibold text-text-primary">Connection: {look.label}</p>
             {!down && (
-              <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" /> Live
+              <span className="ml-auto inline-flex items-center gap-1 text-caption-1-medium text-success-text">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success-solid" /> Live
               </span>
             )}
           </div>
 
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-separator-border">
             <Row label="Internet">{net.online ? "Online" : "Offline"}</Row>
             <Row label="Download speed">{net.mbps != null ? `${net.mbps} Mbps` : down ? "—" : "measuring…"}</Row>
             <Row label="Server reply">
@@ -147,11 +147,11 @@ export function NetworkStatus() {
             <Row label="Last check">{net.checkedAt ? new Date(net.checkedAt).toLocaleTimeString() : "—"}</Row>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-gray-500">
-            <div className="space-y-1"><p>Mbps</p><Spark values={net.mbpsHistory} className="text-blue-600" /></div>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-text-secondary">
+            <div className="space-y-1"><p>Mbps</p><Spark values={net.mbpsHistory} className="text-accent-text" /></div>
             <div className="space-y-1"><p>Reply ms</p><Spark values={net.history} className={look.tone} /></div>
           </div>
-          <p className="mt-3 text-[11px] text-gray-400">Speed is tested only while this panel is open.</p>
+          <p className="mt-3 text-[11px] text-text-tertiary">Speed is tested only while this panel is open.</p>
         </div>
       )}
     </div>

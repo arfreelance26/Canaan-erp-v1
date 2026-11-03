@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 type Align = "start" | "end";
 
 const VARIANT = {
-  mine: "bg-amber-100 text-gray-800 dark:bg-[#2a3a5e] dark:text-gray-950",
-  theirs: "bg-white text-gray-800 dark:bg-gray-300 dark:text-gray-950",
+  mine: "bg-warning-surface-strong text-text-primary",
+  theirs: "bg-background-primary-default text-text-primary",
   plain: "",
 } as const;
 
@@ -63,7 +63,7 @@ export function BubbleReactions({
       data-align={align}
       data-side={side}
       className={cn(
-        "absolute z-10 flex w-fit shrink-0 items-center gap-0.5 rounded-full border border-gray-200 bg-white p-0.5 text-sm shadow-sm",
+        "absolute z-10 flex w-fit shrink-0 items-center gap-0.5 rounded-full border border-separator-border bg-background-primary-default p-0.5 text-sm shadow-sm",
         side === "bottom" ? "bottom-0 translate-y-3/4" : "top-0 -translate-y-3/4",
         align === "end" ? "right-2" : "left-2",
         className,

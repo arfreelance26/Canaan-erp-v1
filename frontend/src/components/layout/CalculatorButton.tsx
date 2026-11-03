@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState } from "react";
-import { Calculator as CalculatorIcon, Delete } from "lucide-react";
+import { RiCalculatorLine as CalculatorIcon, RiDeleteBack2Line as Delete } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { PercentageCalculator } from "./PercentageCalculator";
 
@@ -119,7 +119,7 @@ function calcReducer(state: CalcState, action: CalcAction): CalcState {
 }
 
 const KEY_CLASS =
-  "flex h-12 items-center justify-center rounded-xl text-base font-semibold transition-all duration-100 active:scale-95";
+  "flex h-12 items-center justify-center rounded-xl text-headline-semibold transition duration-100";
 
 // Maps a physical keydown to the on-screen button it corresponds to, so we
 // can flash that button for tactile feedback on keyboard input.
@@ -249,7 +249,7 @@ export function CalculatorButton() {
   const { display, expression } = state;
 
   function keyClass(buttonId: string, base: string) {
-    return cn(KEY_CLASS, base, flashKey === buttonId && "scale-95 ring-2 ring-blue-400 ring-offset-1");
+    return cn(KEY_CLASS, base, flashKey === buttonId && "scale-95 ring-2 ring-accent-border-strong ring-offset-1");
   }
 
   return (
@@ -260,28 +260,28 @@ export function CalculatorButton() {
         onClick={() => setOpen((v) => !v)}
         title="Calculator"
         className={cn(
-          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300",
-          "hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
+          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300",
+          "hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
           open
-            ? "border-blue-300 bg-blue-50 text-blue-600 focus:ring-blue-500/20"
-            : "border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 focus:ring-blue-500/10"
+            ? "border-accent-border-strong bg-accent-surface text-accent-text focus:ring-accent-solid/20"
+            : "border-separator-border bg-background-primary-default text-text-secondary hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text focus:ring-accent-solid/10"
         )}
       >
-        <CalculatorIcon className="h-5 w-5 transition-transform duration-300 group-hover:scale-110" />
+        <CalculatorIcon className="h-5 w-5 transition-transform duration-300" />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-[100] mt-3 w-[280px] origin-top-right rounded-2xl border border-white/60 bg-white/95 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
+        <div className="absolute right-0 z-[100] mt-3 w-[280px] origin-top-right rounded-2xl border border-separator-border bg-background-primary-default p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)]">
           {/* Tabs */}
-          <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1">
+          <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-fill-2 p-1">
             {([["basic", "Basic"], ["percent", "Percentage"]] as const).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => switchTab(id)}
                 className={cn(
-                  "rounded-lg py-1.5 text-xs font-semibold transition-all",
-                  tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  "rounded-lg py-1.5 text-caption-1-semibold transition",
+                  tab === id ? "bg-background-primary-default text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
                 )}
               >
                 {label}
@@ -301,44 +301,44 @@ export function CalculatorButton() {
           {/* Display */}
           {/* Fixed hex colours: an LCD-style display that stays dark in both themes
               (bg-gray-900 flips to near-white under the dark theme's gray remap). */}
-          <div className="mb-3 rounded-xl bg-[#111827] px-4 py-3 text-right dark:bg-[#070a12]">
-            <p className="h-4 truncate text-[11px] font-medium text-[#9ca3af]">{expression || " "}</p>
-            <p className="mt-1 truncate text-2xl font-bold text-[#f9fafb] tabular-nums">{display}</p>
+          <div className="mb-3 rounded-xl bg-inverse px-4 py-3 text-right">
+            <p className="h-4 truncate text-caption-2-medium text-on-solid/60">{expression || " "}</p>
+            <p className="mt-1 truncate text-title-1-semibold text-on-solid/90 tabular-nums">{display}</p>
           </div>
 
           {/* Keypad */}
           <div className="grid grid-cols-4 gap-2">
-            <button type="button" onClick={() => dispatch({ type: "RESET" })} className={keyClass("C", "col-span-2 bg-red-50 text-red-600 hover:bg-red-100")}>
+            <button type="button" onClick={() => dispatch({ type: "RESET" })} className={keyClass("C", "col-span-2 bg-danger-surface text-danger-text hover:bg-danger-surface-strong")}>
               C
             </button>
-            <button type="button" onClick={() => dispatch({ type: "BACKSPACE" })} className={keyClass("back", "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+            <button type="button" onClick={() => dispatch({ type: "BACKSPACE" })} className={keyClass("back", "bg-fill-2 text-text-secondary hover:bg-fill-3")}>
               <Delete className="h-4 w-4" />
             </button>
-            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "÷" })} className={keyClass("÷", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "÷" })} className={keyClass("÷", "bg-accent-surface text-accent-text hover:bg-accent-surface-strong")}>
               ÷
             </button>
 
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "7" })} className={keyClass("7", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>7</button>
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "8" })} className={keyClass("8", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>8</button>
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "9" })} className={keyClass("9", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>9</button>
-            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "×" })} className={keyClass("×", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>×</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "7" })} className={keyClass("7", "bg-fill-1 text-text-primary hover:bg-fill-3")}>7</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "8" })} className={keyClass("8", "bg-fill-1 text-text-primary hover:bg-fill-3")}>8</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "9" })} className={keyClass("9", "bg-fill-1 text-text-primary hover:bg-fill-3")}>9</button>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "×" })} className={keyClass("×", "bg-accent-surface text-accent-text hover:bg-accent-surface-strong")}>×</button>
 
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "4" })} className={keyClass("4", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>4</button>
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "5" })} className={keyClass("5", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>5</button>
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "6" })} className={keyClass("6", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>6</button>
-            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "-" })} className={keyClass("-", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>−</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "4" })} className={keyClass("4", "bg-fill-1 text-text-primary hover:bg-fill-3")}>4</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "5" })} className={keyClass("5", "bg-fill-1 text-text-primary hover:bg-fill-3")}>5</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "6" })} className={keyClass("6", "bg-fill-1 text-text-primary hover:bg-fill-3")}>6</button>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "-" })} className={keyClass("-", "bg-accent-surface text-accent-text hover:bg-accent-surface-strong")}>−</button>
 
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "1" })} className={keyClass("1", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>1</button>
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "2" })} className={keyClass("2", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>2</button>
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "3" })} className={keyClass("3", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>3</button>
-            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "+" })} className={keyClass("+", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>+</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "1" })} className={keyClass("1", "bg-fill-1 text-text-primary hover:bg-fill-3")}>1</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "2" })} className={keyClass("2", "bg-fill-1 text-text-primary hover:bg-fill-3")}>2</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "3" })} className={keyClass("3", "bg-fill-1 text-text-primary hover:bg-fill-3")}>3</button>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "+" })} className={keyClass("+", "bg-accent-surface text-accent-text hover:bg-accent-surface-strong")}>+</button>
 
-            <button type="button" onClick={() => dispatch({ type: "TOGGLE_SIGN" })} className={cn(KEY_CLASS, "bg-gray-100 text-gray-600 hover:bg-gray-200")}>±</button>
-            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "0" })} className={keyClass("0", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>0</button>
-            <button type="button" onClick={() => dispatch({ type: "DECIMAL" })} className={keyClass(".", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>.</button>
-            <button type="button" onClick={() => dispatch({ type: "EQUALS" })} className={keyClass("=", "bg-blue-600 text-white hover:bg-blue-700")}>=</button>
+            <button type="button" onClick={() => dispatch({ type: "TOGGLE_SIGN" })} className={cn(KEY_CLASS, "bg-fill-2 text-text-secondary hover:bg-fill-3")}>±</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "0" })} className={keyClass("0", "bg-fill-1 text-text-primary hover:bg-fill-3")}>0</button>
+            <button type="button" onClick={() => dispatch({ type: "DECIMAL" })} className={keyClass(".", "bg-fill-1 text-text-primary hover:bg-fill-3")}>.</button>
+            <button type="button" onClick={() => dispatch({ type: "EQUALS" })} className={keyClass("=", "bg-accent-solid text-on-solid hover:bg-accent-solid-hover")}>=</button>
 
-            <button type="button" onClick={() => dispatch({ type: "PERCENT" })} className={keyClass("%", "col-span-4 bg-gray-100 text-gray-600 hover:bg-gray-200")}>%</button>
+            <button type="button" onClick={() => dispatch({ type: "PERCENT" })} className={keyClass("%", "col-span-4 bg-fill-2 text-text-secondary hover:bg-fill-3")}>%</button>
           </div>
           </>
           )}

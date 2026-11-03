@@ -2,23 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Archive as ArchiveIcon,
-  RotateCcw,
-  Trash2,
-  User,
-  ShieldCheck,
-  IdCard,
-  Truck as TruckIcon,
-  Users,
-  Building2,
-  Handshake,
-  Warehouse,
-  History,
-  Plus,
-  Pencil,
-  type LucideIcon,
-} from "lucide-react";
+import { RiArchiveLine as ArchiveIcon, RiArrowGoBackLine as RotateCcw, RiDeleteBinLine as Trash2, RiUserLine as User, RiShieldCheckLine as ShieldCheck, RiProfileLine as IdCard, RiTruckLine as TruckIcon, RiGroupLine as Users, RiBuilding2Line as Building2, RiShakeHandsLine as Handshake, RiStore2Line as Warehouse, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, type RemixiconComponentType as LucideIcon } from "@remixicon/react";
 import { deletionApprovalsApi, driversApi, trucksApi, staffApi, customersApi, vendorsApi, cfsYardApi, type DeletionApprovalRequest } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -26,11 +10,12 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const ALLOWED_ROLES = ["Admin"];
 
 type ArchivedResource = "Driver" | "Truck" | "Staff" | "Customer" | "Vendor" | "CfsYardEntry";
@@ -49,12 +34,12 @@ type KindConfig = {
 };
 
 const KIND_CONFIG: Record<ArchivedResource, KindConfig> = {
-  Driver: { label: "Driver", homeLabel: "Our Drivers", icon: IdCard, badgeClass: "bg-indigo-50 text-indigo-700", api: driversApi },
-  Truck: { label: "Truck", homeLabel: "Our Fleet", icon: TruckIcon, badgeClass: "bg-amber-50 text-amber-700", api: trucksApi },
-  Staff: { label: "Staff", homeLabel: "Our Staff", icon: Users, badgeClass: "bg-emerald-50 text-emerald-700", api: staffApi },
-  Customer: { label: "Customer", homeLabel: "Our Customers", icon: Building2, badgeClass: "bg-blue-50 text-blue-700", api: customersApi },
-  Vendor: { label: "Vendor", homeLabel: "Our Vendors", icon: Handshake, badgeClass: "bg-purple-50 text-purple-700", api: vendorsApi },
-  CfsYardEntry: { label: "CFS/Yard", homeLabel: "the CFS/Yard Directory", icon: Warehouse, badgeClass: "bg-teal-50 text-teal-700", api: cfsYardApi },
+  Driver: { label: "Driver", homeLabel: "Our Drivers", icon: IdCard, badgeClass: "bg-purple-surface text-purple-text", api: driversApi },
+  Truck: { label: "Truck", homeLabel: "Our Fleet", icon: TruckIcon, badgeClass: "bg-warning-surface text-warning-text", api: trucksApi },
+  Staff: { label: "Staff", homeLabel: "Our Staff", icon: Users, badgeClass: "bg-success-surface text-success-text", api: staffApi },
+  Customer: { label: "Customer", homeLabel: "Our Customers", icon: Building2, badgeClass: "bg-accent-surface text-accent-text", api: customersApi },
+  Vendor: { label: "Vendor", homeLabel: "Our Vendors", icon: Handshake, badgeClass: "bg-purple-surface text-purple-text", api: vendorsApi },
+  CfsYardEntry: { label: "CFS/Yard", homeLabel: "the CFS/Yard Directory", icon: Warehouse, badgeClass: "bg-teal-surface text-teal-text", api: cfsYardApi },
 };
 const ARCHIVED_KINDS: ArchivedResource[] = ["Driver", "Truck", "Staff", "Customer", "Vendor", "CfsYardEntry"];
 const PLURAL_LABEL: Record<ArchivedResource, string> = {
@@ -85,11 +70,11 @@ function iconForEvent(event: string) {
 }
 
 function colorForEvent(event: string) {
-  if (event.endsWith("Created")) return "bg-blue-100 text-blue-700";
-  if (event.endsWith("Edited")) return "bg-amber-100 text-amber-700";
-  if (event.endsWith("Deleted")) return "bg-red-100 text-red-700";
-  if (event.endsWith("Restored")) return "bg-emerald-100 text-emerald-700";
-  return "bg-gray-100 text-gray-700";
+  if (event.endsWith("Created")) return "bg-accent-surface-strong text-accent-text";
+  if (event.endsWith("Edited")) return "bg-warning-surface-strong text-warning-text";
+  if (event.endsWith("Deleted")) return "bg-danger-surface-strong text-danger-text";
+  if (event.endsWith("Restored")) return "bg-success-surface-strong text-success-text";
+  return "bg-fill-2 text-text-primary";
 }
 
 function formatDate(raw: string | null): string {
@@ -279,12 +264,12 @@ export default function ArchivePage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white text-slate-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-separator-border bg-fill-1 text-text-secondary shadow-sm">
             <ArchiveIcon className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Archive</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Archive</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Staff, drivers, trucks, customers, and vendors removed from the Resource Hub — restore them or permanently delete
             </p>
           </div>
@@ -293,7 +278,7 @@ export default function ArchivePage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -303,14 +288,14 @@ export default function ArchivePage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by name, requester, or approver" value={search} onChange={setSearch} />
-        <div className="flex gap-1.5 rounded-lg border border-gray-200 bg-white/60 p-1">
+        <div className="flex gap-1.5 rounded-lg border border-separator-border bg-background-primary-default p-1">
           {(["All", ...ARCHIVED_KINDS] as const).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTypeFilter(t)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                typeFilter === t ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
+              className={`rounded-md px-3 py-1.5 text-caption-1-semibold transition-colors ${
+                typeFilter === t ? "bg-accent-solid text-on-solid" : "text-text-secondary hover:bg-fill-3"
               }`}
             >
               {t === "All" ? "All" : PLURAL_LABEL[t]}
@@ -326,19 +311,14 @@ export default function ArchivePage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm">
+      <div className="overflow-x-auto rounded-xl border border-separator-border bg-background-primary-default shadow-sm">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <ArchiveIcon className="h-8 w-8 text-gray-200" />
-            <p className="text-sm font-medium text-gray-500">
-              {rows.length === 0 ? "The archive is empty." : "No archived items match this search."}
-            </p>
-          </div>
+          <EmptyState size="compact" illustration="not-found" title={rows.length === 0 ? "The archive is empty" : "No archived items match this search"} />
         ) : (
           <div className="overflow-auto max-h-[70vh]">
             <table className="w-full text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <tr className="border-b border-separator-border bg-fill-1 text-left text-caption-1-semibold text-text-secondary">
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Deleted By</th>
@@ -348,12 +328,12 @@ export default function ArchivePage() {
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-separator-border">
                 {filtered.map((row) => (
-                  <tr key={`${row.kind}-${row.id}`} className="transition-colors hover:bg-white/60">
+                  <tr key={`${row.kind}-${row.id}`} className="transition-colors hover:bg-fill-2">
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${KIND_CONFIG[row.kind].badgeClass}`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-1-semibold ${KIND_CONFIG[row.kind].badgeClass}`}
                       >
                         {(() => {
                           const KindIcon = KIND_CONFIG[row.kind].icon;
@@ -363,21 +343,21 @@ export default function ArchivePage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{row.resourceName}</p>
+                      <p className="font-medium text-text-primary">{row.resourceName}</p>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100">
-                          <User className="h-3.5 w-3.5 text-blue-600" />
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-surface-strong">
+                          <User className="h-3.5 w-3.5 text-accent-text" />
                         </div>
-                        <p className="font-medium text-gray-900">{row.requestedByName}</p>
+                        <p className="font-medium text-text-primary">{row.requestedByName}</p>
                       </div>
                     </td>
                     <td className="max-w-[260px] px-4 py-3">
                       <button
                         type="button"
                         onClick={() => setViewing(row)}
-                        className="block max-w-[260px] truncate text-left text-blue-600 hover:text-blue-800 hover:underline"
+                        className="block max-w-[260px] truncate text-left text-accent-text hover:text-accent-text-strong hover:underline"
                         title="Click to view full details"
                       >
                         {row.reason}
@@ -385,18 +365,18 @@ export default function ArchivePage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                        <span className="font-medium text-gray-700">{row.approvedByName ?? "—"}</span>
+                        <ShieldCheck className="h-3.5 w-3.5 text-success-text" />
+                        <span className="font-medium text-text-primary">{row.approvedByName ?? "—"}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{formatDate(row.approvedAt)}</td>
+                    <td className="px-4 py-3 text-text-secondary">{formatDate(row.approvedAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         <button
                           type="button"
                           disabled={actingId === row.id}
                           onClick={() => handleRestore(row)}
-                          className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-lg border border-success-border bg-success-surface px-2.5 py-1 text-caption-1-semibold text-success-text hover:bg-success-surface-strong transition-colors disabled:opacity-50"
                           title={`Put this ${KIND_CONFIG[row.kind].label.toLowerCase()} back in ${KIND_CONFIG[row.kind].homeLabel}`}
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
@@ -406,7 +386,7 @@ export default function ArchivePage() {
                           type="button"
                           disabled={actingId === row.id}
                           onClick={() => handlePermanentDelete(row)}
-                          className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong transition-colors disabled:opacity-50"
                           title={`Permanently and irreversibly delete this ${KIND_CONFIG[row.kind].label.toLowerCase()}`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -428,38 +408,38 @@ export default function ArchivePage() {
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setViewing(null); }}
         >
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <div className="relative w-full max-w-md rounded-2xl border border-white/60 bg-white p-6 shadow-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Archived {viewing.kind}</p>
-            <p className="mt-0.5 text-lg font-bold text-gray-900">{viewing.resourceName}</p>
+          <div className="absolute inset-0 bg-scrim/40" />
+          <div className="relative w-full max-w-md rounded-2xl border border-separator-border bg-background-primary-default p-6 shadow-2xl">
+            <p className="text-caption-2-semibold text-text-tertiary">Archived {viewing.kind}</p>
+            <p className="mt-0.5 text-title-3-semibold text-text-primary">{viewing.resourceName}</p>
 
             <div className="mt-4 flex flex-col gap-3 text-sm">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Deleted By</p>
-                <p className="mt-0.5 font-medium text-gray-900">{viewing.requestedByName}</p>
+                <p className="text-caption-2-semibold text-text-tertiary">Deleted By</p>
+                <p className="mt-0.5 font-medium text-text-primary">{viewing.requestedByName}</p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Reason for Deletion</p>
-                <p className="mt-1 whitespace-pre-wrap rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-gray-700">
+                <p className="text-caption-2-semibold text-text-tertiary">Reason for Deletion</p>
+                <p className="mt-1 whitespace-pre-wrap rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-text-primary">
                   {viewing.reason || "—"}
                 </p>
               </div>
               {viewing.adminNote && (
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Admin Note</p>
-                  <p className="mt-1 whitespace-pre-wrap rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-amber-800">
+                  <p className="text-caption-2-semibold text-text-tertiary">Admin Note</p>
+                  <p className="mt-1 whitespace-pre-wrap rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-warning-text-strong">
                     {viewing.adminNote}
                   </p>
                 </div>
               )}
-              <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+              <div className="flex items-center justify-between border-t border-separator-border pt-3">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Approved By</p>
-                  <p className="mt-0.5 font-medium text-gray-900">{viewing.approvedByName ?? "—"}</p>
+                  <p className="text-caption-2-semibold text-text-tertiary">Approved By</p>
+                  <p className="mt-0.5 font-medium text-text-primary">{viewing.approvedByName ?? "—"}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Deletion Date</p>
-                  <p className="mt-0.5 text-gray-700">{formatDate(viewing.approvedAt)}</p>
+                  <p className="text-caption-2-semibold text-text-tertiary">Deletion Date</p>
+                  <p className="mt-0.5 text-text-primary">{formatDate(viewing.approvedAt)}</p>
                 </div>
               </div>
             </div>
@@ -467,7 +447,7 @@ export default function ArchivePage() {
             <button
               type="button"
               onClick={() => setViewing(null)}
-              className="mt-5 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              className="mt-5 w-full rounded-lg border border-separator-border bg-background-primary-default px-4 py-2 text-body-semibold text-text-secondary hover:bg-fill-2"
             >
               Close
             </button>
@@ -488,15 +468,15 @@ export default function ArchivePage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <PillSearch placeholder="Search by name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
-            <div className="flex gap-1.5 rounded-lg border border-gray-200 bg-white/60 p-1">
+            <div className="flex gap-1.5 rounded-lg border border-separator-border bg-background-primary-default p-1">
               {(["All", ...ARCHIVED_KINDS] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setEditHistoryKindFilter(t)}
                   className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
-                    editHistoryKindFilter === t ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
+                    "rounded-md px-2.5 py-1 text-caption-1-semibold transition-colors",
+                    editHistoryKindFilter === t ? "bg-accent-solid text-on-solid" : "text-text-secondary hover:bg-fill-3"
                   )}
                 >
                   {t === "All" ? "All" : PLURAL_LABEL[t]}
@@ -505,7 +485,7 @@ export default function ArchivePage() {
             </div>
           </div>
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -513,43 +493,41 @@ export default function ArchivePage() {
               (!q || ev.name.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q))
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Type</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Name</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Type</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Name</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = iconForEvent(ev.event);
                       const KindIcon = KIND_CONFIG[ev.kind].icon;
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", KIND_CONFIG[ev.kind].badgeClass)}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", KIND_CONFIG[ev.kind].badgeClass)}>
                               <KindIcon className="h-3 w-3" /> {ev.kind}
                             </span>
                           </td>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.name}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.name}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", colorForEvent(ev.event))}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", colorForEvent(ev.event))}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

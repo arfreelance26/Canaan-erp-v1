@@ -1,0 +1,545 @@
+/* ---------------------------------------------------------------------------
+ * LEGACY styles (pre-BoardUI). Loaded last by styles/index.css.
+ *
+ * Holds the old palette remaps that make raw `bg-white` / `text-gray-*` /
+ * `bg-blue-*` classes work in dark mode, plus page-specific blocks (login,
+ * chat wallpaper, react-datepicker). Do NOT add anything new here — new UI
+ * uses BoardUI semantic tokens. Delete each block once its last user is
+ * migrated; delete the file when grep finds no raw palette classes.
+ * --------------------------------------------------------------------------- */
+@import "react-datepicker/dist/react-datepicker.css";
+
+/* Remove spin buttons on number inputs globally */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+html.dark { color-scheme: dark; }
+
+/* Inputs with no background utility sit on whatever surface holds them. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="range"]):not([class*="bg-"]),
+textarea:not([class*="bg-"]),
+select:not([class*="bg-"]) {
+  background-color: transparent;
+  color: var(--color-text-primary);
+}
+
+@layer utilities {
+  /* Page ground (kept as a class name: app/layout.tsx puts it on <body>). */
+  .bg-mesh-light {
+    background-color: var(--color-background-full);
+  }
+
+  .animate-stagger>* {
+    animation: slideUpFade 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  }
+
+  .animate-stagger>*:nth-child(1) {
+    animation-delay: 50ms;
+  }
+
+  .animate-stagger>*:nth-child(2) {
+    animation-delay: 150ms;
+  }
+
+  .animate-stagger>*:nth-child(3) {
+    animation-delay: 250ms;
+  }
+
+  .animate-stagger>*:nth-child(4) {
+    animation-delay: 350ms;
+  }
+
+  .animate-stagger>*:nth-child(5) {
+    animation-delay: 450ms;
+  }
+
+  .animate-stagger>*:nth-child(6) {
+    animation-delay: 550ms;
+  }
+
+  .animate-stagger>*:nth-child(7) {
+    animation-delay: 650ms;
+  }
+
+  .animate-stagger>*:nth-child(8) {
+    animation-delay: 750ms;
+  }
+
+  .animate-stagger>*:nth-child(9) {
+    animation-delay: 850ms;
+  }
+
+  .animate-stagger>*:nth-child(10) {
+    animation-delay: 950ms;
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@layer utilities {
+  .animate-dropdown {
+    animation: dropdownEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: top;
+  }
+}
+
+@keyframes dropdownEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Force no text-transform on credential inputs */
+.input-no-transform {
+  text-transform: none !important;
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-fill-3); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-fill-4); }
+* { scrollbar-width: thin; scrollbar-color: var(--color-fill-3) transparent; }
+
+/* ── react-datepicker (DatePickerInput, DateRangePill) — token-only, flips with .dark ── */
+.react-datepicker-popper { z-index: 9999 !important; }
+
+.canaan-calendar {
+  background: var(--color-background-primary-default) !important;
+  border: 1px solid var(--color-separator-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--color-neutral-950) 14%, transparent) !important;
+  font-family: inherit !important;
+  color: var(--color-text-primary);
+  color-scheme: light dark;
+  overflow: hidden;
+  padding: 8px;
+  animation: pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transform-origin: top;
+}
+.canaan-calendar .react-datepicker__header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--color-separator-border) !important;
+  padding-top: 8px;
+}
+.canaan-calendar .react-datepicker__current-month {
+  color: var(--color-text-primary) !important;
+  font-weight: 500 !important;
+  font-size: 15px !important;
+}
+.canaan-calendar .react-datepicker__day-name { color: var(--color-text-tertiary) !important; font-weight: 400 !important; }
+.canaan-calendar .react-datepicker__day {
+  color: var(--color-text-primary) !important;
+  border-radius: 8px !important;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 150ms, color 150ms !important;
+}
+.canaan-calendar .react-datepicker__day:hover { background-color: var(--color-fill-2) !important; }
+.canaan-calendar .react-datepicker__day--outside-month,
+.canaan-calendar .react-datepicker__day--disabled { color: var(--color-text-tertiary) !important; opacity: .55; }
+.canaan-calendar .react-datepicker__day--in-range,
+.canaan-calendar .react-datepicker__day--in-selecting-range { background-color: var(--color-accent-surface) !important; color: var(--color-accent-text) !important; }
+.canaan-calendar .react-datepicker__day--today {
+  font-weight: 600 !important;
+  box-shadow: inset 0 0 0 1px var(--color-accent-border-strong);
+}
+.canaan-calendar .react-datepicker__day--selected,
+.canaan-calendar .react-datepicker__day--range-start,
+.canaan-calendar .react-datepicker__day--range-end,
+.canaan-calendar .react-datepicker__day--keyboard-selected {
+  background-color: var(--color-accent-solid) !important;
+  color: var(--color-on-solid) !important;
+}
+.canaan-calendar .react-datepicker__navigation-icon::before {
+  border-color: var(--color-foreground-icon-tertiary) !important;
+  border-width: 2px 2px 0 0 !important;
+}
+.canaan-calendar .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: var(--color-foreground-icon-primary) !important;
+}
+.canaan-calendar .react-datepicker__month-select,
+.canaan-calendar .react-datepicker__year-select {
+  background-color: var(--color-background-primary-default);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-separator-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.canaan-calendar .react-datepicker__time-container { border-left: 1px solid var(--color-separator-border) !important; }
+.canaan-calendar .react-datepicker__time-container .react-datepicker__header,
+.canaan-calendar .react-datepicker__time,
+.canaan-calendar .react-datepicker__time-box { background: transparent !important; }
+.canaan-calendar .react-datepicker__time-list-item {
+  color: var(--color-text-primary) !important;
+  border-radius: 8px !important;
+  margin: 0 4px !important;
+  width: auto !important;
+}
+.canaan-calendar .react-datepicker__time-list-item:hover { background-color: var(--color-fill-2) !important; }
+.canaan-calendar .react-datepicker__time-list-item--selected {
+  background-color: var(--color-accent-solid) !important;
+  color: var(--color-on-solid) !important;
+  font-weight: 500 !important;
+}
+
+/* Native date inputs: same hairline + focus ring as BoardUI inputs. */
+input[type="date"] { color-scheme: light dark; }
+input[type="date"]:focus { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus-ring); }
+
+/* ── Canaan Chat — dark mode panel backgrounds ───────────────────────────── */
+.chat-msg-area {
+  background-color: var(--color-background-full);
+  /* Matches Canaan_mobile: a 0x33FFFFFF (20% white) tint layered over the
+     wallpaper (chat_thread_screen.dart ColorFilter, BlendMode.srcOver). */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.2)),
+    url('/light%20chat.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  /* Wallpaper stays fixed to the panel while messages scroll over it. */
+  background-attachment: scroll;
+}
+html.dark .chat-msg-area {
+  background-color: var(--color-background-full);
+  /* Matches Canaan_mobile: a 0xCC0E111D (80% #0e111d) tint over the wallpaper. */
+  background-image:
+    linear-gradient(rgba(14, 17, 29, 0.8), rgba(14, 17, 29, 0.8)),
+    url('/dark%20chat.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
+}
+
+/* ── Canaan Chat — day-separator entrance ─────────────────────────────────
+   Fires once per day-pill mount (never re-triggers on unrelated re-renders,
+   since the element isn't remounted). Per-message entrance animations live
+   further down (chat-bubble-sent / chat-bubble-received). */
+@keyframes chat-day-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-chat-day {
+  animation: chat-day-in 0.3s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-chat-day {
+    animation: none;
+  }
+}
+
+/* ── Canaan Chat — live send/receive entrance (distinct from bulk history load) ──
+   Historical messages loaded when a thread opens render instantly, no per-item
+   animation — fifty bubbles all popping in at once reads as noisy, not smooth.
+   These two only fire for messages that arrive *during* the session: a message
+   you just sent settles in with a touch of overshoot (it's landing where it's
+   going), one you just received drifts in from the side it's grouped against. */
+@keyframes chat-bubble-sent {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.92); }
+  65%  { opacity: 1; transform: translateY(-2px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-chat-bubble-sent {
+  animation: chat-bubble-sent 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes chat-bubble-received {
+  from { opacity: 0; transform: translateX(-8px) translateY(6px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) translateY(0) scale(1); }
+}
+.animate-chat-bubble-received {
+  animation: chat-bubble-received 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-chat-bubble-sent, .animate-chat-bubble-received {
+    animation: none;
+  }
+}
+
+/* ── Canaan Chat — payment note decided (fires once, on the pending→decided
+   transition only; see PaymentBubble's justDecided guard) ────────────────── */
+@keyframes payment-approved-flash {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-success-solid) 45%, transparent); transform: scale(1); }
+  35%  { box-shadow: 0 0 0 6px transparent; transform: scale(1); }
+  100% { box-shadow: 0 0 0 6px transparent; transform: scale(1); }
+}
+.animate-payment-approved {
+  animation: payment-approved-flash 0.6s ease-out;
+}
+@keyframes payment-rejected-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px); }
+  35% { transform: translateX(5px); }
+  55% { transform: translateX(-4px); }
+  75% { transform: translateX(2px); }
+  90% { transform: translateX(-1px); }
+}
+.animate-payment-rejected {
+  animation: payment-rejected-shake 0.45s ease-in-out;
+}
+@keyframes payment-status-pop {
+  0%   { opacity: 0; transform: scale(0.4) translateY(4px); }
+  65%  { opacity: 1; transform: scale(1.12) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-payment-status-pop {
+  animation: payment-status-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes payment-ring {
+  0%   { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+.animate-payment-ring {
+  animation: payment-ring 0.55s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-payment-approved, .animate-payment-rejected, .animate-payment-status-pop, .animate-payment-ring {
+    animation: none;
+  }
+}
+
+/* ── Canaan Chat — Owner View unlock button (fires once, on a correct
+   password; see OwnerViewDialog's handleUnlock) ───────────────────────────── */
+@keyframes owner-unlock-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.animate-owner-unlock-pop {
+  animation: owner-unlock-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes owner-unlock-key {
+  0%   { transform: rotate(0deg) scale(1); }
+  35%  { transform: rotate(-22deg) scale(1.1); }
+  65%  { transform: rotate(10deg) scale(1.1); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+.animate-owner-unlock-key {
+  animation: owner-unlock-key 0.5s ease-in-out;
+}
+@keyframes owner-unlock-sweep {
+  0%   { transform: translateX(-140%) skewX(-12deg); }
+  100% { transform: translateX(260%) skewX(-12deg); }
+}
+.animate-owner-unlock-sweep {
+  animation: owner-unlock-sweep 0.7s ease-in-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-owner-unlock-pop, .animate-owner-unlock-key, .animate-owner-unlock-sweep {
+    animation: none;
+  }
+}
+
+/* ── Lane Map + Money Flow dashboard cards ─────────────────────────────────── */
+/* Map palette on tokens: the lane is the accent, land is a neutral fill. */
+.lane-map {
+  --lane: var(--color-accent-500);
+  --lane-glow: color-mix(in oklab, var(--color-accent-500) 40%, transparent);
+  --map-land: var(--color-fill-1);
+  --map-land-home: var(--color-accent-surface);
+  --map-stroke: var(--color-separator-border-strong);
+  --map-grid: var(--color-separator-border);
+  --map-halo: var(--color-background-primary-default);
+  --map-label: var(--color-text-secondary);
+}
+.lane-grid line { stroke: var(--map-grid); stroke-width: 0.6; }
+.lane-land { fill: var(--map-land); stroke: var(--map-stroke); stroke-width: 0.8; stroke-linejoin: round; }
+.lane-land-home { fill: var(--map-land-home); stroke-width: 1.1; }
+.lane-arc { stroke: var(--lane); stroke-linecap: round; transition: opacity 0.2s, stroke-width 0.2s; }
+.lane-glow { stroke: var(--lane-glow); stroke-linecap: round; transition: opacity 0.2s; }
+.lane-dot { fill: var(--color-background-primary-default); stroke: var(--lane); stroke-width: 1.2; }
+.lane-city { fill: var(--lane); stroke: var(--map-halo); stroke-width: 1.2; }
+.lane-city-off { fill: var(--lane); }
+.lane-hub { fill: var(--lane); stroke: var(--map-halo); stroke-width: 2; }
+.lane-pulse { fill: var(--lane); }
+.lane-label {
+  font-size: 13px; font-weight: 500; fill: var(--map-label);
+  paint-order: stroke; stroke: var(--map-halo); stroke-width: 4px; stroke-linejoin: round;
+}
+.lane-label-hub { font-size: 15px; font-weight: 500; fill: var(--color-text-primary); }
+.lane-bar { background: var(--lane); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-ring { animation: none; opacity: 0.5; }
+  .lane-dot, .lane-pulse { display: none; }
+}
+
+/* Fleet Constellation: honeycomb of trucks */
+/* Fleet Constellation: document health on the semantic tones. */
+.fleet-const {
+  --fc-ok-fill: var(--color-fill-2);           --fc-ok-stroke: var(--color-separator-border-strong); --fc-ok-text: var(--color-text-secondary);
+  --fc-soon-fill: var(--color-warning-surface); --fc-soon-stroke: var(--color-warning-border-strong); --fc-soon-text: var(--color-warning-text);
+  --fc-bad-fill: var(--color-danger-surface);   --fc-bad-stroke: var(--color-danger-border-strong);   --fc-bad-text: var(--color-danger-text);
+  --fc-miss-fill: var(--color-purple-surface);  --fc-miss-stroke: var(--color-purple-border-strong);  --fc-miss-text: var(--color-purple-text);
+  --fc-road: var(--color-teal-solid);
+  --fc-maint: var(--color-warning-solid);
+}
+.fc-hex { stroke-width: 1.6; stroke-linejoin: round; transition: transform 0.18s ease, filter 0.18s ease; transform-box: fill-box; transform-origin: center; }
+.fc-ok   { fill: var(--fc-ok-fill);   stroke: var(--fc-ok-stroke); }
+.fc-soon { fill: var(--fc-soon-fill); stroke: var(--fc-soon-stroke); }
+.fc-bad  { fill: var(--fc-bad-fill);  stroke: var(--fc-bad-stroke); }
+/* Missing documents: pink, with a dashed edge so it never reads as red (expired). */
+.fc-miss { fill: var(--fc-miss-fill); stroke: var(--fc-miss-stroke); }
+.fc-miss.fc-hex { stroke-dasharray: 5 3.5; }
+.fc-node:hover .fc-hex, .fc-hex.fc-on { transform: scale(1.12); }
+.fc-text { font-size: 12.5px; font-weight: 500; pointer-events: none; letter-spacing: 0.02em; }
+.fc-ok-t   { fill: var(--fc-ok-text); }
+.fc-soon-t { fill: var(--fc-soon-text); }
+.fc-bad-t  { fill: var(--fc-bad-text); }
+.fc-miss-t { fill: var(--fc-miss-text); }
+.fc-ring {
+  fill: none; stroke: var(--fc-road); stroke-width: 2; pointer-events: none;
+  transform-box: fill-box; transform-origin: center; animation: fc-pulse 2.2s ease-out infinite;
+}
+@keyframes fc-pulse { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(1.45); opacity: 0; } }
+.fc-assigned { fill: none; stroke: var(--fc-road); stroke-width: 1.2; stroke-dasharray: 3 3; pointer-events: none; }
+.fc-road-dot { fill: var(--fc-road); }
+.fc-maint-dot { fill: var(--fc-maint); }
+.fc-key { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border-width: 1.5px; border-style: solid; }
+.fc-key.fc-ok   { background: var(--fc-ok-fill);   border-color: var(--fc-ok-stroke); }
+.fc-key.fc-soon { background: var(--fc-soon-fill); border-color: var(--fc-soon-stroke); }
+.fc-key.fc-bad  { background: var(--fc-bad-fill);  border-color: var(--fc-bad-stroke); }
+.fc-key.fc-miss { background: var(--fc-miss-fill); border-color: var(--fc-miss-stroke); border-style: dashed; }
+.fc-key-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; }
+i.fc-key-dot.fc-road-dot { background: var(--fc-road); }
+.fc-key-dash { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1.5px dashed var(--fc-road); }
+i.fc-key-dot.fc-maint-dot { background: var(--fc-maint); }
+
+/* ── Theme switch: smooth cross-fade between light and dark ───────────────
+   The old theme stays fully opaque underneath while the new one fades in on top.
+   (Fading both at once dips through the page background and reads as a flash.) */
+::view-transition-group(root) {
+  animation-duration: 0.7s;
+}
+::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+  z-index: 1;
+}
+::view-transition-new(root) {
+  animation: theme-fade-in 0.7s cubic-bezier(0.33, 0, 0.2, 1) both;
+  mix-blend-mode: normal;
+  z-index: 2;
+}
+@keyframes theme-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Notes panel (NotesButton.tsx) slides in from the right. */
+@keyframes notes-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+.animate-notes-in { animation: notes-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-notes-in { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Mark Attendance (app/attendance/mark) — small, quick motion only.
+ * ───────────────────────────────────────────────────────────────────────────── */
+/* A panel / row that has just appeared (the shift panel, "Checked out", …).
+   `backwards`, not `both`: once in, the element's own opacity/transform rule again. */
+.ma-enter { animation: ma-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes ma-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+/* A label that has just changed ("Shift complete", the standing badge) */
+.ma-fade { animation: ma-fade 300ms ease backwards; }
+@keyframes ma-fade { from { opacity: 0; } }
+
+/* Today's status pill right after marking: a small pop and one soft ring in
+   the status colour (--ma-pulse, set inline). */
+.ma-pop { position: relative; animation: ma-pop 450ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+.ma-pop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  animation: ma-pulse 900ms ease-out 150ms both;
+  pointer-events: none;
+}
+@keyframes ma-pop {
+  0% { transform: scale(0.85); opacity: 0.4; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes ma-pulse {
+  from { box-shadow: 0 0 0 0 var(--ma-pulse); }
+  to { box-shadow: 0 0 0 14px transparent; }
+}
+
+/* Today's history row after it changed — one light wash that fades away */
+.ma-flash { animation: ma-flash 1.2s ease-out both; }
+@keyframes ma-flash {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* "Shift in progress" — a live dot that gently breathes */
+.ma-live {
+  position: relative;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--color-success-solid);
+}
+.ma-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: ma-breathe 2.2s ease-out infinite;
+}
+@keyframes ma-breathe {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Attendance history — rows fade in one after another; a month change slides
+   the list in from the side you moved towards. */
+.ma-row { animation: ma-row 340ms ease-out backwards; }
+@keyframes ma-row {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.ma-from-right { animation: ma-slide-r 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.ma-from-left { animation: ma-slide-l 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes ma-slide-r { from { opacity: 0; transform: translateX(24px); } }
+@keyframes ma-slide-l { from { opacity: 0; transform: translateX(-24px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ma-enter, .ma-fade, .ma-pop, .ma-pop::after, .ma-flash, .ma-live::after,
+  .ma-row, .ma-from-right, .ma-from-left { animation: none !important; }
+  .ma-flash { opacity: 0; }
+}

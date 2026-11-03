@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Info, Sparkles, MapPin, Truck as TruckIcon, User, Check, CheckCircle2, AlertTriangle, Building2, Warehouse, Pencil, Trash2, Plus, Loader2 } from "lucide-react";
+import { RiCloseLine as X, RiInformationLine as Info, RiStarLine as Sparkles, RiMapPin2Line as MapPin, RiTruckLine as TruckIcon, RiUserLine as User, RiCheckLine as Check, RiCheckboxCircleLine as CheckCircle2, RiAlertLine as AlertTriangle, RiBuilding2Line as Building2, RiStore2Line as Warehouse, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiAddLine as Plus, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -32,7 +32,7 @@ import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { Branch } from "@/types/branch";
 import { branchesApi, customersApi, defaultBattaApi, tripsApi, trucksApi, cfsYardApi, deletionApprovalsApi, type DefaultBattaRate } from "@/lib/api";
 import type { CfsYardEntry } from "@/types/cfs-yard";
-import { confirmAction, showError, showSuccess } from "@/lib/swal";
+import { confirmAction, showError, showSuccess } from "@/lib/feedback";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -92,36 +92,36 @@ function CfsYardDeletionReasonDialog({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between border-b border-gray-100 bg-amber-50 px-5 py-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-background-primary-default shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between border-b border-separator-border bg-warning-surface px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning-solid text-on-solid">
               <AlertTriangle className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">Request Deletion</p>
-              <p className="text-[11px] text-gray-500">Admin approval required</p>
+              <p className="text-body-semibold text-text-primary">Request Deletion</p>
+              <p className="text-[11px] text-text-secondary">Admin approval required</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="rounded-lg border border-separator-border p-1.5 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="bg-gray-50 border-b border-gray-100 px-5 py-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Entry to delete</p>
-          <p className="text-xs text-gray-700">{entry.kind} — {entry.name}</p>
+        <div className="bg-fill-1 border-b border-separator-border px-5 py-3">
+          <p className="text-caption-2-semibold text-text-tertiary mb-1.5">Entry to delete</p>
+          <p className="text-xs text-text-primary">{entry.kind} — {entry.name}</p>
         </div>
 
         <div className="px-5 py-5 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-gray-700">
-              Reason for deletion <span className="text-red-500">*</span>
+            <label className="text-body-semibold text-text-primary">
+              Reason for deletion <span className="text-danger-text">*</span>
             </label>
             <textarea
               ref={textareaRef}
@@ -129,7 +129,7 @@ function CfsYardDeletionReasonDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Explain why this entry needs to be deleted…"
-              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-100 placeholder-gray-400"
+              className="w-full resize-none rounded-xl border border-separator-border bg-fill-1 px-4 py-3 text-sm text-text-primary outline-none transition focus:border-warning-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-warning-border placeholder-text-placeholder"
             />
           </div>
 
@@ -137,7 +137,7 @@ function CfsYardDeletionReasonDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary hover:bg-fill-2 transition-colors"
             >
               Cancel
             </button>
@@ -145,7 +145,7 @@ function CfsYardDeletionReasonDialog({
               type="button"
               onClick={handleSubmit}
               disabled={!reason.trim() || submitting}
-              className="rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-warning-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-warning-solid-hover disabled:opacity-50 transition-colors"
             >
               {submitting ? "Submitting…" : "Submit Request"}
             </button>
@@ -251,19 +251,19 @@ function CfsYardListDialog({
     <Dialog open={open} onClose={onClose} title={title}>
       <div className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto py-1 pr-1">
         {loading ? (
-          <p className="py-6 text-center text-sm text-gray-400">Loading…</p>
+          <p className="py-6 text-center text-sm text-text-tertiary">Loading…</p>
         ) : entries.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400">Nothing here yet — add one below.</p>
+          <p className="py-6 text-center text-sm text-text-tertiary">Nothing here yet — add one below.</p>
         ) : (
           entries.map((entry, i) => {
             const isEditing = editingId === entry.id;
             return (
               <div
                 key={entry.id}
-                className="flex flex-col gap-2.5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"
+                className="flex flex-col gap-2.5 rounded-xl border border-separator-border bg-fill-1 px-4 py-3"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-gray-500 shadow-sm ring-1 ring-gray-100">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background-primary-default text-caption-1-semibold text-text-secondary shadow-sm ring-1 ring-separator-border">
                     {i + 1}
                   </span>
                   {isEditing ? (
@@ -271,19 +271,19 @@ function CfsYardListDialog({
                       autoFocus
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
-                      className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                      className="min-w-0 flex-1 rounded-lg border border-border-button-default px-2 py-1 text-sm"
                     />
                   ) : (
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{entry.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-body-medium text-text-primary">{entry.name}</span>
                   )}
-                  {!isEditing && <Icon className="h-4 w-4 shrink-0 text-gray-300" />}
+                  {!isEditing && <Icon className="h-4 w-4 shrink-0 text-text-tertiary" />}
                   {isEditing ? (
                     <>
                       <button
                         type="button"
                         onClick={() => handleSaveEdit(entry)}
                         disabled={saving}
-                        className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        className="shrink-0 rounded-lg bg-accent-solid px-2.5 py-1 text-caption-1-medium text-on-solid hover:bg-accent-solid-hover disabled:opacity-50"
                       >
                         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
                       </button>
@@ -291,7 +291,7 @@ function CfsYardListDialog({
                         type="button"
                         onClick={() => setEditingId(null)}
                         disabled={saving}
-                        className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                        className="shrink-0 rounded-lg border border-separator-border px-2.5 py-1 text-caption-1-medium text-text-secondary hover:bg-fill-3"
                       >
                         Cancel
                       </button>
@@ -302,7 +302,7 @@ function CfsYardListDialog({
                         type="button"
                         title="Edit"
                         onClick={() => { setEditingId(entry.id); setEditValue(entry.name); }}
-                        className="shrink-0 rounded-lg border border-gray-200 bg-white p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                        className="shrink-0 rounded-lg border border-separator-border bg-background-primary-default p-1.5 text-text-secondary hover:bg-fill-3 hover:text-text-primary"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
@@ -310,7 +310,7 @@ function CfsYardListDialog({
                         type="button"
                         title={isAdmin ? "Delete" : "Request deletion"}
                         onClick={() => (isAdmin ? handleDelete(entry) : setReasonEntry(entry))}
-                        className="shrink-0 rounded-lg border border-red-200 bg-white p-1.5 text-red-500 hover:bg-red-50"
+                        className="shrink-0 rounded-lg border border-danger-border bg-background-primary-default p-1.5 text-danger-text hover:bg-danger-surface-strong"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -322,14 +322,14 @@ function CfsYardListDialog({
                     <button
                       type="button"
                       onClick={() => onSetOrigin(entry.name)}
-                      className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                      className="flex items-center gap-1.5 rounded-lg border border-success-border bg-success-surface px-2.5 py-1 text-caption-1-medium text-success-text transition-colors hover:bg-success-surface-strong"
                     >
                       Set as Origin
                     </button>
                     <button
                       type="button"
                       onClick={() => onSetDestination(entry.name)}
-                      className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                      className="flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-surface px-2.5 py-1 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong"
                     >
                       Set as Destination
                     </button>
@@ -341,7 +341,7 @@ function CfsYardListDialog({
         )}
       </div>
 
-      <div className="mt-3 border-t border-gray-100 pt-3">
+      <div className="mt-3 border-t border-separator-border pt-3">
         {adding ? (
           <div className="flex items-center gap-2">
             <input
@@ -350,13 +350,13 @@ function CfsYardListDialog({
               onChange={(e) => setNewName(e.target.value)}
               placeholder={`New ${noun} name`}
               onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
-              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="min-w-0 flex-1 rounded-lg border border-border-button-default px-3 py-2 text-sm"
             />
             <button
               type="button"
               onClick={handleAdd}
               disabled={saving || !newName.trim()}
-              className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="shrink-0 rounded-lg bg-accent-solid px-3 py-2 text-body-medium text-on-solid hover:bg-accent-solid-hover disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
             </button>
@@ -364,7 +364,7 @@ function CfsYardListDialog({
               type="button"
               onClick={() => { setAdding(false); setNewName(""); }}
               disabled={saving}
-              className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="shrink-0 rounded-lg border border-separator-border px-3 py-2 text-body-medium text-text-secondary hover:bg-fill-3"
             >
               Cancel
             </button>
@@ -373,7 +373,7 @@ function CfsYardListDialog({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border-button-default px-3 py-2 text-body-medium text-text-secondary transition-colors hover:border-border-button-hover hover:text-text-primary"
           >
             <Plus className="h-4 w-4" />
             Add New {noun}
@@ -403,7 +403,7 @@ function toDefaultBattaCargoType(containerSpecification: string): string {
 }
 
 const sectionHeadingClass =
-  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+  "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 // Enforce AAAA1234567 format: 4 uppercase letters then up to 7 digits, ignore all else
 function enforceContainerFormat(value: string): string {
@@ -1493,7 +1493,7 @@ export function TripFormDialog({
                 readOnly
                 disabled
                 value={form.bookingReferenceNo}
-                className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+                className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               />
             </Field>
 
@@ -1560,7 +1560,7 @@ export function TripFormDialog({
         <section className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className={sectionHeadingClass}>Customer Information</p>
-            <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+            <label className="flex items-center gap-2 text-caption-1-medium text-text-secondary">
               Use Custom Input
               <button
                 type="button"
@@ -1568,11 +1568,11 @@ export function TripFormDialog({
                 aria-checked={!!form.useCustomCustomer}
                 onClick={handleCustomCustomerToggle}
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                  form.useCustomCustomer ? "bg-blue-600" : "bg-gray-300"
+                  form.useCustomCustomer ? "bg-accent-solid" : "bg-fill-4"
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  className={`inline-block h-4 w-4 transform rounded-full bg-background-primary-default shadow transition-transform ${
                     form.useCustomCustomer ? "translate-x-4" : "translate-x-0.5"
                   }`}
                 />
@@ -1580,17 +1580,17 @@ export function TripFormDialog({
             </label>
           </div>
           {form.useCustomCustomer && (
-            <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-              <p className="text-sm text-blue-800">
+            <div className="flex items-start gap-2 rounded-lg border border-accent-border bg-accent-surface px-4 py-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-text" />
+              <p className="text-sm text-accent-text-strong">
                 Custom customer — not linked to Our Customers, so there are no saved routes or pricing. Enter the route and hire amount yourself.
               </p>
             </div>
           )}
           {isSelf && (
-            <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-              <p className="text-sm text-blue-800">
+            <div className="flex items-start gap-2 rounded-lg border border-accent-border bg-accent-surface px-4 py-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-text" />
+              <p className="text-sm text-accent-text-strong">
                 <span className="font-semibold">Self / CGI customer</span> — billing to customer is not applicable. Payment type is locked to Credit, advances are disabled, and CHA is auto-set to CGI.
               </p>
             </div>
@@ -1655,35 +1655,35 @@ export function TripFormDialog({
                 value={form.chaName ?? ""}
                 onChange={(e) => update("chaName", e.target.value)}
                 readOnly={isSelf}
-                className={`${inputClass} ${isSelf ? "cursor-not-allowed bg-gray-50 text-gray-500" : ""}`}
+                className={`${inputClass} ${isSelf ? "cursor-not-allowed bg-fill-1 text-text-secondary" : ""}`}
                 placeholder={isSelf ? "CGI (auto-filled)" : "Enter CHA name"}
               />
               {isSelf && (
-                <span className="mt-1 text-xs text-blue-600">Auto-set to CGI for Self customer</span>
+                <span className="mt-1 text-xs text-accent-text">Auto-set to CGI for Self customer</span>
               )}
             </Field>
           </div>
 
           {/* {selectedCustomer && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <h4 className="mb-3 text-sm font-semibold text-blue-900">Customer Details</h4>
+            <div className="rounded-lg border border-accent-border bg-accent-surface p-4">
+              <h4 className="mb-3 text-body-semibold text-accent-text-strong">Customer Details</h4>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {selectedCustomer.contactPersonnelName && (
                   <div>
-                    <p className="text-xs font-medium text-blue-700">Contact Person</p>
-                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.contactPersonnelName}</p>
+                    <p className="text-caption-1-medium text-accent-text">Contact Person</p>
+                    <p className="mt-1 text-sm text-accent-text-strong">{selectedCustomer.contactPersonnelName}</p>
                   </div>
                 )}
                 {selectedCustomer.phone && (
                   <div>
-                    <p className="text-xs font-medium text-blue-700">Phone</p>
-                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.phone}</p>
+                    <p className="text-caption-1-medium text-accent-text">Phone</p>
+                    <p className="mt-1 text-sm text-accent-text-strong">{selectedCustomer.phone}</p>
                   </div>
                 )}
                 {selectedCustomer.email && (
                   <div className="sm:col-span-2">
-                    <p className="text-xs font-medium text-blue-700">Email</p>
-                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.email}</p>
+                    <p className="text-caption-1-medium text-accent-text">Email</p>
+                    <p className="mt-1 text-sm text-accent-text-strong">{selectedCustomer.email}</p>
                   </div>
                 )}
               </div>
@@ -1853,7 +1853,7 @@ export function TripFormDialog({
                   placeholder="Enter rate per ton"
                 />
                 {form.cargoWeight && form.ratePerTon && (
-                  <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                  <span className="mt-1 flex items-center gap-1 text-xs text-success-text">
                     <Sparkles className="h-3 w-3" />
                     Hire Amount auto-calculated: ₹{(parseFloat(form.cargoWeight) * parseFloat(form.ratePerTon)).toLocaleString("en-IN")}
                   </span>
@@ -1868,7 +1868,7 @@ export function TripFormDialog({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className={sectionHeadingClass}>Route Information</p>
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+              <label className="flex items-center gap-2 text-caption-1-medium text-text-secondary">
                 Use Yard/CFS instead of Routes
                 <button
                   type="button"
@@ -1876,17 +1876,17 @@ export function TripFormDialog({
                   aria-checked={form.useYardCfs}
                   onClick={() => update("useYardCfs", !form.useYardCfs)}
                   className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                    form.useYardCfs ? "bg-blue-600" : "bg-gray-300"
+                    form.useYardCfs ? "bg-accent-solid" : "bg-fill-4"
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    className={`inline-block h-4 w-4 transform rounded-full bg-background-primary-default shadow transition-transform ${
                       form.useYardCfs ? "translate-x-4" : "translate-x-0.5"
                     }`}
                   />
                 </button>
               </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+              <label className="flex items-center gap-2 text-caption-1-medium text-text-secondary">
                 Use Custom Input
                 <button
                   type="button"
@@ -1894,11 +1894,11 @@ export function TripFormDialog({
                   aria-checked={form.useCustomRoute}
                   onClick={() => update("useCustomRoute", !form.useCustomRoute)}
                   className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                    form.useCustomRoute ? "bg-blue-600" : "bg-gray-300"
+                    form.useCustomRoute ? "bg-accent-solid" : "bg-fill-4"
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    className={`inline-block h-4 w-4 transform rounded-full bg-background-primary-default shadow transition-transform ${
                       form.useCustomRoute ? "translate-x-4" : "translate-x-0.5"
                     }`}
                   />
@@ -1909,7 +1909,7 @@ export function TripFormDialog({
                   <button
                     type="button"
                     onClick={() => setCfsYardDialog("cfs")}
-                    className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                    className="flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-surface px-3 py-1.5 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong"
                   >
                     <Building2 className="h-3.5 w-3.5" />
                     View All CFS
@@ -1917,7 +1917,7 @@ export function TripFormDialog({
                   <button
                     type="button"
                     onClick={() => setCfsYardDialog("yard")}
-                    className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                    className="flex items-center gap-1.5 rounded-lg border border-purple-border bg-purple-surface px-3 py-1.5 text-caption-1-medium text-purple-text transition-colors hover:bg-purple-surface-strong"
                   >
                     <Warehouse className="h-3.5 w-3.5" />
                     View All Yard
@@ -1933,15 +1933,15 @@ export function TripFormDialog({
               <div className="sm:col-span-2">
                 <Field label="Available Routes">
                   {availableRoutes.length === 0 ? (
-                    <div className="flex items-start gap-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3.5">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
-                        <MapPin className="h-4 w-4 text-gray-400" />
+                    <div className="flex items-start gap-3 rounded-xl border border-dashed border-separator-border bg-fill-1 px-4 py-3.5">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background-primary-default shadow-sm ring-1 ring-separator-border">
+                        <MapPin className="h-4 w-4 text-text-tertiary" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-500">
+                        <p className="text-body-semibold text-text-secondary">
                           {customerDestinations.length === 0 ? "No Available Routes" : "No Matching Routes"}
                         </p>
-                        <p className="mt-0.5 text-xs leading-relaxed text-gray-400">
+                        <p className="mt-0.5 text-xs leading-relaxed text-text-tertiary">
                           {customerDestinations.length === 0
                             ? "This customer has no routes configured yet. Add one under Customer Destinations, then it will appear here to select."
                             : "No route for this customer matches the selected cargo classification and container specification."}
@@ -1961,46 +1961,46 @@ export function TripFormDialog({
                               type="button"
                               onClick={() => handleRouteSelect(route)}
                               className={[
-                                "flex flex-col items-start gap-1.5 rounded-xl border px-3.5 py-2.5 text-left transition-all duration-150",
+                                "flex flex-col items-start gap-1.5 rounded-xl border px-3.5 py-2.5 text-left transition duration-150",
                                 isSelected
-                                  ? "border-blue-400 bg-blue-600 text-white shadow-md"
-                                  : "border-gray-200 bg-white text-gray-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700",
+                                  ? "border-accent-border-strong bg-accent-solid text-on-solid shadow-md"
+                                  : "border-separator-border bg-background-primary-default text-text-primary shadow-sm hover:border-accent-border-strong hover:bg-accent-surface-strong hover:text-accent-text",
                               ].join(" ")}
                             >
                               {/* Route line */}
-                              <div className="flex items-center gap-1.5 text-sm font-semibold leading-tight">
+                              <div className="flex items-center gap-1.5 text-body-semibold leading-tight">
                                 <span>{originLabel}</span>
-                                <span className={`text-xs ${isSelected ? "text-blue-200" : "text-gray-400"}`}>→</span>
+                                <span className={`text-xs ${isSelected ? "text-on-solid/80" : "text-text-tertiary"}`}>→</span>
                                 <span>{destLabel}</span>
                               </div>
                               {/* Badges */}
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {route.cargoClassification && (
                                   <span className={[
-                                    "rounded-md px-2 py-0.5 text-xs font-medium",
+                                    "rounded-md px-2 py-0.5 text-caption-1-medium",
                                     isSelected
-                                      ? "bg-blue-500 text-blue-100"
-                                      : "border border-blue-100 bg-blue-50 text-blue-700",
+                                      ? "bg-accent-solid text-on-solid/80"
+                                      : "border border-accent-border bg-accent-surface text-accent-text",
                                   ].join(" ")}>
                                     {route.cargoClassification}
                                   </span>
                                 )}
                                 {route.containerType && (
                                   <span className={[
-                                    "rounded-md px-2 py-0.5 text-xs font-medium",
+                                    "rounded-md px-2 py-0.5 text-caption-1-medium",
                                     isSelected
-                                      ? "bg-blue-500 text-blue-100"
-                                      : "border border-purple-100 bg-purple-50 text-purple-700",
+                                      ? "bg-accent-solid text-on-solid/80"
+                                      : "border border-purple-border bg-purple-surface text-purple-text",
                                   ].join(" ")}>
                                     {route.containerType}
                                   </span>
                                 )}
                                 {route.hireAmount && (
                                   <span className={[
-                                    "rounded-md px-2 py-0.5 text-xs font-bold",
+                                    "rounded-md px-2 py-0.5 text-caption-1-semibold",
                                     isSelected
-                                      ? "bg-blue-500 text-blue-100"
-                                      : "border border-emerald-200 bg-emerald-50 text-emerald-700",
+                                      ? "bg-accent-solid text-on-solid/80"
+                                      : "border border-success-border bg-success-surface text-success-text",
                                   ].join(" ")}>
                                     ₹{Number(route.hireAmount).toLocaleString("en-IN")}
                                   </span>
@@ -2010,7 +2010,7 @@ export function TripFormDialog({
                           );
                         })}
                       </div>
-                      <p className="mt-1.5 text-xs text-gray-400">
+                      <p className="mt-1.5 text-xs text-text-tertiary">
                         Select a route to auto-fill trip details
                       </p>
                     </>
@@ -2030,7 +2030,7 @@ export function TripFormDialog({
                     className={inputClass}
                     placeholder={isExport ? "e.g. TUTICORIN" : "Enter origin location"}
                   />
-                  <span className={`mt-1 text-xs ${isShifting ? "text-amber-600" : "text-blue-600"}`}>
+                  <span className={`mt-1 text-xs ${isShifting ? "text-warning-text" : "text-accent-text"}`}>
                     {isShifting ? "Shifting trips" : "Export trips"} — enter origin manually or pick one from View All CFS / Yard
                   </span>
                 </>
@@ -2044,16 +2044,16 @@ export function TripFormDialog({
                     className={inputClass}
                     placeholder="Enter origin location"
                   />
-                  <span className="mt-1 text-xs text-blue-600">Custom Input — enter origin manually, no auto-fill from customer</span>
+                  <span className="mt-1 text-xs text-accent-text">Custom Input — enter origin manually, no auto-fill from customer</span>
                 </>
               ) : (
                 <>
-                  <div className={`${inputClass} flex cursor-not-allowed items-center bg-gray-50 text-gray-700`}>
-                    <span className={form.origin ? "" : "text-gray-400"}>
+                  <div className={`${inputClass} flex cursor-not-allowed items-center bg-fill-1 text-text-primary`}>
+                    <span className={form.origin ? "" : "text-text-tertiary"}>
                       {form.origin || "Select a route below"}
                     </span>
                   </div>
-                  <span className="mt-1 text-xs text-gray-400">
+                  <span className="mt-1 text-xs text-text-tertiary">
                     Set automatically when you select a route from Available Routes above
                   </span>
                 </>
@@ -2071,7 +2071,7 @@ export function TripFormDialog({
                     className={inputClass}
                     placeholder="Enter destination location"
                   />
-                  <span className="mt-1 text-xs text-amber-600">Shifting trips — enter destination manually, no auto-fill from customer</span>
+                  <span className="mt-1 text-xs text-warning-text">Shifting trips — enter destination manually, no auto-fill from customer</span>
                 </>
               ) : form.useCustomRoute ? (
                 <>
@@ -2083,16 +2083,16 @@ export function TripFormDialog({
                     className={inputClass}
                     placeholder="Enter destination location"
                   />
-                  <span className="mt-1 text-xs text-blue-600">Custom Input — enter destination manually, no auto-fill from customer</span>
+                  <span className="mt-1 text-xs text-accent-text">Custom Input — enter destination manually, no auto-fill from customer</span>
                 </>
               ) : (
                 <>
-                  <div className={`${inputClass} flex cursor-not-allowed items-center bg-gray-50 text-gray-700`}>
-                    <span className={form.destination ? "" : "text-gray-400"}>
+                  <div className={`${inputClass} flex cursor-not-allowed items-center bg-fill-1 text-text-primary`}>
+                    <span className={form.destination ? "" : "text-text-tertiary"}>
                       {form.destination || "Select a route below"}
                     </span>
                   </div>
-                  <span className="mt-1 text-xs text-gray-400">
+                  <span className="mt-1 text-xs text-text-tertiary">
                     Set automatically when you select a route from Available Routes above
                   </span>
                 </>
@@ -2160,11 +2160,11 @@ export function TripFormDialog({
                 className={inputClass}
                 placeholder="Enter approximate KM"
               />
-              <span className="mt-1 text-xs text-gray-400">
+              <span className="mt-1 text-xs text-text-tertiary">
                 Auto-fetched from customer destination — editable if needed. Used as baseline for ±10% KM variance check in trip sheet.
               </span>
               {Number(form.approxKm) > IMPLAUSIBLE_APPROX_KM && (
-                <p className="mt-1 text-xs text-red-500">
+                <p className="mt-1 text-xs text-danger-text">
                   {Number(form.approxKm).toLocaleString("en-IN")} km looks unusually high for a single trip — please double-check this wasn&apos;t entered by mistake.
                 </p>
               )}
@@ -2194,29 +2194,29 @@ export function TripFormDialog({
                 placeholder={assignableDrivers.length === 0 ? "No vehicles available" : "Select a vehicle"}
               />
               {selectedAssignment && (
-                <div className="mt-2 flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3.5 shadow-sm dark:border-gray-300/20 dark:bg-gray-200/60">
+                <div className="mt-2 flex flex-col gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-3.5 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white shadow-sm dark:bg-blue-400/20 dark:text-blue-800">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-inverse text-on-solid shadow-sm">
                       <TruckIcon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-gray-900">
+                      <p className="truncate text-body-semibold text-text-primary">
                         {selectedAssignment.truck.registrationNumber}
-                        <span className="ml-1.5 font-normal text-gray-400">({selectedAssignment.truck.truckId})</span>
+                        <span className="ml-1.5 font-normal text-text-tertiary">({selectedAssignment.truck.truckId})</span>
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-500">
-                        <User className="h-3 w-3 shrink-0 text-gray-400" />
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-secondary">
+                        <User className="h-3 w-3 shrink-0 text-text-tertiary" />
                         {selectedAssignment.driver.name}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                       {selectedTruckBranch && (
-                        <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                        <span className="rounded-full border border-accent-border bg-accent-surface px-2 py-0.5 text-caption-2-semibold text-accent-text">
                           {selectedTruckBranch}
                         </span>
                       )}
                       {compensationPct !== null && (
-                        <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        <span className="rounded-full border border-success-border bg-success-surface px-2 py-0.5 text-caption-2-semibold text-success-text">
                           {compensationPct}% Comp.
                         </span>
                       )}
@@ -2225,8 +2225,8 @@ export function TripFormDialog({
 
                   {/* Quick branch change — same pattern as Our Fleet's truck cards */}
                   {branches.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-200 pt-3 dark:border-gray-300/20">
-                      <span className="mr-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-separator-border pt-3">
+                      <span className="mr-0.5 shrink-0 text-caption-2-semibold text-text-tertiary">
                         Branch
                       </span>
                       {branches.map((branch) => {
@@ -2237,10 +2237,10 @@ export function TripFormDialog({
                             type="button"
                             onClick={() => handleChangeVehicleBranch(selectedAssignment.truck, branch.name)}
                             className={cn(
-                              "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                              "rounded-full border px-2.5 py-1 text-caption-2-semibold transition-colors",
                               active
-                                ? "border-gray-900 bg-gray-900 text-white dark:border-blue-400/40 dark:bg-blue-400/20 dark:text-blue-800"
-                                : "border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-gray-100 dark:border-gray-300/30 dark:bg-gray-300/20 dark:text-gray-700 dark:hover:bg-gray-300/30"
+                                ? "border-border-button-hover bg-inverse text-on-solid"
+                                : "border-separator-border bg-fill-1 text-text-secondary hover:border-border-button-default hover:bg-fill-3"
                             )}
                           >
                             {branch.name}
@@ -2260,7 +2260,7 @@ export function TripFormDialog({
                   readOnly
                   disabled
                   value={selectedAssignment?.truck.registrationNumber ?? ""}
-                  className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+                  className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
                 />
               </Field>
             )}
@@ -2299,9 +2299,9 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Payment &amp; Advances</p>
           {isShifting && (
             <Field label="Is Billing Applicable?">
-              <div className="relative flex w-fit rounded-full border border-gray-200 bg-gray-100 p-1">
+              <div className="relative flex w-fit rounded-full border border-separator-border bg-fill-2 p-1">
                 <span
-                  className={`absolute top-1 bottom-1 left-1 w-20 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
+                  className={`absolute top-1 bottom-1 left-1 w-20 rounded-full bg-background-primary-default shadow-sm transition-transform duration-200 ease-out ${
                     form.isBillingApplicable ? "translate-x-20" : "translate-x-0"
                   }`}
                 />
@@ -2313,8 +2313,8 @@ export function TripFormDialog({
                       key={label}
                       type="button"
                       onClick={() => update("isBillingApplicable", value)}
-                      className={`relative z-10 w-20 rounded-full py-1.5 text-sm font-semibold transition-colors focus:outline-none ${
-                        active ? "text-blue-700" : "text-gray-500"
+                      className={`relative z-10 w-20 rounded-full py-1.5 text-body-semibold transition-colors focus:outline-none ${
+                        active ? "text-accent-text" : "text-text-secondary"
                       }`}
                     >
                       {label}
@@ -2322,16 +2322,16 @@ export function TripFormDialog({
                   );
                 })}
               </div>
-              <span className="mt-1 text-xs text-gray-500">
+              <span className="mt-1 text-xs text-text-secondary">
                 Shifting trips are internal vehicle relocations and aren&rsquo;t billed to a customer or
                 consignee by default — set to &ldquo;Yes&rdquo; only if this specific shifting trip should be billed.
               </span>
             </Field>
           )}
           {isShifting && !form.isBillingApplicable && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <p className="text-sm text-amber-800">
+            <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface px-4 py-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning-text" />
+              <p className="text-sm text-warning-text-strong">
                 <span className="font-semibold">Billing not applicable for this Shifting trip</span> — all billing fields are locked. Set &ldquo;Is Billing Applicable?&rdquo; above to &ldquo;Yes&rdquo; to unlock them.
               </p>
             </div>
@@ -2366,7 +2366,7 @@ export function TripFormDialog({
                     onChange={(e) => update("customerCashAdvance", e.target.value)}
                     onWheel={(e) => e.currentTarget.blur()}
                     readOnly={locked}
-                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
+                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-fill-1 text-text-tertiary" : ""}`}
                     placeholder="Enter cash advance amount"
                   />
                 </Field>
@@ -2378,7 +2378,7 @@ export function TripFormDialog({
                     onChange={(e) => update("customerFuelAdvanceAmount", e.target.value)}
                     onWheel={(e) => e.currentTarget.blur()}
                     readOnly={locked}
-                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
+                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-fill-1 text-text-tertiary" : ""}`}
                     placeholder="Enter fuel advance amount"
                   />
                 </Field>
@@ -2390,7 +2390,7 @@ export function TripFormDialog({
                     onChange={(e) => update("customerFuelAdvanceLitres", e.target.value)}
                     onWheel={(e) => e.currentTarget.blur()}
                     readOnly={locked}
-                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
+                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-fill-1 text-text-tertiary" : ""}`}
                     placeholder="Enter fuel advance litres"
                   />
                 </Field>
@@ -2414,15 +2414,15 @@ export function TripFormDialog({
                 ]}
               />
               {isReturnTrip && (
-                <span className="mt-1 text-xs text-blue-600">Fixed for Return Trip</span>
+                <span className="mt-1 text-xs text-accent-text">Fixed for Return Trip</span>
               )}
             </Field>
 
             {isReturnTrip && (
               <Field label="Is Batta Applicable">
-                <div className="relative flex w-fit rounded-full border border-gray-200 bg-gray-100 p-1">
+                <div className="relative flex w-fit rounded-full border border-separator-border bg-fill-2 p-1">
                   <span
-                    className={`absolute top-1 bottom-1 left-1 w-20 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
+                    className={`absolute top-1 bottom-1 left-1 w-20 rounded-full bg-background-primary-default shadow-sm transition-transform duration-200 ease-out ${
                       form.isBattaApplicable ? "translate-x-20" : "translate-x-0"
                     }`}
                   />
@@ -2434,8 +2434,8 @@ export function TripFormDialog({
                         key={label}
                         type="button"
                         onClick={() => update("isBattaApplicable", value)}
-                        className={`relative z-10 w-20 rounded-full py-1.5 text-sm font-semibold transition-colors focus:outline-none ${
-                          active ? "text-blue-700" : "text-gray-500"
+                        className={`relative z-10 w-20 rounded-full py-1.5 text-body-semibold transition-colors focus:outline-none ${
+                          active ? "text-accent-text" : "text-text-secondary"
                         }`}
                       >
                         {label}
@@ -2443,7 +2443,7 @@ export function TripFormDialog({
                     );
                   })}
                 </div>
-                <span className="mt-1 text-xs text-gray-500">
+                <span className="mt-1 text-xs text-text-secondary">
                   Return trip batta is normally paid beforehand and excluded from Net Payable — set
                   to &ldquo;Yes&rdquo; only if this driver still needs to be paid for it.
                 </span>
@@ -2479,11 +2479,11 @@ export function TripFormDialog({
                 onChange={(e) => update("driverAdvanceAmount", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
                 readOnly={isNormalComp || isDefaultComp}
-                className={`${inputClass} ${(isNormalComp || isDefaultComp) ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
+                className={`${inputClass} ${(isNormalComp || isDefaultComp) ? "cursor-not-allowed bg-success-surface text-success-text-strong" : ""}`}
                 placeholder={isNormalComp ? "Auto-calculated" : isDefaultComp ? "Fetched from Default Batta Management" : "Enter custom batta amount"}
               />
               {!isReturnTrip && isNormalComp && form.driverAdvanceAmount && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                <span className="mt-1 flex items-center gap-1 text-xs text-success-text">
                   <Sparkles className="h-3 w-3" />
                   Auto-calculated: ₹{Number(form.driverAdvanceAmount).toLocaleString("en-IN")}
                   {compensationPct !== null && selectedTruckBranch
@@ -2492,7 +2492,7 @@ export function TripFormDialog({
                 </span>
               )}
               {!isReturnTrip && isNormalComp && !form.driverAdvanceAmount && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                <span className="mt-1 flex items-center gap-1 text-xs text-warning-text">
                   <Info className="h-3 w-3" />
                   {!form.driverId
                     ? "Select a vehicle first"
@@ -2502,13 +2502,13 @@ export function TripFormDialog({
                 </span>
               )}
               {!isReturnTrip && isDefaultComp && defaultBattaAmount !== null && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-blue-600">
+                <span className="mt-1 flex items-center gap-1 text-xs text-accent-text">
                   <Sparkles className="h-3 w-3" />
                   Default rate — {selectedTruckBranch || "unknown branch"} / {form.tripCategory} / {form.containerSpecification}: ₹{Number(defaultBattaAmount).toLocaleString("en-IN")}
                 </span>
               )}
               {!isReturnTrip && isDefaultComp && defaultBattaAmount === null && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                <span className="mt-1 flex items-center gap-1 text-xs text-warning-text">
                   <Info className="h-3 w-3" />
                   {!form.driverId
                     ? "Select a vehicle first"
@@ -2537,31 +2537,31 @@ export function TripFormDialog({
                 }
                 className={`${inputClass} ${
                   (!isReturnTrip && !isOpenLoad && !isShifting && !hireIsManual) || (isTonBased && form.cargoWeight && form.ratePerTon)
-                    ? "cursor-not-allowed bg-gray-50 text-gray-500"
+                    ? "cursor-not-allowed bg-fill-1 text-text-secondary"
                     : ""
                 }`}
                 placeholder="Enter hire amount"
               />
               {!isReturnTrip && !isOpenLoad && !isShifting && !hireIsManual && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                <span className="mt-1 flex items-center gap-1 text-xs text-text-tertiary">
                   <Info className="h-3 w-3" />
                   Hire amount is set from customer pricing and is locked. Only editable for Return, Shifting, and Open Load trips.
                 </span>
               )}
               {hireIsManual && !isReturnTrip && !isOpenLoad && !isShifting && (
-                <span className="mt-1 text-xs text-amber-600">Custom input — enter the hire amount manually</span>
+                <span className="mt-1 text-xs text-warning-text">Custom input — enter the hire amount manually</span>
               )}
               {isShifting && (
-                <span className="mt-1 text-xs text-amber-600">Shifting trips — enter hire amount manually</span>
+                <span className="mt-1 text-xs text-warning-text">Shifting trips — enter hire amount manually</span>
               )}
               {isTonBased && form.cargoWeight && form.ratePerTon && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                <span className="mt-1 flex items-center gap-1 text-xs text-success-text">
                   <Sparkles className="h-3 w-3" />
                   Auto-calculated from Cargo Weight × Rate Per Ton
                 </span>
               )}
               {isFixedHire && (
-                <span className="mt-1 text-xs text-gray-500">Fixed hire — enter the agreed amount directly</span>
+                <span className="mt-1 text-xs text-text-secondary">Fixed hire — enter the agreed amount directly</span>
               )}
             </Field>
 
@@ -2586,8 +2586,8 @@ export function TripFormDialog({
                       }}
                       className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
                         commissionConfirmedAndCurrent
-                          ? "border-green-500 bg-green-500 text-white"
-                          : "border-gray-200 bg-white text-gray-400 hover:border-green-300 hover:text-green-600"
+                          ? "border-success-solid bg-success-solid text-on-solid"
+                          : "border-separator-border bg-background-primary-default text-text-tertiary hover:border-success-border-strong hover:text-success-text"
                       }`}
                     >
                       <Check className="h-4 w-4" />
@@ -2601,8 +2601,8 @@ export function TripFormDialog({
                       }}
                       className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
                         commissionStillFlaggedWrong
-                          ? "border-red-500 bg-red-500 text-white"
-                          : "border-gray-200 bg-white text-gray-400 hover:border-red-300 hover:text-red-600"
+                          ? "border-danger-solid bg-danger-solid text-on-solid"
+                          : "border-separator-border bg-background-primary-default text-text-tertiary hover:border-danger-border-strong hover:text-danger-text"
                       }`}
                     >
                       <X className="h-4 w-4" />
@@ -2611,29 +2611,29 @@ export function TripFormDialog({
                 )}
               </div>
               {!hasCommissionValue ? (
-                <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                <span className="mt-1 flex items-center gap-1 text-xs text-text-tertiary">
                   <Info className="h-3 w-3" />
                   Fetched from customer pricing when a route is selected above. Edit to override.
                 </span>
               ) : commissionConfirmedAndCurrent ? (
-                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                <span className="mt-1 flex items-center gap-1 text-xs text-success-text">
                   <CheckCircle2 className="h-3 w-3" />
                   Confirmed correct.
                 </span>
               ) : commissionStillFlaggedWrong ? (
-                <span className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                <span className="mt-1 flex items-center gap-1 text-xs text-danger-text">
                   <AlertTriangle className="h-3 w-3" />
                   Marked wrong — enter the correct amount to continue. The trip can&rsquo;t be assigned until this is fixed.
                 </span>
               ) : commissionConfirmed === "wrong" ? (
-                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                <span className="mt-1 flex items-center gap-1 text-xs text-success-text">
                   <CheckCircle2 className="h-3 w-3" />
                   Updated — thanks for correcting it.
                 </span>
               ) : (
-                <span className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                <span className="mt-1 flex items-center gap-1 text-xs text-warning-text">
                   <AlertTriangle className="h-3 w-3" />
-                  Please confirm this amount is correct (✓) or flag it as wrong (✗) before assigning the trip.
+                  Confirm this amount is correct or flag it as wrong before assigning the trip.
                 </span>
               )}
             </Field>
@@ -2645,9 +2645,9 @@ export function TripFormDialog({
                 disabled
                 value={hireExcludingCommission ? `₹${Number(hireExcludingCommission).toLocaleString("en-IN")}` : ""}
                 placeholder="Auto-calculated"
-                className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+                className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               />
-              <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+              <span className="mt-1 flex items-center gap-1 text-xs text-text-tertiary">
                 <Info className="h-3 w-3" />
                 Hire Amount − Commission Amount
               </span>
@@ -2683,14 +2683,14 @@ export function TripFormDialog({
           <button
             type="button"
             onClick={() => { clearTripDraft(); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={assignableDrivers.length === 0 || !form.driverId || !commissionResolved}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+            className="rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-fill-4"
           >
             Assign Trip
           </button>

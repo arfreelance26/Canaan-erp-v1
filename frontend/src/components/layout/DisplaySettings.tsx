@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sun, Moon, Type, Minus, Plus, Settings2 } from "lucide-react";
+import { RiSunLine as Sun, RiMoonLine as Moon, RiText as Type, RiSubtractLine as Minus, RiAddLine as Plus, RiSettings3Line as Settings2 } from "@remixicon/react";
 import { useTheme, FONT_SCALE_STEPS } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 
@@ -33,27 +33,27 @@ export function DisplaySettings() {
         type="button"
         aria-label="Display settings"
         onClick={() => setOpen((v) => !v)}
-        className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+        className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-separator-border bg-background-primary-default text-text-secondary shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300 hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-accent-solid/10"
       >
         <Settings2 className="h-5 w-5 transition-transform duration-300 group-hover:rotate-45" />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-[100] mt-3 w-72 origin-top-right rounded-2xl border border-gray-200 bg-white p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)]">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Display</p>
+        <div className="absolute right-0 z-[100] mt-3 w-72 origin-top-right rounded-2xl border border-separator-border bg-background-primary-default p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)]">
+          <p className="mb-3 text-caption-1-semibold text-text-secondary">Display</p>
 
           {/* Theme toggle */}
           <div className="mb-4">
-            <p className="mb-2 text-sm font-medium text-gray-700">Theme</p>
+            <p className="mb-2 text-body-medium text-text-primary">Theme</p>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => { if (theme !== "light") toggleTheme(); }}
                 className={cn(
-                  "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all",
+                  "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-body-medium transition",
                   theme === "light"
-                    ? "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-gray-200 text-gray-600 hover:bg-gray-50",
+                    ? "border-accent-solid bg-accent-surface text-accent-text"
+                    : "border-separator-border text-text-secondary hover:bg-fill-2",
                 )}
               >
                 <Sun className="h-4 w-4" /> Light
@@ -62,10 +62,10 @@ export function DisplaySettings() {
                 type="button"
                 onClick={() => { if (theme !== "dark") toggleTheme(); }}
                 className={cn(
-                  "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all",
+                  "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-body-medium transition",
                   theme === "dark"
-                    ? "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-gray-200 text-gray-600 hover:bg-gray-50",
+                    ? "border-accent-solid bg-accent-surface text-accent-text"
+                    : "border-separator-border text-text-secondary hover:bg-fill-2",
                 )}
               >
                 <Moon className="h-4 w-4" /> Dark
@@ -76,10 +76,10 @@ export function DisplaySettings() {
           {/* Font size */}
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <p className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+              <p className="flex items-center gap-1.5 text-body-medium text-text-primary">
                 <Type className="h-4 w-4" /> Font size
               </p>
-              <span className="text-xs font-semibold text-blue-600">{scalePct}%</span>
+              <span className="text-caption-1-semibold text-accent-text">{scalePct}%</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -87,7 +87,7 @@ export function DisplaySettings() {
                 aria-label="Decrease font size"
                 onClick={decreaseFont}
                 disabled={fontScale <= minScale}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-separator-border text-text-secondary transition hover:bg-fill-2 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -101,7 +101,7 @@ export function DisplaySettings() {
                     onClick={() => setFontScale(step)}
                     className={cn(
                       "h-2 flex-1 rounded-full transition-colors",
-                      fontScale >= step ? "bg-blue-600" : "bg-gray-200",
+                      fontScale >= step ? "bg-accent-solid" : "bg-fill-3",
                     )}
                   />
                 ))}
@@ -112,12 +112,12 @@ export function DisplaySettings() {
                 aria-label="Increase font size"
                 onClick={increaseFont}
                 disabled={fontScale >= maxScale}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-separator-border text-text-secondary transition hover:bg-fill-2 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-gray-400">Adjusts text size across the whole app.</p>
+            <p className="mt-2 text-[11px] text-text-tertiary">Adjusts text size across the whole app.</p>
           </div>
         </div>
       )}

@@ -1,10 +1,11 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { RiPencilLine as Pencil } from "@remixicon/react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type AssignDriverTableProps = {
   drivers: Driver[];
   trucks: Truck[];
@@ -15,48 +16,46 @@ type AssignDriverTableProps = {
 export function AssignDriverTable({ drivers, trucks, vehicleByDriverId, onAssign }: AssignDriverTableProps) {
   if (drivers.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No driver records found.
-      </div>
+      <EmptyState size="compact" illustration="logistics" title="No driver records found" />
     );
   }
 
   const truckById = new Map(trucks.map((truck) => [truck.truckId, truck]));
 
   return (
-    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full text-left text-sm whitespace-nowrap">
         <thead className="sticky top-0 z-10">
-          <tr className="border-b border-gray-200 bg-gray-50">
+          <tr className="border-b border-separator-border bg-fill-1">
             {["Driver", "Driver ID", "Assigned Vehicle", "Actions"].map((column) => (
-              <th key={column} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <th key={column} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                 {column}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-separator-border">
           {drivers.map((driver) => {
             const vehicleId = vehicleByDriverId[driver.driverId] ?? "";
             const truck = vehicleId ? truckById.get(vehicleId) : undefined;
 
             return (
-              <tr key={driver.id} className="hover:bg-gray-50">
+              <tr key={driver.id} className="hover:bg-fill-2">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar photoUrl={driver.photoUrl} label={driver.name} size={36} />
-                    <span className="font-medium text-gray-900">{driver.name}</span>
+                    <span className="font-medium text-text-primary">{driver.name}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-600">{driver.driverId}</td>
+                <td className="px-4 py-3 text-text-secondary">{driver.driverId}</td>
 
-                <td className="px-4 py-3 text-gray-600">
+                <td className="px-4 py-3 text-text-secondary">
                   {truck ? (
-                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                    <span className="inline-flex items-center rounded-full bg-accent-surface px-2.5 py-1 text-caption-1-medium text-accent-text">
                       {truck.truckId} — {truck.registrationNumber}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                    <span className="inline-flex items-center rounded-full bg-fill-2 px-2.5 py-1 text-caption-1-medium text-text-secondary">
                       Unassigned
                     </span>
                   )}
@@ -66,7 +65,7 @@ export function AssignDriverTable({ drivers, trucks, vehicleByDriverId, onAssign
                     type="button"
                     onClick={() => onAssign(driver)}
                     aria-label={`Assign vehicle to ${driver.name}`}
-                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-text-secondary hover:bg-accent-surface-strong hover:text-accent-text"
                   >
                     <Pencil className="h-4 w-4" />
                     {truck ? "Change" : "Assign"}

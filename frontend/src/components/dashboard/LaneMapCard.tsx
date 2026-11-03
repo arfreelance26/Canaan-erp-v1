@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Route } from "lucide-react";
+import { RiRouteLine as Route } from "@remixicon/react";
 import type { Trip } from "@/types/trip";
 import { MAP_H, MAP_REGIONS, MAP_W, project } from "@/lib/south-india-map";
 import { resolvePlace, type ResolvedPlace } from "@/lib/lane-places";
 import { fmtInrCompact } from "@/lib/format-inr";
 import { Segmented } from "@/components/ui/Segmented";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Window = "30" | "90" | "all";
 type Metric = "trips" | "revenue";
 
@@ -121,16 +122,16 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
   const routeLabel = (l: Lane) => `${l.from.label} → ${l.to.label}`;
 
   return (
-    <div className="dk-inset lane-map flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+    <div className="lane-map flex h-full flex-col overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-blue-50/70 via-white to-white px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-separator-border bg-accent-surface/70 px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-surface-strong text-accent-text">
             <Route className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-sm font-bold text-gray-900">Lane Map</h2>
-            <p className="text-xs text-gray-500">Where your trucks actually run</p>
+            <h2 className="text-body-semibold text-text-primary">Lane Map</h2>
+            <p className="text-xs text-text-secondary">Where your trucks actually run</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -150,7 +151,7 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
       </div>
 
       {lanes.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-10 text-sm text-gray-400">No trips in this window.</div>
+        <EmptyState size="compact" illustration="logistics" title="No trips in this window" />
       ) : (
         <div className="grid flex-1 grid-cols-1 gap-4 p-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           {/* Map */}
@@ -290,27 +291,27 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
               })}
             </svg>
             {/* floating readout */}
-            <div className="pointer-events-none absolute bottom-2 left-2 max-w-[70%] rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2 text-xs shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute bottom-2 left-2 max-w-[70%] rounded-xl border border-separator-border bg-background-primary-default px-3 py-2 text-xs shadow-sm">
               {hoveredLane ? (
                 <>
-                  <p className="font-semibold text-gray-900">{routeLabel(hoveredLane)}</p>
-                  <p className="mt-0.5 text-gray-500">
-                    <span className="font-semibold tabular-nums text-gray-800">{hoveredLane.trips}</span> {hoveredLane.trips === 1 ? "trip" : "trips"} ·{" "}
-                    <span className="font-semibold tabular-nums text-gray-800">{fmtInrCompact(hoveredLane.revenue)}</span>
+                  <p className="font-semibold text-text-primary">{routeLabel(hoveredLane)}</p>
+                  <p className="mt-0.5 text-text-secondary">
+                    <span className="font-semibold tabular-nums text-text-primary">{hoveredLane.trips}</span> {hoveredLane.trips === 1 ? "trip" : "trips"} ·{" "}
+                    <span className="font-semibold tabular-nums text-text-primary">{fmtInrCompact(hoveredLane.revenue)}</span>
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="font-semibold text-gray-900">{ranked.length} lanes</p>
-                  <p className="mt-0.5 text-gray-500">
-                    <span className="font-semibold tabular-nums text-gray-800">{total}</span> trips · hover a route
+                  <p className="font-semibold text-text-primary">{ranked.length} lanes</p>
+                  <p className="mt-0.5 text-text-secondary">
+                    <span className="font-semibold tabular-nums text-text-primary">{total}</span> trips · hover a route
                   </p>
                 </>
               )}
             </div>
             </div>
 
-            <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+            <p className="mt-2 text-[11px] leading-relaxed text-text-secondary">
               Line thickness = {metric === "trips" ? "number of trips" : "revenue"} · moving dots show direction · ▲ destination beyond the map
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -319,9 +320,9 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
                 { label: "Trips", value: String(total) },
                 { label: "Lane revenue", value: fmtInrCompact(laneRevenue) },
               ].map((s) => (
-                <div key={s.label} className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{s.label}</p>
-                  <p className="text-base font-bold tabular-nums text-gray-900">{s.value}</p>
+                <div key={s.label} className="rounded-xl border border-separator-border bg-fill-1 px-3 py-2">
+                  <p className="text-caption-2-semibold text-text-tertiary">{s.label}</p>
+                  <p className="text-headline-semibold tabular-nums text-text-primary">{s.value}</p>
                 </div>
               ))}
             </div>
@@ -331,7 +332,7 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
           {/* Ranking */}
           <div className="relative min-h-[360px] min-w-0">
            <div className="absolute inset-0 flex flex-col">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Top lanes</p>
+            <p className="mb-2 text-caption-2-semibold text-text-tertiary">Top lanes</p>
             <ul className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1" onMouseLeave={() => setHovered(null)}>
               {ranked.slice(0, 30).map((lane, i) => {
                 const pct = Math.max(4, (lane[metric] / maxValue) * 100);
@@ -341,21 +342,21 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
                     key={lane.id}
                     onMouseEnter={() => setHovered(lane.id)}
                     className={`rounded-xl border px-3 py-2 text-xs transition-colors ${
-                      active ? "border-blue-300 bg-blue-50" : "border-gray-100 bg-white"
+                      active ? "border-accent-border-strong bg-accent-surface" : "border-separator-border bg-background-primary-default"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="w-4 shrink-0 text-[10px] font-bold tabular-nums text-gray-400">{i + 1}</span>
-                        <span className="truncate font-semibold text-gray-800">{routeLabel(lane)}</span>
+                        <span className="w-4 shrink-0 text-caption-2-semibold tabular-nums text-text-tertiary">{i + 1}</span>
+                        <span className="truncate font-semibold text-text-primary">{routeLabel(lane)}</span>
                       </span>
-                      <span className="shrink-0 tabular-nums text-gray-500">
-                        <span className={metric === "trips" ? "font-bold text-gray-900" : ""}>{lane.trips} {lane.trips === 1 ? "trip" : "trips"}</span>
-                        <span className="mx-1 text-gray-300">·</span>
-                        <span className={metric === "revenue" ? "font-bold text-gray-900" : ""}>{fmtInrCompact(lane.revenue)}</span>
+                      <span className="shrink-0 tabular-nums text-text-secondary">
+                        <span className={metric === "trips" ? "font-semibold text-text-primary" : ""}>{lane.trips} {lane.trips === 1 ? "trip" : "trips"}</span>
+                        <span className="mx-1 text-text-tertiary">·</span>
+                        <span className={metric === "revenue" ? "font-semibold text-text-primary" : ""}>{fmtInrCompact(lane.revenue)}</span>
                       </span>
                     </div>
-                    <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-gray-100">
+                    <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-fill-2">
                       <div className="lane-bar h-full rounded-full" style={{ width: `${pct}%` }} />
                     </div>
                   </li>
@@ -363,16 +364,16 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
               })}
             </ul>
             {(shuttles > 0 || unmapped > 0) && (
-              <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+              <p className="mt-2 text-[11px] leading-relaxed text-text-secondary">
                 {shuttles > 0 && (
                   <>
-                    <span className="font-semibold tabular-nums text-gray-700">{shuttles}</span> port shuttles inside Tuticorin
+                    <span className="font-semibold tabular-nums text-text-primary">{shuttles}</span> port shuttles inside Tuticorin
                   </>
                 )}
                 {shuttles > 0 && unmapped > 0 && " · "}
                 {unmapped > 0 && (
                   <>
-                    <span className="font-semibold tabular-nums text-gray-700">{unmapped}</span> to places not on the map
+                    <span className="font-semibold tabular-nums text-text-primary">{unmapped}</span> to places not on the map
                   </>
                 )}
               </p>

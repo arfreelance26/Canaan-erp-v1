@@ -60,8 +60,8 @@ function Wheel({
         if (interactive && position && onClick) onClick(position);
       }}
       className={cn(
-        "transition-all duration-300",
-        interactive && "cursor-pointer hover:-translate-y-0.5 hover:drop-shadow-md origin-center"
+        "transition duration-300",
+        interactive && "cursor-pointer origin-center"
       )}
       style={{ transformOrigin: `${cx}px ${cy}px` }}
     >
@@ -85,10 +85,10 @@ function Wheel({
         height={height}
         rx={rx}
         className={cn(
-          "transition-all duration-500 ease-out",
+          "transition duration-500 ease-out",
           isAnimating
-            ? "fill-green-400 scale-[1.3] drop-shadow-[0_0_15px_rgba(74,222,128,0.8)]"
-            : filled ? "fill-[#1e293b] scale-100" : "fill-[#e5e7eb] scale-100"
+            ? "fill-success-border-strong scale-[1.3]"
+            : filled ? "fill-accent-solid scale-100" : "fill-fill-3 scale-100"
         )}
         style={{ transformOrigin: `${cx}px ${cy}px` }}
         stroke={isAnimating ? "#22c55e" : filled ? "#0f172a" : "#94a3b8"}
@@ -110,7 +110,7 @@ function Wheel({
         r={Math.min(width, height) * 0.18}
         className={cn(
           "transition-[fill] duration-500 ease-out",
-          filled ? "fill-[#cbd5e1]" : "fill-transparent"
+          filled ? "fill-accent-surface-strong" : "fill-transparent"
         )}
       />
     </g>
@@ -376,7 +376,7 @@ export function TyreLayoutDiagram({
   return (
     <div className="flex flex-col gap-2">
       <div
-        className="flex flex-wrap items-center justify-center gap-6 rounded-lg border border-gray-200 bg-[#eef2f6] p-4 dark:bg-[#161c33]"
+        className="flex flex-wrap items-center justify-center gap-6 rounded-lg border border-separator-border bg-accent-surface-strong p-4"
       >
         <svg width={0} height={0} className="absolute">
           <defs>
@@ -404,12 +404,12 @@ export function TyreLayoutDiagram({
                 selectedPositions={selectedPositions}
                 animatingPosition={animatingPosition}
               />
-              {unit.label && <span className="text-xs font-medium text-gray-500">{unit.label}</span>}
+              {unit.label && <span className="text-caption-1-medium text-text-secondary">{unit.label}</span>}
             </div>
           );
         })}
       </div>
-      <p className="text-xs text-gray-500">{layout.description}</p>
+      <p className="text-xs text-text-secondary">{layout.description}</p>
     </div>
   );
 }

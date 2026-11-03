@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { X, FileText, KeyRound, Eye, EyeOff, Trash2 } from "lucide-react";
-import { showError, showSuccess, confirmAction, validateFileSize } from "@/lib/swal";
+import { RiCloseLine as X, RiFileTextLine as FileText, RiKey2Line as KeyRound, RiEyeLine as Eye, RiEyeOffLine as EyeOff, RiDeleteBinLine as Trash2 } from "@remixicon/react";
+import { showError, showSuccess, confirmAction } from "@/lib/feedback";
+import { validateFileSize } from "@/lib/file-limits";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
@@ -19,7 +20,7 @@ import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 export const DRAFT_KEY = "erp_staff_form_draft";
 
 const sectionHeadingClass =
-  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+  "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 export type StaffFiles = { photo?: File | null; aadhar?: File | null; identity?: File | null };
 
@@ -152,7 +153,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
     });
 
   const removeButtonClass =
-    "flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 transition-colors";
+    "flex items-center gap-1.5 text-caption-1-medium text-danger-text hover:text-danger-text transition-colors";
 
   return (
     <Dialog
@@ -176,7 +177,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                 reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
                 reader.readAsDataURL(file);
               }}
-              className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
+              className="text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-surface file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent-text hover:file:bg-accent-surface-strong"
             />
             {form.photoUrl && (
               <button type="button" onClick={removePhoto} className={removeButtonClass}>
@@ -189,12 +190,12 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
 
         <Field label="Identity Image (Passport Size Photo) (Max 25MB)">
           <div className="flex items-center gap-4">
-            <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+            <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-separator-border bg-fill-1">
               {form.identityImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={form.identityImageUrl} alt="Identity" className="h-full w-full object-cover" />
               ) : (
-                <span className="text-[10px] font-medium uppercase tracking-wide text-gray-300">No photo</span>
+                <span className="text-caption-2-medium text-text-tertiary">No photo</span>
               )}
             </div>
             <div className="flex flex-col items-start gap-2">
@@ -210,7 +211,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                   reader.onload = () => setForm((prev) => ({ ...prev, identityImageUrl: reader.result as string }));
                   reader.readAsDataURL(file);
                 }}
-                className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
+                className="text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-surface file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent-text hover:file:bg-accent-surface-strong"
               />
               {form.identityImageUrl && (
                 <button
@@ -321,7 +322,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4 flex flex-col gap-4">
+        <div className="rounded-lg border border-separator-border p-4 flex flex-col gap-4">
           <p className={sectionHeadingClass}>Software Credentials</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Username (auto-filled from email)">
@@ -329,7 +330,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                 type="text"
                 readOnly
                 value={form.username}
-                className={`${inputClassLower} bg-gray-50 text-gray-500 cursor-not-allowed`}
+                className={`${inputClassLower} bg-fill-1 text-text-secondary cursor-not-allowed`}
                 placeholder="Auto-filled from email"
               />
             </Field>
@@ -341,7 +342,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                 readOnly={!!initialData}
                 value={initialData ? "••••••••" : form.password}
                 onChange={(e) => !initialData && update("password", e.target.value)}
-                className={`${inputClassLower} ${initialData ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""}`}
+                className={`${inputClassLower} ${initialData ? "bg-fill-1 text-text-tertiary cursor-not-allowed" : ""}`}
                 placeholder="Set a login password"
               />
             </Field>
@@ -355,7 +356,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                   setChangePassword((v) => !v);
                   update("password", "");
                 }}
-                className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                className="flex items-center gap-2 text-body-medium text-accent-text hover:text-accent-text-strong transition-colors"
               >
                 <KeyRound className="w-4 h-4" />
                 {changePassword ? "Cancel password change" : "Change password"}
@@ -375,7 +376,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                       <button
                         type="button"
                         onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                        className="absolute right-3 top-2.5 text-text-tertiary hover:text-text-secondary focus:outline-none"
                       >
                         {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -419,7 +420,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               setFiles((prev) => ({ ...prev, aadhar: file }));
               update("aadharFileName", file.name);
             }}
-            className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
+            className="text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent-surface file:px-3 file:py-2 file:text-sm file:font-medium file:text-accent-text hover:file:bg-accent-surface-strong"
           />
           <FilePreviewBadge
             fileName={form.aadharFileName}
@@ -440,13 +441,13 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {initialData ? "Save Changes" : "Add Staff"}
           </button>

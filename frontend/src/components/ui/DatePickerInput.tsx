@@ -1,7 +1,7 @@
 "use client";
 import ReactDatePicker from "react-datepicker";
 import { forwardRef } from "react";
-import { CalendarDays, X } from "lucide-react";
+import { RiCalendar2Line as CalendarDays, RiCloseLine as X } from "@remixicon/react";
 
 type Props = {
   value: string;
@@ -40,7 +40,7 @@ const TriggerInput = forwardRef<HTMLInputElement, TriggerProps>(
   ({ value, onClick, onChange, placeholder, required, disabled, onClear }, ref) => (
     <div
       onClick={disabled ? undefined : onClick}
-      className={`relative flex w-full items-center rounded-lg border-2 border-brand-gold bg-white/80 px-3 py-2 backdrop-blur-sm transition-all duration-200 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer focus-within:bg-white dark:focus-within:bg-gray-100 focus-within:shadow-[0_0_0_4px_rgba(201,162,39,0.2)] hover:bg-white/90"}`}
+      className={`relative flex w-full items-center rounded-lg border-2 border-gold-solid bg-background-primary-default px-3 py-2 transition duration-200 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer focus-within:bg-background-primary-default shadow-md hover:bg-fill-2"}`}
     >
       <input
         ref={ref}
@@ -51,7 +51,7 @@ const TriggerInput = forwardRef<HTMLInputElement, TriggerProps>(
         placeholder={placeholder}
         required={required}
         disabled={disabled}
-        className={`w-full bg-transparent text-sm uppercase text-gray-900 outline-none placeholder:normal-case placeholder:text-gray-400 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+        className={`w-full bg-transparent text-sm uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-placeholder ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
       />
       {onClear && value && !disabled && (
         <button
@@ -60,12 +60,12 @@ const TriggerInput = forwardRef<HTMLInputElement, TriggerProps>(
           title="Clear date"
           // Don't let the click reach the wrapper (it would open the calendar).
           onClick={(e) => { e.stopPropagation(); onClear(); }}
-          className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+          className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-danger-surface-strong hover:text-danger-text"
         >
           <X className="h-3.5 w-3.5" />
         </button>
       )}
-      <CalendarDays className="ml-2 h-4 w-4 shrink-0 text-brand-gold" />
+      <CalendarDays className="ml-2 h-4 w-4 shrink-0 text-gold-text" />
     </div>
   )
 );

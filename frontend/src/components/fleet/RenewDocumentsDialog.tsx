@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, FileText, FileX2, RotateCw } from "lucide-react";
+import { RiArrowLeftLine as ArrowLeft, RiFileTextLine as FileText, RiFileCloseLine as FileX2, RiRestartLine as RotateCw } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileViewer } from "@/components/ui/FileViewer";
 import { ComplianceDocForm } from "@/components/fleet/ComplianceDocForm";
@@ -9,14 +9,14 @@ import { complianceRecordsApi, fileUrl, type ComplianceDocInput } from "@/lib/ap
 import { COMPLIANCE_DOCS, formatRupees, type ComplianceDocMeta } from "@/lib/compliance-docs";
 import { getComplianceStatus, type ComplianceStatus } from "@/lib/compliance";
 import { formatDate } from "@/lib/format-date";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
 
 const STATUS_PILL: Record<ComplianceStatus, string> = {
-  Valid:           "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  "Expiring Soon": "bg-amber-50 text-amber-700 ring-amber-200",
-  Expired:         "bg-red-50 text-red-600 ring-red-200",
+  Valid:           "bg-success-surface text-success-text ring-success-border",
+  "Expiring Soon": "bg-warning-surface text-warning-text ring-warning-border",
+  Expired:         "bg-danger-surface text-danger-text ring-danger-border",
 };
 
 /** Compliance & Renewals → a truck's "Update Document": its 7 documents as
@@ -55,18 +55,18 @@ export function RenewDocumentsDialog({ truck, onClose, onSaved }: { truck: Truck
           <button
             type="button"
             onClick={() => setRenewing(null)}
-            className="flex w-fit items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-800"
+            className="flex w-fit items-center gap-1 text-caption-1-semibold text-text-secondary hover:text-text-primary"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> All documents
           </button>
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-            <p className="font-semibold uppercase tracking-wide text-gray-400">Renewing {renewing.label}</p>
+          <div className="rounded-lg border border-separator-border bg-fill-1 px-4 py-3 text-xs text-text-secondary">
+            <p className="font-semibold text-text-tertiary">Renewing {renewing.label}</p>
             <p className="mt-1">
-              Current: valid until <span className="font-medium text-gray-700">{formatDate(truck[renewing.dateKey] as string)}</span>
-              {" · "}cost <span className="font-medium text-gray-700">{costOf(truck, renewing)}</span>
-              {renewing.numberKey && <> · No. <span className="font-medium text-gray-700">{(truck[renewing.numberKey] as string) || "—"}</span></>}
+              Current: valid until <span className="font-medium text-text-primary">{formatDate(truck[renewing.dateKey] as string)}</span>
+              {" · "}cost <span className="font-medium text-text-primary">{costOf(truck, renewing)}</span>
+              {renewing.numberKey && <> · No. <span className="font-medium text-text-primary">{(truck[renewing.numberKey] as string) || "—"}</span></>}
             </p>
-            <p className="mt-1 flex items-center gap-1 text-gray-400">
+            <p className="mt-1 flex items-center gap-1 text-text-tertiary">
               <RotateCw className="h-3 w-3" /> The current one stays in the history with its cost and file.
             </p>
           </div>
@@ -80,18 +80,18 @@ export function RenewDocumentsDialog({ truck, onClose, onSaved }: { truck: Truck
             const number = d.numberKey ? (truck[d.numberKey] as string) : "";
             const hasFile = !!truck[d.fileNameKey];
             return (
-              <div key={d.key} className="flex flex-col gap-2.5 rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm">
+              <div key={d.key} className="flex flex-col gap-2.5 rounded-xl border border-separator-border bg-background-primary-default p-3.5 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{d.label}</span>
+                  <span className="text-caption-1-semibold text-text-secondary">{d.label}</span>
                   {status ? (
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1", STATUS_PILL[status])}>{status}</span>
+                    <span className={cn("rounded-full px-2 py-0.5 text-caption-2-semibold ring-1", STATUS_PILL[status])}>{status}</span>
                   ) : (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">Not on record</span>
+                    <span className="rounded-full bg-fill-2 px-2 py-0.5 text-caption-2-semibold text-text-secondary">Not on record</span>
                   )}
                 </div>
                 <div>
-                  <p className="text-base font-semibold tabular-nums text-gray-900">{date ? formatDate(date) : "—"}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-headline-semibold tabular-nums text-text-primary">{date ? formatDate(date) : "—"}</p>
+                  <p className="text-xs text-text-secondary">
                     {costOf(truck, d)}{number && <> · No. {number}</>}
                   </p>
                 </div>
@@ -100,17 +100,17 @@ export function RenewDocumentsDialog({ truck, onClose, onSaved }: { truck: Truck
                     <button
                       type="button"
                       onClick={() => setViewing({ url: fileUrl("trucks", truck.id, d.key), title: `${truck.registrationNumber} — ${d.label}` })}
-                      className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                      className="flex items-center gap-1 text-caption-1-semibold text-accent-text hover:text-accent-text-strong"
                     >
                       <FileText className="h-3.5 w-3.5" /> View file
                     </button>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs text-gray-400"><FileX2 className="h-3.5 w-3.5" /> No file</span>
+                    <span className="flex items-center gap-1 text-xs text-text-tertiary"><FileX2 className="h-3.5 w-3.5" /> No file</span>
                   )}
                   <button
                     type="button"
                     onClick={() => setRenewing(d)}
-                    className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                    className="flex items-center gap-1.5 rounded-lg bg-accent-solid px-3 py-1.5 text-caption-1-semibold text-on-solid transition hover:bg-accent-solid-hover"
                   >
                     <RotateCw className="h-3.5 w-3.5" /> {date ? "Renew" : "Add"}
                   </button>

@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { ComplianceTable } from "@/components/fleet/ComplianceTable";
 import { getComplianceStatus } from "@/lib/compliance";
-import { ShieldCheck, History, FileClock } from "lucide-react";
+import { RiShieldCheckLine as ShieldCheck, RiHistoryLine as History, RiFileHistoryLine as FileClock } from "@remixicon/react";
 import { trucksApi, type ComplianceEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -18,6 +18,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useNotifications } from "@/context/NotificationContext";
 import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
+import { EmptyState } from "@/components/ui/EmptyState";
 export default function CompliancePage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
@@ -84,12 +85,12 @@ export default function CompliancePage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Compliance &amp; Renewals</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Compliance &amp; Renewals</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Track RC, FC, Road Tax, National Permit, Local Permit, Pollution Certificate, and Insurance validity across the fleet
             </p>
           </div>
@@ -99,7 +100,7 @@ export default function CompliancePage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -126,17 +127,17 @@ export default function CompliancePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Valid</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">{summary.Valid}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Valid</p>
+          <p className="mt-1 text-title-1-semibold text-success-text">{summary.Valid}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Expiring Soon</p>
-          <p className="mt-1 text-2xl font-bold text-yellow-600">{summary["Expiring Soon"]}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Expiring Soon</p>
+          <p className="mt-1 text-title-1-semibold text-warning-text">{summary["Expiring Soon"]}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Expired</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{summary.Expired}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Expired</p>
+          <p className="mt-1 text-title-1-semibold text-danger-text">{summary.Expired}</p>
         </div>
       </div>
 
@@ -155,7 +156,7 @@ export default function CompliancePage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by registration, truck ID, document, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -166,42 +167,40 @@ export default function CompliancePage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No compliance updates have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No compliance updates have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Truck</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Document</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Truck</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Document</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => (
                       <tr key={ev.id}>
                         <td className="px-3 py-2">
-                          <p className="font-semibold text-gray-800">{ev.registrationNumber}</p>
-                          <p className="text-[11px] text-gray-400">{ev.truckIdStr}</p>
+                          <p className="font-semibold text-text-primary">{ev.registrationNumber}</p>
+                          <p className="text-[11px] text-text-tertiary">{ev.truckIdStr}</p>
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap items-center gap-1">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">
                               <FileClock className="h-3 w-3" /> {ev.documentType}
                             </span>
                             {ev.action && (
-                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${ev.action === "Renewal undone" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                              <span className={`rounded-full px-2 py-0.5 text-caption-2-semibold ${ev.action === "Renewal undone" ? "bg-danger-surface-strong text-danger-text" : "bg-accent-surface-strong text-accent-text"}`}>
                                 {ev.action}
                               </span>
                             )}
                           </div>
-                          {ev.note && <p className="mt-1 max-w-md whitespace-pre-line text-[11px] text-gray-500">{ev.note}</p>}
+                          {ev.note && <p className="mt-1 max-w-md whitespace-pre-line text-[11px] text-text-secondary">{ev.note}</p>}
                         </td>
-                        <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        <td className="px-3 py-2 text-text-secondary">{ev.actorName}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

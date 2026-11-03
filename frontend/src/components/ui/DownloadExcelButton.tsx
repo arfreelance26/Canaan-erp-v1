@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, FileSpreadsheet, Loader2 } from "lucide-react";
+import { RiEyeLine as Eye, RiFileExcel2Line as FileSpreadsheet, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { downloadExcel, fetchExcel } from "@/lib/api";
 import { problemFromMessage, reportProblem } from "@/lib/connection-problem";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
 
 type Props = {
@@ -30,9 +30,9 @@ type Props = {
 const SLOW_AFTER_MS = 15_000;
 
 const VIEW_CLASS =
-  "flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50";
 const DIRECT_CLASS =
-  "flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-emerald-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-success-border bg-background-primary-default px-4 text-body-medium text-success-text shadow-sm transition duration-300 hover:bg-success-surface-strong hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50";
 
 /** "maintenance_records_TN69AP3350.xlsx" → "Maintenance Records TN69AP3350" —
  * lowercase words get a capital, codes/registrations/dates are left alone. */

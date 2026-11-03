@@ -1,11 +1,12 @@
 "use client";
 
-import { Eye, FileText, Lock, LockOpen, Mail, Pencil, Phone, Smartphone, Trash2 } from "lucide-react";
+import { RiEyeLine as Eye, RiFileTextLine as FileText, RiLockLine as Lock, RiLockUnlockLine as LockOpen, RiMailLine as Mail, RiPencilLine as Pencil, RiPhoneLine as Phone, RiSmartphoneLine as Smartphone, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Staff } from "@/types/staff";
 import { formatDate } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type StaffTableProps = {
   staff: Staff[];
   onView: (staff: Staff) => void;
@@ -22,9 +23,7 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
 
   if (staff.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No staff records yet. Click &ldquo;Add Staff&rdquo; to create one.
-      </div>
+      <EmptyState size="compact" illustration="no-data" title="No staff records yet" description="Click &ldquo;Add Staff&rdquo; to create one" />
     );
   }
 
@@ -34,14 +33,14 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
         <div
           key={member.id}
           onClick={() => onView(member)}
-          className="group relative flex cursor-pointer flex-col gap-4 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-[0_12px_40px_rgba(0,0,0,0.1)]"
+          className="group relative flex cursor-pointer flex-col gap-4 rounded-2xl border border-separator-border bg-background-primary-default p-4 shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:border-accent-border hover:shadow-[0_12px_40px_rgba(0,0,0,0.1)]"
         >
           {/* Device-bound indicator — pinned to the card's true top-right corner
               regardless of the info/photo columns below it. */}
           {member.deviceBound && (
             <span
               title="Device bound"
-              className="absolute right-4 top-4 z-10 flex shrink-0 items-center justify-center rounded-md border border-amber-100 bg-amber-50 p-1.5 text-amber-600"
+              className="absolute right-4 top-4 z-10 flex shrink-0 items-center justify-center rounded-md border border-warning-border bg-warning-surface p-1.5 text-warning-text"
             >
               <Smartphone className="h-3.5 w-3.5" />
             </span>
@@ -58,12 +57,12 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
                 <div className="flex min-w-0 items-center gap-3">
                   <Avatar photoUrl={member.photoUrl} label={member.name} size={44} />
                   <div className="min-w-0">
-                    <p className="truncate font-bold text-gray-900">{member.name}</p>
-                    <p className="truncate text-xs text-gray-500">{member.staffId || "—"}</p>
+                    <p className="truncate font-semibold text-text-primary">{member.name}</p>
+                    <p className="truncate text-xs text-text-secondary">{member.staffId || "—"}</p>
                     {member.frozenAt && (
                       <span
                         title={`Frozen by ${member.frozenByName ?? "—"} on ${formatDate(member.frozenAt.slice(0, 10))}: ${member.frozenReason ?? ""}`}
-                        className="mt-1 inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700"
+                        className="mt-1 inline-flex items-center gap-1 rounded-md border border-danger-border bg-danger-surface px-1.5 py-0.5 text-caption-2-semibold text-danger-text"
                       >
                         <Lock className="h-3 w-3" /> Frozen
                       </span>
@@ -75,51 +74,51 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
               {/* Department / Designation */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {member.department && (
-                  <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                  <span className="rounded-md border border-accent-border bg-accent-surface px-2 py-1 text-caption-2-semibold text-accent-text">
                     {member.department}
                   </span>
                 )}
                 {member.designation && (
-                  <span className="rounded-md border border-violet-100 bg-violet-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+                  <span className="rounded-md border border-purple-border bg-purple-surface px-2 py-1 text-caption-2-semibold text-purple-text">
                     {member.designation}
                   </span>
                 )}
               </div>
 
               {/* Contact */}
-              <div className="flex flex-col gap-1.5 border-t border-gray-100 pt-3 text-xs">
-                <div className="flex min-w-0 items-center gap-1.5 text-gray-600">
-                  <Phone className="h-3 w-3 shrink-0 text-gray-400" />
+              <div className="flex flex-col gap-1.5 border-t border-separator-border pt-3 text-xs">
+                <div className="flex min-w-0 items-center gap-1.5 text-text-secondary">
+                  <Phone className="h-3 w-3 shrink-0 text-text-tertiary" />
                   <span className="truncate">{member.contactNumber || "—"}</span>
                 </div>
-                <div className="flex min-w-0 items-center gap-1.5 text-gray-600">
-                  <Mail className="h-3 w-3 shrink-0 text-gray-400" />
+                <div className="flex min-w-0 items-center gap-1.5 text-text-secondary">
+                  <Mail className="h-3 w-3 shrink-0 text-text-tertiary" />
                   <span className="truncate">{member.email || "—"}</span>
                 </div>
               </div>
 
               {/* Date of Joining / Aadhar */}
-              <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 border-t border-separator-border pt-3 text-xs">
                 <div className="min-w-0">
-                  <p className="font-semibold uppercase tracking-wide text-gray-400">Date of Joining</p>
-                  <p className="mt-0.5 truncate font-medium text-gray-700">{formatDate(member.dateOfJoining) || "—"}</p>
+                  <p className="font-semibold text-text-tertiary">Date of Joining</p>
+                  <p className="mt-0.5 truncate font-medium text-text-primary">{formatDate(member.dateOfJoining) || "—"}</p>
                 </div>
                 <div className="min-w-0">
-                  <p className="font-semibold uppercase tracking-wide text-gray-400">Aadhar Card</p>
+                  <p className="font-semibold text-text-tertiary">Aadhar Card</p>
                   {member.aadharFileName ? (
-                    <p className="mt-0.5 flex items-center gap-1 truncate font-medium text-gray-700">
-                      <FileText className="h-3 w-3 shrink-0 text-gray-400" />
+                    <p className="mt-0.5 flex items-center gap-1 truncate font-medium text-text-primary">
+                      <FileText className="h-3 w-3 shrink-0 text-text-tertiary" />
                       <span className="truncate">{member.aadharFileName}</span>
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-gray-300">—</p>
+                    <p className="mt-0.5 text-text-tertiary">—</p>
                   )}
                 </div>
               </div>
             </div>
 
             {member.identityImageUrl && (
-              <div className="h-40 w-32 shrink-0 translate-x-[-8px] translate-y-[32px] overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+              <div className="h-40 w-32 shrink-0 translate-x-[-8px] translate-y-[32px] overflow-hidden rounded-lg border border-separator-border shadow-sm">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={member.identityImageUrl} alt="Identity" className="h-full w-full object-cover" />
               </div>
@@ -128,14 +127,14 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
 
           {/* Actions */}
           <div
-            className="flex items-center justify-end gap-1 border-t border-gray-100 pt-3"
+            className="flex items-center justify-end gap-1 border-t border-separator-border pt-3"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => onView(member)}
               aria-label={`View ${member.staffId}`}
-              className="rounded-md p-1.5 text-gray-500 transition-all duration-300 hover:bg-emerald-50 hover:text-emerald-600"
+              className="rounded-md p-1.5 text-text-secondary transition duration-300 hover:bg-success-surface-strong hover:text-success-text"
             >
               <Eye className="h-4 w-4" />
             </button>
@@ -143,7 +142,7 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
               type="button"
               onClick={() => onEdit(member)}
               aria-label={`Edit ${member.staffId}`}
-              className="rounded-md p-1.5 text-gray-500 transition-all duration-300 hover:bg-blue-50 hover:text-blue-600"
+              className="rounded-md p-1.5 text-text-secondary transition duration-300 hover:bg-accent-surface-strong hover:text-accent-text"
             >
               <Pencil className="h-4 w-4" />
             </button>
@@ -153,7 +152,7 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
                 onClick={() => onResetDevice(member.id, member.name)}
                 aria-label={`Reset device for ${member.staffId}`}
                 title="Reset device binding"
-                className="rounded-md p-1.5 text-gray-500 transition-all duration-300 hover:bg-amber-50 hover:text-amber-600"
+                className="rounded-md p-1.5 text-text-secondary transition duration-300 hover:bg-warning-surface-strong hover:text-warning-text"
               >
                 <Smartphone className="h-4 w-4" />
               </button>
@@ -165,8 +164,8 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
                 aria-label={`${member.frozenAt ? "Unfreeze" : "Freeze"} ${member.staffId}`}
                 title={member.frozenAt ? "Unfreeze Account" : "Freeze Account"}
                 className={member.frozenAt
-                  ? "rounded-md p-1.5 text-red-600 transition-all duration-300 hover:bg-emerald-50 hover:text-emerald-600"
-                  : "rounded-md p-1.5 text-gray-500 transition-all duration-300 hover:bg-red-50 hover:text-red-600"}
+                  ? "rounded-md p-1.5 text-danger-text transition duration-300 hover:bg-success-surface-strong hover:text-success-text"
+                  : "rounded-md p-1.5 text-text-secondary transition duration-300 hover:bg-danger-surface-strong hover:text-danger-text"}
               >
                 {member.frozenAt ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               </button>
@@ -175,7 +174,7 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onF
               type="button"
               onClick={() => onDelete(member.id)}
               aria-label={`Delete ${member.staffId}`}
-              className="rounded-md p-1.5 text-gray-500 transition-all duration-300 hover:bg-red-50 hover:text-red-600"
+              className="rounded-md p-1.5 text-text-secondary transition duration-300 hover:bg-danger-surface-strong hover:text-danger-text"
             >
               <Trash2 className="h-4 w-4" />
             </button>

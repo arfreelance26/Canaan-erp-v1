@@ -9,17 +9,18 @@ import type { Trip } from "@/types/trip";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Eye, ChevronDown, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList, X, Trash2, History, Plus, Pencil, XCircle, RotateCcw } from "lucide-react";
+import { RiEyeLine as Eye, RiArrowDownSLine as ChevronDown, RiCheckboxCircleLine as CheckCircle2, RiCheckboxBlankCircleLine as Circle, RiDownloadLine as Download, RiThumbUpLine as ThumbsUp, RiThumbDownLine as ThumbsDown, RiAlertLine as AlertTriangle, RiArrowRightCircleLine as ArrowRightCircle, RiInboxLine as Inbox, RiFileList3Line as ClipboardList, RiCloseLine as X, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { formatDate, formatDateTime, todayIst } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
   "Booking Created": Plus,
   "Booking Edited": Pencil,
@@ -33,15 +34,15 @@ const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<TripEditEventRow["event"], string> = {
-  "Booking Created": "bg-blue-100 text-blue-700",
-  "Booking Edited": "bg-amber-100 text-amber-700",
-  "Trip Sheet Saved": "bg-violet-100 text-violet-700",
-  "Trip Updated": "bg-amber-100 text-amber-700",
-  "Trip Closed": "bg-emerald-100 text-emerald-700",
-  "Verification Confirmed": "bg-emerald-100 text-emerald-700",
-  "Verification Rejected": "bg-red-100 text-red-700",
-  "Trip Deleted": "bg-red-100 text-red-700",
-  "Trip Restored": "bg-emerald-100 text-emerald-700",
+  "Booking Created": "bg-accent-surface-strong text-accent-text",
+  "Booking Edited": "bg-warning-surface-strong text-warning-text",
+  "Trip Sheet Saved": "bg-purple-surface-strong text-purple-text",
+  "Trip Updated": "bg-warning-surface-strong text-warning-text",
+  "Trip Closed": "bg-success-surface-strong text-success-text",
+  "Verification Confirmed": "bg-success-surface-strong text-success-text",
+  "Verification Rejected": "bg-danger-surface-strong text-danger-text",
+  "Trip Deleted": "bg-danger-surface-strong text-danger-text",
+  "Trip Restored": "bg-success-surface-strong text-success-text",
 };
 
 function fmtIST(iso: string) {
@@ -506,12 +507,12 @@ export default function SheetCollectionPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
             <Inbox className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Sheet Collection</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Trip Sheet Collection</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Mark trip sheets as delivered from drivers before reconciliation
             </p>
           </div>
@@ -520,7 +521,7 @@ export default function SheetCollectionPage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -530,18 +531,18 @@ export default function SheetCollectionPage() {
       {/* Toolbar: search + status on the left, delivered-on range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
-        <div className="relative shrink-0 transition-transform duration-300 hover:scale-105">
+        <div className="relative shrink-0 transition-transform duration-300">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
-            className="h-10 min-w-[9.5rem] cursor-pointer appearance-none rounded-full border border-gray-200 bg-white pl-4 pr-10 text-sm font-medium text-gray-700 shadow-sm outline-none transition-shadow duration-300 hover:shadow-md focus:border-blue-400"
+            className="h-10 min-w-[9.5rem] cursor-pointer appearance-none rounded-full border border-separator-border bg-background-primary-default pl-4 pr-10 text-body-medium text-text-primary shadow-sm outline-none transition-shadow duration-300 hover:shadow-md focus:border-accent-border-strong"
           >
             <option value="All">All Sheets</option>
             <option value="Pending">Pending</option>
             <option value="Delivered">Delivered</option>
             <option value="Overdue">Entry Overdue</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -559,7 +560,7 @@ export default function SheetCollectionPage() {
             onClick={() => setShowReportModal(true)}
             disabled={collected.length === 0}
             title={collected.length === 0 ? "No delivered sheets to export" : "View and download delivered sheets"}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Eye className="h-4 w-4" />
             View
@@ -572,65 +573,65 @@ export default function SheetCollectionPage() {
         <button
           type="button"
           onClick={() => { setStatusFilter("All"); setPage(1); }}
-          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${statusFilter === "All" ? "border-blue-400 bg-blue-50 ring-2 ring-blue-400" : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40"}`}
+          className={`rounded-xl border px-5 py-4 text-left transition focus:outline-none focus:ring-2 focus:ring-accent-border-strong ${statusFilter === "All" ? "border-accent-border-strong bg-accent-surface ring-2 ring-accent-border-strong" : "border-separator-border bg-background-primary-default hover:border-accent-border-strong hover:bg-accent-surface-strong/40"}`}
         >
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Total Closed</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{trips.length}</p>
+          <p className="text-caption-1-semibold text-text-tertiary">Total Closed</p>
+          <p className="mt-1 text-title-1-semibold text-text-primary">{trips.length}</p>
         </button>
         <button
           type="button"
           onClick={() => { setStatusFilter("Delivered"); setPage(1); }}
-          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 ${statusFilter === "Delivered" ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-400" : "border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100/70"}`}
+          className={`rounded-xl border px-5 py-4 text-left transition focus:outline-none focus:ring-2 focus:ring-success-border-strong ${statusFilter === "Delivered" ? "border-success-border-strong bg-success-surface-strong ring-2 ring-success-border-strong" : "border-success-border bg-success-surface hover:border-success-border-strong hover:bg-success-surface-strong/70"}`}
         >
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Sheets Delivered</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-700">{collected.length}</p>
+          <p className="text-caption-1-semibold text-success-text">Sheets Delivered</p>
+          <p className="mt-1 text-title-1-semibold text-success-text">{collected.length}</p>
         </button>
         <button
           type="button"
           onClick={() => { setStatusFilter("Pending"); setPage(1); }}
-          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 ${statusFilter === "Pending" ? "border-amber-400 bg-amber-100 ring-2 ring-amber-400" : "border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100/70"}`}
+          className={`rounded-xl border px-5 py-4 text-left transition focus:outline-none focus:ring-2 focus:ring-warning-border-strong ${statusFilter === "Pending" ? "border-warning-border-strong bg-warning-surface-strong ring-2 ring-warning-border-strong" : "border-warning-border bg-warning-surface hover:border-warning-border-strong hover:bg-warning-surface-strong/70"}`}
         >
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Pending Delivery</p>
-          <p className="mt-1 text-2xl font-bold text-amber-700">{pending.length}</p>
+          <p className="text-caption-1-semibold text-warning-text">Pending Delivery</p>
+          <p className="mt-1 text-title-1-semibold text-warning-text">{pending.length}</p>
         </button>
         <button
           type="button"
           onClick={() => { setStatusFilter("Overdue"); setPage(1); }}
-          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-rose-400 ${statusFilter === "Overdue" ? "border-rose-400 bg-rose-100 ring-2 ring-rose-400" : overdueIds.size > 0 ? "border-rose-200 bg-rose-50 hover:border-rose-300 hover:bg-rose-100/70" : "border-gray-200 bg-white opacity-60 cursor-default"}`}
+          className={`rounded-xl border px-5 py-4 text-left transition focus:outline-none focus:ring-2 focus:ring-danger-border-strong ${statusFilter === "Overdue" ? "border-danger-border-strong bg-danger-surface-strong ring-2 ring-danger-border-strong" : overdueIds.size > 0 ? "border-danger-border bg-danger-surface hover:border-danger-border-strong hover:bg-danger-surface-strong/70" : "border-separator-border bg-background-primary-default opacity-60 cursor-default"}`}
           disabled={overdueIds.size === 0}
         >
           <div className="flex items-center gap-1.5">
-            {overdueIds.size > 0 && <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />}
-            <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">Entry Overdue</p>
+            {overdueIds.size > 0 && <AlertTriangle className="h-3.5 w-3.5 text-danger-text" />}
+            <p className="text-caption-1-semibold text-danger-text">Entry Overdue</p>
           </div>
-          <p className="mt-1 text-2xl font-bold text-rose-700">{overdueIds.size}</p>
-          <p className="mt-0.5 text-[11px] text-rose-500">Received &gt; 1 day, not entered</p>
+          <p className="mt-1 text-title-1-semibold text-danger-text">{overdueIds.size}</p>
+          <p className="mt-0.5 text-[11px] text-danger-text">Received &gt; 1 day, not entered</p>
         </button>
       </div>
 
       {/* Workflow legend */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
-        <span className="font-semibold text-gray-600">Workflow:</span>
-        <span className="flex items-center gap-1"><Circle className="h-3.5 w-3.5 text-amber-500" /> Trip closed → pending sheet delivery</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><ArrowRightCircle className="h-3.5 w-3.5 text-emerald-500" /> Yard marks sheet delivered to Docs</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5 text-blue-500" /> Docs receive sheet</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-purple-500" /> Sheet entered in Reconciliation</span>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
+        <span className="font-semibold text-text-secondary">Workflow:</span>
+        <span className="flex items-center gap-1"><Circle className="h-3.5 w-3.5 text-warning-text" /> Trip closed → pending sheet delivery</span>
+        <span className="text-text-tertiary">›</span>
+        <span className="flex items-center gap-1"><ArrowRightCircle className="h-3.5 w-3.5 text-success-text" /> Yard marks sheet delivered to Docs</span>
+        <span className="text-text-tertiary">›</span>
+        <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5 text-accent-text" /> Docs receive sheet</span>
+        <span className="text-text-tertiary">›</span>
+        <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-purple-text" /> Sheet entered in Reconciliation</span>
       </div>
 
       {/* Bulk action bar */}
       {someSelected && (
-        <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-          <span className="text-sm font-medium text-blue-800">
+        <div className="flex items-center justify-between rounded-xl border border-accent-border bg-accent-surface px-4 py-3">
+          <span className="text-body-medium text-accent-text-strong">
             {selected.size} trip{selected.size > 1 ? "s" : ""} selected
           </span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setSelected(new Set())}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-border-button-default bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary hover:bg-fill-2"
             >
               Clear
             </button>
@@ -638,7 +639,7 @@ export default function SheetCollectionPage() {
               type="button"
               disabled={bulkBusy}
               onClick={handleBulkCollect}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              className="rounded-lg bg-success-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-success-solid-hover disabled:opacity-50"
             >
               {bulkBusy ? "Marking..." : `Mark ${selected.size} as Delivered`}
             </button>
@@ -647,21 +648,19 @@ export default function SheetCollectionPage() {
       )}
 
       {tableTrips.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          No completed trips found.
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No completed trips found" />
       ) : (
         <>
-          <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default">
             <table className="w-full min-w-[1100px] text-left text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
+                <tr className="border-b border-separator-border bg-fill-1">
                   <th className="px-4 py-3">
                     <input
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
+                      className="h-4 w-4 rounded border-border-button-default accent-success-solid"
                       title="Select all pending"
                     />
                   </th>
@@ -669,7 +668,7 @@ export default function SheetCollectionPage() {
                     (col) => (
                       <th
                         key={col}
-                        className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500"
+                        className="px-4 py-3 text-caption-1-semibold text-text-secondary"
                       >
                         {col}
                       </th>
@@ -677,7 +676,7 @@ export default function SheetCollectionPage() {
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {paginatedTrips.map((trip) => {
                   const isCollected = trip.tripSheetCollected;
                   const isBusy = toggling.has(trip.id);
@@ -690,7 +689,7 @@ export default function SheetCollectionPage() {
                   return (
                     <tr
                       key={trip.id}
-                      className={isChecked ? "border-l-4 border-l-blue-400 bg-blue-50/60" : stageRowClass(stageColor)}
+                      className={isChecked ? "border-l-4 border-l-accent-border-strong bg-accent-surface/60" : stageRowClass(stageColor)}
                     >
                       <td className="px-4 py-3">
                         <input
@@ -699,7 +698,7 @@ export default function SheetCollectionPage() {
                           disabled={!isCollected && !advanceOk(trip)}
                           title={!isCollected && !advanceOk(trip) ? "Verify the driver advance before marking as delivered" : undefined}
                           onChange={() => toggleRow(trip.id)}
-                          className="h-4 w-4 rounded border-gray-300 accent-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="h-4 w-4 rounded border-border-button-default accent-success-solid disabled:opacity-40 disabled:cursor-not-allowed"
                         />
                       </td>
                       {/* Action — col 1 */}
@@ -707,7 +706,7 @@ export default function SheetCollectionPage() {
                         {isCollected && sheetSubmitted ? (
                           <span
                             title="Trip sheet already submitted in reconciliation — cannot undo delivery"
-                            className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed"
+                            className="inline-block rounded-lg border border-separator-border bg-fill-1 px-3 py-1.5 text-caption-1-semibold text-text-tertiary cursor-not-allowed"
                           >
                             Locked
                           </span>
@@ -726,8 +725,8 @@ export default function SheetCollectionPage() {
                               onClick={() => handleToggleCollect(trip)}
                               className={
                                 isCollected
-                                  ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                                  : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  ? "rounded-lg border border-border-button-default px-3 py-1.5 text-caption-1-semibold text-text-secondary hover:bg-fill-3 disabled:opacity-50"
+                                  : "rounded-lg bg-success-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-success-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
                               }
                             >
                               {isBusy ? "..." : isCollected ? "Undo" : "Mark Delivered"}
@@ -737,10 +736,10 @@ export default function SheetCollectionPage() {
                       </td>
 
                       {/* Vehicle — col 2 */}
-                      <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? trip.vehicleId ?? "—"}</td>
+                      <td className="px-4 py-3 font-medium text-text-primary">{trip.truckRegistration ?? trip.vehicleId ?? "—"}</td>
 
                       {/* Trip Date — col 3 */}
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(trip.scheduledDate) || "—"}</td>
+                      <td className="px-4 py-3 text-text-secondary text-xs">{formatDate(trip.scheduledDate) || "—"}</td>
 
                       {/* Advance Paid — col 4 */}
                       <td className="px-4 py-3">
@@ -754,12 +753,12 @@ export default function SheetCollectionPage() {
                           if (!isEditing && trip.advanceVerified === true) {
                             return (
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 w-fit">
+                                <span className="text-caption-1-semibold text-text-primary">{advStr}</span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-success-surface-strong px-2 py-0.5 text-caption-2-semibold text-success-text w-fit">
                                   <ThumbsUp className="h-3 w-3" /> Correct
                                 </span>
                                 {!isCollected && (
-                                  <button type="button" onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(""); setAdvanceCorrected(""); }} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Change</button>
+                                  <button type="button" onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(""); setAdvanceCorrected(""); }} className="text-[10px] text-text-tertiary hover:text-text-secondary underline">Change</button>
                                 )}
                               </div>
                             );
@@ -767,18 +766,18 @@ export default function SheetCollectionPage() {
                           if (!isEditing && trip.advanceVerified === false) {
                             return (
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
-                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 w-fit">
+                                <span className="text-caption-1-semibold text-text-primary">{advStr}</span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-danger-surface-strong px-2 py-0.5 text-caption-2-semibold text-danger-text w-fit">
                                   <ThumbsDown className="h-3 w-3" /> Mismatch
                                 </span>
                                 {trip.advanceCorrectedAmount && (
-                                  <p className="text-[10px] text-rose-600">Correct: ₹{Number(trip.advanceCorrectedAmount).toLocaleString("en-IN")}</p>
+                                  <p className="text-[10px] text-danger-text">Correct: ₹{Number(trip.advanceCorrectedAmount).toLocaleString("en-IN")}</p>
                                 )}
                                 {trip.advanceVerificationRemark && (
-                                  <p className="text-[10px] text-gray-500 max-w-[130px] whitespace-normal leading-snug">{trip.advanceVerificationRemark}</p>
+                                  <p className="text-[10px] text-text-secondary max-w-[130px] whitespace-normal leading-snug">{trip.advanceVerificationRemark}</p>
                                 )}
                                 {!isCollected && (
-                                  <button type="button" onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(trip.advanceVerificationRemark ?? ""); setAdvanceCorrected(trip.advanceCorrectedAmount ?? ""); }} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Edit</button>
+                                  <button type="button" onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(trip.advanceVerificationRemark ?? ""); setAdvanceCorrected(trip.advanceCorrectedAmount ?? ""); }} className="text-[10px] text-text-tertiary hover:text-text-secondary underline">Edit</button>
                                 )}
                               </div>
                             );
@@ -786,69 +785,69 @@ export default function SheetCollectionPage() {
                           if (isCollected) {
                             return (
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
-                                <span className="text-[10px] text-gray-400 italic">Locked after delivery</span>
+                                <span className="text-caption-1-semibold text-text-primary">{advStr}</span>
+                                <span className="text-[10px] text-text-tertiary">Locked after delivery</span>
                               </div>
                             );
                           }
                           if (advanceOpen === trip.id) {
                             return (
                               <div className="flex flex-col gap-1.5 min-w-[160px]">
-                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
-                                <p className="text-[10px] text-gray-500">Verify advance paid to driver</p>
+                                <span className="text-caption-1-semibold text-text-primary">{advStr}</span>
+                                <p className="text-[10px] text-text-secondary">Verify advance paid to driver</p>
                                 <div className="flex gap-1">
-                                  <button type="button" onClick={() => handleVerifyAdvance(trip, true)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+                                  <button type="button" onClick={() => handleVerifyAdvance(trip, true)} className="inline-flex items-center gap-1 rounded-lg bg-success-solid px-2.5 py-1 text-caption-1-semibold text-on-solid hover:bg-success-solid-hover">
                                     <ThumbsUp className="h-3 w-3" /> Correct
                                   </button>
-                                  <button type="button" onClick={() => setAdvanceOpen(`${trip.id}_wrong`)} className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                                  <button type="button" onClick={() => setAdvanceOpen(`${trip.id}_wrong`)} className="inline-flex items-center gap-1 rounded-lg border border-danger-border-strong bg-danger-surface px-2.5 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong">
                                     <ThumbsDown className="h-3 w-3" /> Wrong
                                   </button>
                                 </div>
-                                <button type="button" onClick={() => setAdvanceOpen(null)} className="text-[10px] text-gray-400 hover:text-gray-600">Cancel</button>
+                                <button type="button" onClick={() => setAdvanceOpen(null)} className="text-[10px] text-text-tertiary hover:text-text-secondary">Cancel</button>
                               </div>
                             );
                           }
                           if (advanceOpen === `${trip.id}_wrong`) {
                             return (
                               <div className="flex flex-col gap-1 min-w-[160px]">
-                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
+                                <span className="text-caption-1-semibold text-text-primary">{advStr}</span>
                                 <input
                                   type="number"
                                   min="0"
                                   placeholder="Correct amount (₹)"
                                   value={advanceCorrected}
                                   onChange={(e) => setAdvanceCorrected(e.target.value)}
-                                  className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-rose-300"
+                                  className="rounded border border-border-button-default px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-danger-border-strong"
                                 />
                                 <textarea
                                   rows={2}
                                   placeholder="Remarks (required)"
                                   value={advanceRemark}
                                   onChange={(e) => setAdvanceRemark(e.target.value)}
-                                  className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-rose-300"
+                                  className="rounded border border-border-button-default px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-danger-border-strong"
                                 />
                                 <div className="flex gap-1">
                                   <button
                                     type="button"
                                     disabled={!advanceRemark.trim()}
                                     onClick={() => handleVerifyAdvance(trip, false)}
-                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-40"
+                                    className="rounded-lg bg-danger-solid px-2.5 py-1 text-caption-1-semibold text-on-solid hover:bg-danger-solid-hover disabled:opacity-40"
                                   >
                                     Save
                                   </button>
-                                  <button type="button" onClick={() => { setAdvanceOpen(null); setAdvanceRemark(""); setAdvanceCorrected(""); }} className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100">Cancel</button>
+                                  <button type="button" onClick={() => { setAdvanceOpen(null); setAdvanceRemark(""); setAdvanceCorrected(""); }} className="rounded-lg border border-border-button-default px-2.5 py-1 text-caption-1-semibold text-text-secondary hover:bg-fill-3">Cancel</button>
                                 </div>
                               </div>
                             );
                           }
                           return (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-semibold text-gray-700">{advStr}</span>
+                              <span className="text-caption-1-semibold text-text-primary">{advStr}</span>
                               <button
                                 type="button"
                                 disabled={isCollected}
                                 onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(""); setAdvanceCorrected(""); }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed w-fit"
+                                className="inline-flex items-center gap-1 rounded-lg border border-border-button-default bg-background-primary-default px-2.5 py-1 text-caption-1-semibold text-text-secondary hover:bg-fill-3 disabled:opacity-40 disabled:cursor-not-allowed w-fit"
                               >
                                 Verify
                               </button>
@@ -858,17 +857,17 @@ export default function SheetCollectionPage() {
                       </td>
 
                       {/* Driver — col 4 */}
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-text-primary">
                         <span>{trip.driverName ?? "—"}</span>
                         {trip.driverChangeRemark && (
-                          <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[140px] whitespace-normal">
+                          <p className="mt-0.5 text-[11px] text-warning-text leading-snug max-w-[140px] whitespace-normal">
                             Remark: {trip.driverChangeRemark}
                           </p>
                         )}
                       </td>
 
                       {/* Container No — col 6 */}
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">
+                      <td className="px-4 py-3 text-text-secondary font-mono text-xs">
                         {trip.containerSpecification === "2 X 20 FEET CONTAINERS" ? (
                           <span className="flex flex-col gap-0.5">
                             <span>{trip.containerNumber1 || "—"}</span>
@@ -880,12 +879,12 @@ export default function SheetCollectionPage() {
                       </td>
 
                       {/* From → To — col 6 */}
-                      <td className="px-4 py-3 text-gray-600">
-                        {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                      <td className="px-4 py-3 text-text-secondary">
+                        {trip.origin} <span className="text-text-tertiary">→</span> {trip.destination}
                       </td>
 
                       {/* Shipper / Consignee — col 7 */}
-                      <td className="px-4 py-3 text-gray-700 text-xs max-w-[160px] whitespace-normal leading-snug">
+                      <td className="px-4 py-3 text-text-primary text-xs max-w-[160px] whitespace-normal leading-snug">
                         {trip.shipperConsignee || "—"}
                       </td>
 
@@ -893,18 +892,18 @@ export default function SheetCollectionPage() {
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           {isCollected ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-success-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-success-text">
                               <CheckCircle2 className="h-3 w-3" />
                               Delivered
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-warning-text">
                               <Circle className="h-3 w-3" />
                               Pending
                             </span>
                           )}
                           {isOverdue && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-danger-surface-strong px-2.5 py-0.5 text-caption-1-semibold text-danger-text">
                               <AlertTriangle className="h-3 w-3" />
                               Entry Overdue
                             </span>
@@ -913,13 +912,13 @@ export default function SheetCollectionPage() {
                       </td>
 
                       {/* Trip ID — col 9 */}
-                      <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
+                      <td className="px-4 py-3 font-medium text-text-primary">{trip.tripId}</td>
 
                       {/* Booking Ref — col 10 */}
-                      <td className="px-4 py-3 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
+                      <td className="px-4 py-3 text-text-secondary text-xs">{trip.bookingReferenceNo}</td>
 
                       {/* Delivered On — col 12 */}
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-text-secondary text-xs">
                         {trip.tripSheetCollectedAt ? (() => {
                           const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+") ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
                           return new Date(utc).toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
@@ -929,7 +928,7 @@ export default function SheetCollectionPage() {
                       {/* Sheet Status — col 13 */}
                       <td className="px-4 py-3">
                         {isCollected || sheetSubmitted ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-not-allowed">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-success-surface-strong px-3 py-1.5 text-caption-1-semibold text-success-text cursor-not-allowed">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             Sheet Delivered
                           </span>
@@ -938,7 +937,7 @@ export default function SheetCollectionPage() {
                             type="button"
                             disabled={isBusy}
                             onClick={() => handleFlagSheetMissing(trip)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-warning-border-strong bg-warning-surface px-3 py-1.5 text-caption-1-semibold text-warning-text hover:bg-warning-surface-strong hover:border-warning-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Circle className="h-3.5 w-3.5" />
                             Not Received
@@ -953,7 +952,7 @@ export default function SheetCollectionPage() {
                             type="button"
                             onClick={() => setDeleteRequestTrip(trip)}
                             title="Delete this trip and all its data"
-                            className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                            className="flex items-center gap-1 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete
@@ -963,7 +962,7 @@ export default function SheetCollectionPage() {
                             type="button"
                             onClick={() => setDeleteRequestTrip(trip)}
                             title="Request Admin to delete this trip"
-                            className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                            className="flex items-center gap-1 rounded-lg border border-warning-border bg-warning-surface px-2.5 py-1 text-caption-1-semibold text-warning-text hover:bg-warning-surface-strong transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Request Delete
@@ -979,8 +978,8 @@ export default function SheetCollectionPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-              <p className="text-sm text-gray-500">
+            <div className="flex items-center justify-between rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+              <p className="text-sm text-text-secondary">
                 Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, tableTrips.length)} of {tableTrips.length} trips
               </p>
               <div className="flex items-center gap-1">
@@ -988,7 +987,7 @@ export default function SheetCollectionPage() {
                   type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={safePage === 1}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -1001,16 +1000,16 @@ export default function SheetCollectionPage() {
                   }, [])
                   .map((item, i) =>
                     item === "..." ? (
-                      <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                      <span key={`ellipsis-${i}`} className="px-2 text-xs text-text-tertiary">…</span>
                     ) : (
                       <button
                         key={item}
                         type="button"
                         onClick={() => setPage(item as number)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={`rounded-lg px-3 py-1.5 text-caption-1-medium transition-colors ${
                           safePage === item
-                            ? "bg-blue-600 text-white"
-                            : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            ? "bg-accent-solid text-on-solid"
+                            : "border border-separator-border text-text-secondary hover:bg-fill-2"
                         }`}
                       >
                         {item}
@@ -1021,7 +1020,7 @@ export default function SheetCollectionPage() {
                   type="button"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={safePage === totalPages}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -1069,23 +1068,23 @@ export default function SheetCollectionPage() {
           return true;
         });
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
-            <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+            <div className="w-full max-w-5xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
                 <div>
-                  <p className="font-semibold text-gray-900">Trip Sheet Collection Report</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
+                  <p className="font-semibold text-text-primary">Trip Sheet Collection Report</p>
+                  <p className="text-xs text-text-secondary mt-0.5">{rangeLabel} · {pdfTrips.length} sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
                 </div>
-                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3"><X className="h-4 w-4" /></button>
               </div>
               {/* Modal status filter */}
-              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-gray-50">
+              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-fill-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Status:</span>
+                  <span className="text-caption-1-medium text-text-secondary whitespace-nowrap">Status:</span>
                   <select
                     value={modalStatusFilter}
                     onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
-                    className="rounded-lg border border-gray-200 bg-white py-1.5 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                    className="rounded-lg border border-separator-border bg-background-primary-default py-1.5 px-2 text-sm outline-none focus:border-accent-solid focus:ring-2 focus:ring-accent-solid/10"
                   >
                     <option value="All">All</option>
                     <option value="Pending">Pending</option>
@@ -1094,37 +1093,37 @@ export default function SheetCollectionPage() {
                   </select>
                 </div>
                 {modalStatusFilter !== "All" && (
-                  <button type="button" onClick={() => setModalStatusFilter("All")} className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100">Clear</button>
+                  <button type="button" onClick={() => setModalStatusFilter("All")} className="rounded-full border border-border-button-default bg-background-primary-default px-2.5 py-1 text-xs text-text-secondary hover:bg-fill-3">Clear</button>
                 )}
               </div>
               <div className="flex-1 overflow-auto px-5 py-4">
                 {pdfTrips.length === 0 ? (
-                  <p className="text-center text-sm text-gray-400 py-12">No delivered sheets match the selected date range.</p>
+                  <EmptyState size="compact" illustration="not-found" title="No delivered sheets match the selected date range" />
                 ) : (
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 z-10">
-                      <tr className="border-b border-gray-200 bg-gray-50">
+                      <tr className="border-b border-separator-border bg-fill-1">
                         {["#", "Trip ID", "Booking Ref", "Trip Date", "Vehicle", "Customer", "Route", "Container No", "Driver", "Delivered On"].map((col) => (
-                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                          <th key={col} className="px-3 py-2.5 text-caption-1-semibold text-text-secondary whitespace-nowrap">{col}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-separator-border">
                       {pdfTrips.map((t, i) => {
                         const customer = customerById.get(t.customerId);
                         const deliveredOn = t.tripSheetCollectedAt ? (() => { const raw = t.tripSheetCollectedAt!.endsWith("Z") || t.tripSheetCollectedAt!.includes("+") ? t.tripSheetCollectedAt! : t.tripSheetCollectedAt! + "Z"; return new Date(raw).toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"); })() : "—";
                         return (
-                          <tr key={t.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
-                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId ?? t.id}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.scheduledDate ? new Date(t.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[140px] truncate">{customer?.name ?? t.shipperConsignee ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.driverName ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{deliveredOn}</td>
+                          <tr key={t.id} className="hover:bg-fill-2">
+                            <td className="px-3 py-2 text-text-tertiary text-xs">{i + 1}</td>
+                            <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{t.tripId ?? t.id}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{t.scheduledDate ? new Date(t.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap max-w-[140px] truncate">{customer?.name ?? t.shipperConsignee ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.containerNumber ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.driverName ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{deliveredOn}</td>
                           </tr>
                         );
                       })}
@@ -1133,7 +1132,7 @@ export default function SheetCollectionPage() {
                 )}
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end shrink-0">
-                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg bg-accent-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}
                 </button>
@@ -1154,7 +1153,7 @@ export default function SheetCollectionPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by trip ID, driver, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -1164,39 +1163,37 @@ export default function SheetCollectionPage() {
               ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No trip edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "logistics" : "not-found"} title={editHistoryEvents.length === 0 ? "No trip edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Trip</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">
+                          <td className="px-3 py-2 font-semibold text-text-primary">
                             {ev.tripIdStr}
-                            {ev.driverName && <span className="text-[11px] font-normal text-gray-400"> ({ev.driverName})</span>}
+                            {ev.driverName && <span className="text-caption-2-regular text-text-tertiary"> ({ev.driverName})</span>}
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

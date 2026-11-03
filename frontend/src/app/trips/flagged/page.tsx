@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Flag, Undo2, FileText, ClipboardList, Pencil, History as HistoryIcon, CheckCircle2, RotateCcw } from "lucide-react";
+import { RiFlagLine as Flag, RiArrowGoBackLine as Undo2, RiFileTextLine as FileText, RiFileList3Line as ClipboardList, RiPencilLine as Pencil, RiHistoryLine as HistoryIcon, RiCheckboxCircleLine as CheckCircle2, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { tripsApi, driversApi, trucksApi, customersApi, type TripRecheckEventRow } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -21,8 +21,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { confirmAction, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type BookingDialogState = { trip: Trip; readOnly: boolean };
 type SheetDialogState = { trip: Trip; readOnly: boolean };
 
@@ -35,11 +36,11 @@ const EVENT_ICON: Record<TripRecheckEventRow["event"], typeof Flag> = {
 };
 
 const EVENT_COLOR: Record<TripRecheckEventRow["event"], string> = {
-  Flagged: "bg-red-100 text-red-700",
-  "Returned for Review": "bg-blue-100 text-blue-700",
-  Verified: "bg-emerald-100 text-emerald-700",
-  "Verification Undone": "bg-gray-200 text-gray-700",
-  "Flagged for Re-Verification": "bg-violet-100 text-violet-700",
+  Flagged: "bg-danger-surface-strong text-danger-text",
+  "Returned for Review": "bg-accent-surface-strong text-accent-text",
+  Verified: "bg-success-surface-strong text-success-text",
+  "Verification Undone": "bg-fill-3 text-text-primary",
+  "Flagged for Re-Verification": "bg-purple-surface-strong text-purple-text",
 };
 
 export default function FlaggedTripsPage() {
@@ -149,19 +150,19 @@ export default function FlaggedTripsPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3.5">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-danger-border bg-danger-surface text-danger-text shadow-sm">
             <Flag className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Audit Flagged Trips</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Trips flagged for review</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Audit Flagged Trips</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Trips flagged for review</p>
           </div>
         </div>
         {isAdmin && (
 <button
           type="button"
           onClick={openHistory}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-border-button-default bg-background-primary-default px-3.5 py-2 text-body-semibold text-text-primary shadow-sm hover:bg-fill-2 transition-colors"
         >
           <HistoryIcon className="h-4 w-4" />
           History
@@ -186,13 +187,13 @@ export default function FlaggedTripsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 text-sm text-gray-500">
+      <div className="flex items-center gap-3 text-sm text-text-secondary">
         <span>Showing {flaggedTrips.length} of {allFlagged.length} trip{allFlagged.length !== 1 ? "s" : ""}</span>
         {(dateFrom || dateTo) && (
           <button
             type="button"
             onClick={() => { setDateFrom(""); setDateTo(""); }}
-            className="font-medium text-blue-600 hover:text-blue-700"
+            className="font-medium text-accent-text hover:text-accent-text"
           >
             Clear dates
           </button>
@@ -200,41 +201,39 @@ export default function FlaggedTripsPage() {
       </div>
 
       {flaggedTrips.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          {allFlagged.length > 0 ? "No flagged trips match these filters." : "No flagged trips yet."}
-        </div>
+        <EmptyState size="compact" illustration={allFlagged.length > 0 ? "not-found" : "all-done"} title={allFlagged.length > 0 ? "No flagged trips match these filters" : "No flagged trips yet"} />
       ) : (
-        <div className="overflow-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-auto rounded-xl border border-separator-border bg-background-primary-default">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip ID</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Driver</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Route</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Scheduled Date</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Reason</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Status</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Documents</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+              <tr className="border-b border-separator-border bg-fill-1">
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Trip ID</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Driver</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Route</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Scheduled Date</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Reason</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Status</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Documents</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-separator-border">
               {flaggedTrips.map((trip) => (
                 <tr key={trip.id}>
-                  <td className="px-4 py-2.5 font-semibold text-gray-900">{trip.tripId}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{trip.driverName ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-gray-500">
-                    {trip.origin || "—"} <span className="text-gray-300">→</span> {trip.destination || "—"}
+                  <td className="px-4 py-2.5 font-semibold text-text-primary">{trip.tripId}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">{trip.driverName ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">
+                    {trip.origin || "—"} <span className="text-text-tertiary">→</span> {trip.destination || "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500">{formatDate(trip.scheduledDate)}</td>
-                  <td className="px-4 py-2.5 max-w-[280px] whitespace-normal text-gray-700">{trip.flaggedRemark || "—"}</td>
+                  <td className="px-4 py-2.5 text-text-secondary">{formatDate(trip.scheduledDate)}</td>
+                  <td className="px-4 py-2.5 max-w-[280px] whitespace-normal text-text-primary">{trip.flaggedRemark || "—"}</td>
                   <td className="px-4 py-2.5">
                     {trip.recheckReturned ? (
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700">
+                      <span className="inline-flex items-center rounded-full bg-accent-surface-strong px-2.5 py-1 text-caption-2-semibold text-accent-text">
                         Returned — awaiting Auditor
                       </span>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                      <span className="inline-flex items-center rounded-full bg-warning-surface-strong px-2.5 py-1 text-caption-2-semibold text-warning-text">
                         Under Review
                       </span>
                     )}
@@ -246,7 +245,7 @@ export default function FlaggedTripsPage() {
                         onClick={() => setBookingDialog({ trip, readOnly: true })}
                         disabled={!trip.hasClosure}
                         title={trip.hasClosure ? undefined : "No booking sheet recorded for this trip"}
-                        className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 rounded-lg border border-accent-border-strong bg-accent-surface px-2.5 py-1.5 text-caption-2-semibold text-accent-text hover:bg-accent-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <FileText className="h-3.5 w-3.5" />
                         View Booking Sheet
@@ -256,7 +255,7 @@ export default function FlaggedTripsPage() {
                         onClick={() => setBookingDialog({ trip, readOnly: !isAdmin })}
                         disabled={!trip.hasClosure || !isAdmin}
                         title={!trip.hasClosure ? "No booking sheet recorded for this trip" : !isAdmin ? "Only Admin can edit" : undefined}
-                        className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 rounded-lg border border-accent-border-strong bg-accent-surface px-2.5 py-1.5 text-caption-2-semibold text-accent-text hover:bg-accent-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit Booking Sheet
@@ -266,7 +265,7 @@ export default function FlaggedTripsPage() {
                         onClick={() => setSheetDialog({ trip, readOnly: true })}
                         disabled={!trip.hasSheet}
                         title={trip.hasSheet ? undefined : "No trip sheet recorded for this trip"}
-                        className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 rounded-lg border border-purple-border-strong bg-purple-surface px-2.5 py-1.5 text-caption-2-semibold text-purple-text hover:bg-purple-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <ClipboardList className="h-3.5 w-3.5" />
                         View Trip Sheet
@@ -276,7 +275,7 @@ export default function FlaggedTripsPage() {
                         onClick={() => setSheetDialog({ trip, readOnly: !isAdmin })}
                         disabled={!trip.hasSheet || !isAdmin}
                         title={!trip.hasSheet ? "No trip sheet recorded for this trip" : !isAdmin ? "Only Admin can edit" : undefined}
-                        className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 rounded-lg border border-purple-border-strong bg-purple-surface px-2.5 py-1.5 text-caption-2-semibold text-purple-text hover:bg-purple-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit Trip Sheet
@@ -285,13 +284,13 @@ export default function FlaggedTripsPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     {trip.recheckReturned ? (
-                      <span className="text-[11px] text-gray-400">Waiting on Auditor</span>
+                      <span className="text-[11px] text-text-tertiary">Waiting on Auditor</span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleReturn(trip)}
                         disabled={returningId === trip.id}
-                        className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 rounded-lg border border-accent-border-strong bg-accent-surface px-2.5 py-1.5 text-caption-2-semibold text-accent-text hover:bg-accent-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Undo2 className="h-3.5 w-3.5" />
                         {returningId === trip.id ? "Returning..." : "Return for Review"}
@@ -366,7 +365,7 @@ export default function FlaggedTripsPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by trip ID, driver, actor, or remark…" value={historySearch} onChange={setHistorySearch} />
           {historyLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = historyEvents.filter((ev) =>
               !historySearch ||
@@ -376,41 +375,39 @@ export default function FlaggedTripsPage() {
               ev.remark?.toLowerCase().includes(historySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {historyEvents.length === 0 ? "No trips have ever been flagged." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={historyEvents.length === 0 ? "all-done" : "not-found"} title={historyEvents.length === 0 ? "No trips have ever been flagged" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Event</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Remark</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Trip</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Event</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Remark</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.tripIdStr}</p>
-                            {ev.driverName && <p className="text-[11px] text-gray-400">{ev.driverName}</p>}
+                            <p className="font-semibold text-text-primary">{ev.tripIdStr}</p>
+                            {ev.driverName && <p className="text-[11px] text-text-tertiary">{ev.driverName}</p>}
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 max-w-[220px] whitespace-normal text-gray-500">{ev.remark || "—"}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 max-w-[220px] whitespace-normal text-text-secondary">{ev.remark || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

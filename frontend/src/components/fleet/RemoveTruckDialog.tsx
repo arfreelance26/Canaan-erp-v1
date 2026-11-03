@@ -1,6 +1,6 @@
 "use client";
 
-import { HandCoins, Trash2, ChevronRight } from "lucide-react";
+import { RiHandCoinLine as HandCoins, RiDeleteBinLine as Trash2, RiArrowRightSLine as ChevronRight } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import type { Truck } from "@/types/truck";
 
@@ -19,16 +19,16 @@ const OPTIONS = [
     title: "Sell Truck",
     description: "The truck was sold to a buyer and is leaving the fleet. Its trips, maintenance and other records are kept.",
     Icon: HandCoins,
-    tile: "bg-brand-navy/10 text-brand-navy",
-    hover: "hover:border-brand-navy/30 hover:bg-brand-navy/[0.03]",
+    tile: "bg-accent-solid/10 text-accent-text-strong",
+    hover: "hover:border-accent-solid/30 hover:bg-accent-solid-hover/[0.03]",
   },
   {
     key: "delete",
     title: "Delete Truck",
     description: "Added by mistake, a duplicate, or scrapped. It moves to the Archive, where an Admin can restore it.",
     Icon: Trash2,
-    tile: "bg-rose-50 text-rose-500",
-    hover: "hover:border-rose-200 hover:bg-rose-50/40",
+    tile: "bg-danger-surface text-danger-text",
+    hover: "hover:border-danger-border hover:bg-danger-surface-strong/40",
   },
 ] as const;
 
@@ -38,9 +38,9 @@ export function RemoveTruckDialog({ truck, onClose, onSell, onDelete }: Props) {
 
   return (
     <Dialog open={truck !== null} onClose={onClose} title="Remove Truck from Fleet" className="max-w-lg">
-      <p className="mb-4 text-sm text-slate-500">
-        <span className="font-semibold text-slate-800">{truck.registrationNumber}</span>
-        <span className="text-slate-400"> · {truck.truckId}</span>
+      <p className="mb-4 text-sm text-text-secondary">
+        <span className="font-semibold text-text-primary">{truck.registrationNumber}</span>
+        <span className="text-text-tertiary"> · {truck.truckId}</span>
         {" "}— what&rsquo;s happening to this truck?
       </p>
 
@@ -50,16 +50,16 @@ export function RemoveTruckDialog({ truck, onClose, onSell, onDelete }: Props) {
             key={key}
             type="button"
             onClick={() => (key === "sell" ? onSell(truck) : onDelete(truck))}
-            className={`group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left transition-colors ${hover}`}
+            className={`group flex items-center gap-4 rounded-2xl border border-separator-border bg-background-primary-default px-4 py-4 text-left transition-colors ${hover}`}
           >
             <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tile}`}>
               <Icon className="h-5 w-5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-900">{title}</span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{description}</span>
+              <span className="block text-body-semibold text-text-primary">{title}</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-text-secondary">{description}</span>
             </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-500" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary transition-transform group-hover:text-text-secondary" />
           </button>
         ))}
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertCircle, ArrowRight, ChevronDown, Info, Loader2 } from "lucide-react";
+import { RiErrorWarningLine as AlertCircle, RiArrowRightLine as ArrowRight, RiArrowDownSLine as ChevronDown, RiInformationLine as Info, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { plSummaryApi, type TripBreakdown, type TripBreakdownCost } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -79,37 +79,37 @@ function Step({
   const [openDetail, setOpenDetail] = useState(defaultOpen);
   const isResult = tone === "result";
   const color =
-    amount == null ? "text-gray-400"
-    : tone === "out" ? "text-red-600"
-    : tone === "in" ? "text-blue-700"
-    : amount >= 0 ? "text-emerald-700" : "text-red-600";
-  const barColor = tone === "out" ? "bg-red-300" : tone === "in" ? "bg-blue-400" : (amount ?? 0) >= 0 ? "bg-emerald-400" : "bg-red-400";
+    amount == null ? "text-text-tertiary"
+    : tone === "out" ? "text-danger-text"
+    : tone === "in" ? "text-accent-text"
+    : amount >= 0 ? "text-success-text" : "text-danger-text";
+  const barColor = tone === "out" ? "bg-danger-border" : tone === "in" ? "bg-accent-solid" : (amount ?? 0) >= 0 ? "bg-success-solid" : "bg-danger-solid";
   return (
-    <div className={cn("rounded-xl border px-4 py-3", isResult ? "border-gray-200 bg-gray-50" : "border-gray-100 bg-white")}>
+    <div className={cn("rounded-xl border px-4 py-3", isResult ? "border-separator-border bg-fill-1" : "border-separator-border bg-background-primary-default")}>
       <button
         type="button"
         disabled={!children}
         onClick={() => setOpenDetail((o) => !o)}
         className="flex w-full items-center gap-3 text-left disabled:cursor-default"
       >
-        <span className={cn("w-40 shrink-0 text-sm", isResult ? "font-bold text-gray-900" : "font-medium text-gray-700")}>{label}</span>
-        <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+        <span className={cn("w-40 shrink-0 text-sm", isResult ? "font-semibold text-text-primary" : "font-medium text-text-primary")}>{label}</span>
+        <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-fill-2">
           {amount != null && (
             <span className={cn("absolute inset-y-0 left-0 rounded-full", barColor)} style={{ width: `${Math.max(1, Math.min(100, barPct))}%` }} />
           )}
         </span>
-        <span className={cn("w-32 shrink-0 text-right text-sm tabular-nums", isResult ? "font-bold" : "font-semibold", color)}>
+        <span className={cn("w-32 shrink-0 text-right text-sm tabular-nums", isResult ? "font-semibold" : "font-semibold", color)}>
           {amount == null ? "—" : tone === "out" ? `− ${fmt(amount)}` : fmtSigned(amount)}
         </span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform", !children && "invisible", openDetail && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-text-tertiary transition-transform", !children && "invisible", openDetail && "rotate-180")} />
       </button>
       {amount == null && emptyText && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-warning-text">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {emptyText}
         </p>
       )}
       {openDetail && children && (
-        <div className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-600">{children}</div>
+        <div className="mt-3 border-t border-separator-border pt-3 text-xs text-text-secondary">{children}</div>
       )}
     </div>
   );
@@ -118,15 +118,15 @@ function Step({
 function Line({ label, value, muted }: { label: ReactNode; value: ReactNode; muted?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4 py-0.5">
-      <span className={muted ? "text-gray-400" : ""}>{label}</span>
-      <span className={cn("shrink-0 tabular-nums", muted ? "text-gray-400" : "font-medium text-gray-700")}>{value}</span>
+      <span className={muted ? "text-text-tertiary" : ""}>{label}</span>
+      <span className={cn("shrink-0 tabular-nums", muted ? "text-text-tertiary" : "font-medium text-text-primary")}>{value}</span>
     </div>
   );
 }
 
 function Source({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-gray-400">
+    <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-text-tertiary">
       <Info className="mt-0.5 h-3 w-3 shrink-0" /> {children}
     </p>
   );
@@ -196,27 +196,27 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
       className="max-w-3xl"
     >
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-text-secondary">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading breakdown…
         </div>
       ) : error ? (
-        <p className="py-12 text-center text-sm text-red-600">{error}</p>
+        <p className="py-12 text-center text-sm text-danger-text">{error}</p>
       ) : data ? (
         <div className="flex flex-col gap-4">
           {/* Trip */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3 text-xs text-gray-600">
-            <span><span className="font-semibold text-gray-800">{data.truckId}</span> {data.registrationNumber && <span className="text-gray-400">· {data.registrationNumber}</span>}</span>
-            {data.customerName && <span className="text-gray-700">{data.customerName}</span>}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-separator-border bg-fill-1 px-4 py-3 text-xs text-text-secondary">
+            <span><span className="font-semibold text-text-primary">{data.truckId}</span> {data.registrationNumber && <span className="text-text-tertiary">· {data.registrationNumber}</span>}</span>
+            {data.customerName && <span className="text-text-primary">{data.customerName}</span>}
             {(data.fromLocation || data.toLocation) && (
-              <span className="flex items-center gap-1">{data.fromLocation || "—"} <ArrowRight className="h-3 w-3 text-gray-300" /> {data.toLocation || "—"}</span>
+              <span className="flex items-center gap-1">{data.fromLocation || "—"} <ArrowRight className="h-3 w-3 text-text-tertiary" /> {data.toLocation || "—"}</span>
             )}
             <span>{fmtKm(km)} km</span>
           </div>
 
           {/* Cost mode — Diesel, Gross Profit and the running costs depend on it */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <p className="text-xs text-gray-500">
-              Diesel and running costs use the Running Cost Calculator&apos;s <span className="font-semibold text-gray-700">{mode}</span> mode.
+            <p className="text-xs text-text-secondary">
+              Diesel and running costs use the Running Cost Calculator&apos;s <span className="font-semibold text-text-primary">{mode}</span> mode.
             </p>
             <Segmented
               label="Cost mode"
@@ -227,7 +227,7 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
           </div>
 
           {data.flaggedForRecheck && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+            <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-xs text-warning-text-strong">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 <span className="font-semibold">Under review</span> — flagged for recheck by Audit, so this trip is left out of the page totals until it&apos;s resolved.
@@ -237,14 +237,14 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
           )}
 
           {/* Plain-language summary */}
-          <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900">{summary}</p>
+          <p className="rounded-xl bg-accent-surface px-4 py-3 text-sm leading-relaxed text-accent-text-strong">{summary}</p>
           {lossReason && (
-            <p className="-mt-2 flex items-start gap-1.5 px-1 text-xs text-red-600">
+            <p className="-mt-2 flex items-start gap-1.5 px-1 text-xs text-danger-text">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Why a loss: {lossReason}
             </p>
           )}
 
-          <p className="px-1 text-[11px] text-gray-400">Click a line to see where its number comes from.</p>
+          <p className="px-1 text-[11px] text-text-tertiary">Click a line to see where its number comes from.</p>
 
           {/* Waterfall */}
           <div className="flex flex-col gap-2">
@@ -313,16 +313,16 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
                         <div key={k} className="py-0.5">
                           <Line
                             label={`${PART_LABEL[k]}: ${fmtKm(km)} km × ${rate != null ? fmtRate(rate) : "₹0"}/km`}
-                            value={rate != null ? fmt(km * rate) : <span className="text-gray-400">not set</span>}
+                            value={rate != null ? fmt(km * rate) : <span className="text-text-tertiary">not set</span>}
                           />
-                          <p className="text-[11px] text-gray-400">{PART_SOURCE[mode][k]}</p>
+                          <p className="text-[11px] text-text-tertiary">{PART_SOURCE[mode][k]}</p>
                         </div>
                       );
                     })
                   ) : (
                     <>
                       <Line label={`${fmtKm(km)} km × ${fmtRate(other / km)}/km (EMI, AdBlue, tyres, maintenance and documents together)`} value={fmt(other)} />
-                      <p className="mt-1.5 text-[11px] text-amber-700">
+                      <p className="mt-1.5 text-[11px] text-warning-text">
                         The split isn&apos;t saved yet for this truck. Open Running Cost Calculator → Manual once and it&apos;ll be saved.
                       </p>
                     </>
@@ -337,7 +337,7 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
             <Step label="= Final Profit" amount={final} tone="result" barPct={pct(final)} />
           </div>
 
-          <p className="px-1 text-[11px] text-gray-400">
+          <p className="px-1 text-[11px] text-text-tertiary">
             &ldquo;Other running costs&rdquo; is the table&apos;s Truck Expenses column (diesel has its own column).
             {mode !== pageMode && ` The table behind this window is still showing ${pageMode} mode.`}
           </p>

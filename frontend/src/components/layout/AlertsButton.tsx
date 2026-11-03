@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BellRing, Loader2, Search, Send, Users } from "lucide-react";
+import { RiNotification4Line as BellRing, RiLoader4Line as Loader2, RiSearchLine as Search, RiSendPlaneLine as Send, RiGroupLine as Users } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/ui/Dialog";
 import { Avatar } from "@/components/chat/shared";
 import { activityApi, chatApi, roomSummonApi, type Presence, type PresenceStatus } from "@/lib/api";
 import { screenName } from "@/lib/screen-names";
 import type { ChatMember, ChatConversation } from "@/types/chat";
-import { showError, showToast } from "@/lib/swal";
+import { showError, showToast } from "@/lib/feedback";
 
 type Tab = "user" | "group";
 
@@ -117,9 +117,9 @@ export function AlertsButton() {
     const p = presence?.people[c.staffId];
     if (!p) return null;
     const where = p.screen ? ` · on ${screenName(p.screen)}` : "";
-    if (p.status === "active") return <span className="text-emerald-600">Active now{where}</span>;
-    if (p.status === "idle") return <span className="text-amber-600">Idle{where}</span>;
-    return <span className="text-gray-400">{lastSeen(p.lastAt)}</span>;
+    if (p.status === "active") return <span className="text-success-text">Active now{where}</span>;
+    if (p.status === "idle") return <span className="text-warning-text">Idle{where}</span>;
+    return <span className="text-text-tertiary">{lastSeen(p.lastAt)}</span>;
   }
 
   return (
@@ -130,21 +130,21 @@ export function AlertsButton() {
         title="Invite a user or group"
         onClick={() => setOpen(true)}
         className={cn(
-          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300",
-          "hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(217,119,6,0.25)] focus:outline-none focus:ring-4 focus:ring-amber-500/20",
-          "border-amber-200 bg-gradient-to-br from-amber-50 to-white text-amber-600 hover:border-amber-300 hover:from-amber-100"
+          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300",
+          "shadow-md focus:outline-none focus:ring-4 focus:ring-warning-solid/20",
+          "border-warning-border bg-warning-surface text-warning-text hover:border-warning-border-strong"
         )}
       >
-        <BellRing className="h-5 w-5 transition-transform duration-300 group-hover:scale-110 group-hover:text-amber-700" />
+        <BellRing className="h-5 w-5 transition-transform duration-300 group-hover:text-warning-text" />
       </button>
 
       <Dialog open={open} onClose={closeAndReset} title="Invite to your room" className="sm:max-w-md">
         <div className="flex flex-col gap-4">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-text-secondary">
             Pick a person or a Canaan Chat group — they&apos;ll see a dialog telling them you&apos;ve requested their presence.
           </p>
 
-          <div className="flex gap-2 rounded-full bg-gray-100 p-1">
+          <div className="flex gap-2 rounded-full bg-fill-2 p-1">
             {([
               { id: "user", label: "User" },
               { id: "group", label: "Group" },
@@ -154,8 +154,8 @@ export function AlertsButton() {
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  "flex-1 rounded-full py-1.5 text-sm font-semibold transition-colors",
-                  tab === t.id ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  "flex-1 rounded-full py-1.5 text-body-semibold transition-colors",
+                  tab === t.id ? "bg-background-primary-default text-accent-text-strong shadow-sm" : "text-text-secondary hover:text-text-primary"
                 )}
               >
                 {t.label}
@@ -164,22 +164,22 @@ export function AlertsButton() {
           </div>
 
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={tab === "user" ? "Search people…" : "Search groups…"}
-              className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+              className="w-full rounded-full border border-separator-border bg-fill-1 py-2 pl-9 pr-3 text-sm outline-none focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
             />
           </div>
 
           {tab === "user" && presence && !loading && (
             <div className="flex items-center justify-between gap-3 px-1">
-              <p className="flex items-center gap-2 text-xs font-medium text-gray-600">
+              <p className="flex items-center gap-2 text-caption-1-medium text-text-secondary">
                 <span className="relative flex h-2 w-2">
-                  {onlineCount > 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
-                  <span className={cn("relative inline-flex h-2 w-2 rounded-full", onlineCount > 0 ? "bg-emerald-500" : "bg-gray-300")} />
+                  {onlineCount > 0 && <span className="absolute inline-flex h-full w-full rounded-full bg-success-solid opacity-60" />}
+                  <span className={cn("relative inline-flex h-2 w-2 rounded-full", onlineCount > 0 ? "bg-success-solid" : "bg-fill-4")} />
                 </span>
                 {onlineCount === 0 ? "No one online right now" : `${onlineCount} ${onlineCount === 1 ? "person" : "people"} online now`}
               </p>
@@ -188,11 +188,11 @@ export function AlertsButton() {
                 role="switch"
                 aria-checked={onlineOnly}
                 onClick={() => setOnlineOnly((v) => !v)}
-                className="flex items-center gap-2 text-xs font-medium text-gray-600"
+                className="flex items-center gap-2 text-caption-1-medium text-text-secondary"
               >
                 Online only
-                <span className={cn("relative h-4 w-7 shrink-0 rounded-full transition-colors", onlineOnly ? "bg-emerald-500" : "bg-gray-300")}>
-                  <span className={cn("absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-[#fff] shadow transition-transform", onlineOnly ? "translate-x-3" : "translate-x-0")} />
+                <span className={cn("relative h-4 w-7 shrink-0 rounded-full transition-colors", onlineOnly ? "bg-success-solid" : "bg-fill-4")}>
+                  <span className={cn("absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-fill-2 shadow transition-transform", onlineOnly ? "translate-x-3" : "translate-x-0")} />
                 </span>
               </button>
             </div>
@@ -201,11 +201,11 @@ export function AlertsButton() {
           <div className="flex max-h-80 flex-col gap-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
               </div>
             ) : tab === "user" ? (
               filteredContacts.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
+                <p className="py-8 text-center text-sm text-text-tertiary">
                   {onlineOnly && !search ? "No one is online right now." : <>No one matches &quot;{search}&quot;.</>}
                 </p>
               ) : (
@@ -217,7 +217,7 @@ export function AlertsButton() {
                       type="button"
                       onClick={() => summonUser(c)}
                       disabled={sendingId !== null}
-                      className="flex items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-gray-50 disabled:opacity-60"
+                      className="flex items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-fill-2 disabled:opacity-60"
                     >
                       <span className="relative shrink-0">
                         <Avatar name={c.name} photoUrl={c.photoUrl} size={36} />
@@ -225,28 +225,28 @@ export function AlertsButton() {
                           <span
                             title={status === "active" ? "Active now" : "Idle"}
                             className={cn(
-                              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white",
-                              status === "active" ? "bg-emerald-500" : "bg-amber-400"
+                              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-background-primary-default",
+                              status === "active" ? "bg-success-solid" : "bg-warning-solid"
                             )}
                           />
                         )}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-800">{c.name}</p>
-                        <p className="truncate text-xs text-gray-400">{c.designation || c.softwareDesignation || ""}</p>
-                        <p className="truncate text-[11px] font-medium">{statusLine(c)}</p>
+                        <p className="truncate text-body-medium text-text-primary">{c.name}</p>
+                        <p className="truncate text-xs text-text-tertiary">{c.designation || c.softwareDesignation || ""}</p>
+                        <p className="truncate text-caption-2-medium">{statusLine(c)}</p>
                       </div>
                       {sendingId === c.staffId ? (
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-text-tertiary" />
                       ) : (
-                        <Send className="h-4 w-4 shrink-0 text-gray-300" />
+                        <Send className="h-4 w-4 shrink-0 text-text-tertiary" />
                       )}
                     </button>
                   );
                 })
               )
             ) : filteredGroups.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">No groups match &quot;{search}&quot;.</p>
+              <p className="py-8 text-center text-sm text-text-tertiary">No groups match &quot;{search}&quot;.</p>
             ) : (
               filteredGroups.map((g) => {
                 const online = presence?.groups[String(g.id)];
@@ -256,24 +256,24 @@ export function AlertsButton() {
                     type="button"
                     onClick={() => summonGroup(g)}
                     disabled={sendingId !== null}
-                    className="flex items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-gray-50 disabled:opacity-60"
+                    className="flex items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-fill-2 disabled:opacity-60"
                   >
                     <Avatar name={g.title ?? "Group"} photoUrl={g.hasPhoto ? chatApi.groupPhotoUrl(g.id) : null} size={36} group />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-800">{g.title}</p>
-                      <p className="truncate text-xs text-gray-400 flex items-center gap-1">
+                      <p className="truncate text-body-medium text-text-primary">{g.title}</p>
+                      <p className="truncate text-xs text-text-tertiary flex items-center gap-1">
                         <Users className="h-3 w-3" /> {g.memberCount} member{g.memberCount === 1 ? "" : "s"}
                         {online !== undefined && (
-                          <span className={cn("ml-1 font-medium", online > 0 ? "text-emerald-600" : "text-gray-400")}>
+                          <span className={cn("ml-1 font-medium", online > 0 ? "text-success-text" : "text-text-tertiary")}>
                             · {online} of {g.memberCount} online
                           </span>
                         )}
                       </p>
                     </div>
                     {sendingId === String(g.id) ? (
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-text-tertiary" />
                     ) : (
-                      <Send className="h-4 w-4 shrink-0 text-gray-300" />
+                      <Send className="h-4 w-4 shrink-0 text-text-tertiary" />
                     )}
                   </button>
                 );

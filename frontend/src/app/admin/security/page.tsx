@@ -1,33 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  Lock,
-  ShieldAlert,
-  RefreshCw,
-  Clock,
-  User,
-  Globe,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Info,
-  Unlock,
-  Download,
-  Search,
-  X,
-  Eye,
-  Smartphone,
-  MessageSquare,
-} from "lucide-react";
+import { RiLockLine as Lock, RiShieldFlashLine as ShieldAlert, RiRefreshLine as RefreshCw, RiTimeLine as Clock, RiUserLine as User, RiGlobalLine as Globe, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiAlertLine as AlertTriangle, RiArrowLeftSLine as ChevronLeft, RiArrowRightSLine as ChevronRight, RiInformationLine as Info, RiLockUnlockLine as Unlock, RiDownloadLine as Download, RiSearchLine as Search, RiCloseLine as X, RiEyeLine as Eye, RiSmartphoneLine as Smartphone, RiMessage3Line as MessageSquare } from "@remixicon/react";
 import { securityApi, fileUrl, chatOwnerApi, type AuditLogEntry, type LockoutEntry } from "@/lib/api";
 import { OwnerViewDialog, type OwnerViewToken } from "@/components/chat/OwnerViewDialog";
-import { showSuccess, showError, confirmAction } from "@/lib/swal";
+import { showSuccess, showError, confirmAction } from "@/lib/feedback";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EVENT_LABELS: Record<string, string> = {
   "login.success": "Login — Success",
   "login.failure": "Login — Failed",
@@ -97,24 +78,24 @@ function formatMinutes(seconds: number): string {
 function OutcomeBadge({ outcome }: { outcome: string }) {
   if (outcome === "success")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-400/30 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-success-surface-strong px-2 py-0.5 text-caption-1-medium text-success-text">
         <CheckCircle2 className="h-3 w-3" /> Success
       </span>
     );
   if (outcome === "failure")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-100 dark:text-red-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-danger-surface-strong px-2 py-0.5 text-caption-1-medium text-danger-text">
         <XCircle className="h-3 w-3" /> Failed
       </span>
     );
   if (outcome === "denied")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-100 dark:text-red-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-danger-surface-strong px-2 py-0.5 text-caption-1-medium text-danger-text">
         <XCircle className="h-3 w-3" /> Denied
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+    <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-1-medium text-warning-text">
       <AlertTriangle className="h-3 w-3" /> {outcome}
     </span>
   );
@@ -371,27 +352,27 @@ export default function SecurityLogPage() {
     <div className="mx-auto max-w-7xl space-y-8 p-2">
       {/* Header */}
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-danger-border bg-danger-surface text-danger-text shadow-sm">
           <Lock className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-gray-900">Security Log</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-title-2-semibold tracking-tight text-text-primary">Security Log</h1>
+          <p className="text-sm text-text-secondary">
             Monitor logins, document access, and active lockouts — visible to Admin only
           </p>
         </div>
       </div>
 
       {/* ── Section 0: Device Lock Settings ── */}
-      <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-gray-200 px-5 py-4">
-          <Smartphone className="h-5 w-5 text-blue-500" />
-          <h2 className="font-semibold text-gray-900">Device Lock</h2>
+      <section className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+        <div className="flex items-center gap-2 border-b border-separator-border px-5 py-4">
+          <Smartphone className="h-5 w-5 text-accent-text" />
+          <h2 className="font-semibold text-text-primary">Device Lock</h2>
         </div>
 
         <div className="p-5">
-          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800/60 dark:bg-[#0f1f3d]">
-            <p className="text-sm text-blue-800 dark:text-white">
+          <div className="mb-4 rounded-xl border border-accent-border bg-accent-surface p-4">
+            <p className="text-sm text-accent-text-strong">
               <strong>What is this? </strong> <br/>Device lock ties each staff account to the machine(s) it first logs
               in from, so a password alone can&apos;t be used from an unknown computer. Regular staff are limited to
               1 device; Admins can use several (e.g. desktop + mobile app). If someone is stuck on
@@ -400,7 +381,7 @@ export default function SecurityLogPage() {
           </div>
 
           {dlLoading ? (
-            <div className="flex items-center py-4 text-gray-400">
+            <div className="flex items-center py-4 text-text-tertiary">
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : (
@@ -408,8 +389,8 @@ export default function SecurityLogPage() {
               {/* Enable toggle */}
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-800 dark:text-white">Enforce device lock</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-body-medium text-text-primary">Enforce device lock</p>
+                  <p className="text-xs text-text-secondary">
                     When off, anyone can log in from any device — no binding is checked or created.
                   </p>
                 </div>
@@ -419,11 +400,11 @@ export default function SecurityLogPage() {
                   aria-checked={dlEnabled}
                   onClick={() => setDlEnabled((v) => !v)}
                   className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                    dlEnabled ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"
+                    dlEnabled ? "bg-success-solid" : "bg-fill-4 "
                   }`}
                 >
                   <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                    className={`inline-block h-5 w-5 transform rounded-full bg-background-primary-default shadow transition-transform ${
                       dlEnabled ? "translate-x-5" : "translate-x-0.5"
                     }`}
                   />
@@ -433,8 +414,8 @@ export default function SecurityLogPage() {
               {/* Admin device limit */}
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-800 dark:text-white">Admin device limit</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-body-medium text-text-primary">Admin device limit</p>
+                  <p className="text-xs text-text-secondary">
                     How many devices each Admin account may use at once (desktop web + mobile app, etc.).
                   </p>
                 </div>
@@ -444,15 +425,15 @@ export default function SecurityLogPage() {
                   max={10}
                   value={dlLimit}
                   onChange={(e) => setDlLimit(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-center text-sm text-gray-800 dark:bg-gray-800 dark:text-white"
+                  className="w-20 rounded-lg border border-separator-border bg-background-primary-default px-3 py-1.5 text-center text-sm text-text-primary"
                 />
               </div>
 
               {/* Staff device limit */}
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-800 dark:text-white">Staff device limit</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-body-medium text-text-primary">Staff device limit</p>
+                  <p className="text-xs text-text-secondary">
                     How many devices each non-Admin staff account may use at once. Default 1.
                   </p>
                 </div>
@@ -462,17 +443,17 @@ export default function SecurityLogPage() {
                   max={10}
                   value={dlStaffLimit}
                   onChange={(e) => setDlStaffLimit(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-center text-sm text-gray-800 dark:bg-gray-800 dark:text-white"
+                  className="w-20 rounded-lg border border-separator-border bg-background-primary-default px-3 py-1.5 text-center text-sm text-text-primary"
                 />
               </div>
 
               {/* Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-separator-border pt-4">
                 <button
                   type="button"
                   onClick={() => void handleResetAllDevices()}
                   disabled={dlResetting}
-                  className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-200 dark:text-red-400"
+                  className="flex items-center gap-1.5 rounded-lg border border-danger-border bg-danger-surface-strong px-3 py-1.5 text-caption-1-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50"
                 >
                   {dlResetting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
                   Reset all device locks
@@ -481,7 +462,7 @@ export default function SecurityLogPage() {
                   type="button"
                   onClick={() => void handleSaveDeviceLock()}
                   disabled={dlSaving}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg bg-accent-solid px-4 py-1.5 text-caption-1-medium text-on-solid hover:bg-accent-solid-hover disabled:opacity-50"
                 >
                   {dlSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                   Save settings
@@ -493,20 +474,20 @@ export default function SecurityLogPage() {
       </section>
 
       {/* ── Section 1: Active Lockouts ── */}
-      <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+      <section className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+        <div className="flex items-center justify-between border-b border-separator-border px-5 py-4">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-orange-500" />
-            <h2 className="font-semibold text-gray-900">Active Login Lockouts</h2>
+            <ShieldAlert className="h-5 w-5 text-orange-text" />
+            <h2 className="font-semibold text-text-primary">Active Login Lockouts</h2>
             {lockouts.length > 0 && (
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+              <span className="rounded-full bg-orange-surface-strong px-2 py-0.5 text-caption-1-medium text-orange-text">
                 {lockouts.length} locked
               </span>
             )}
           </div>
           <button
             onClick={() => void fetchLockouts()}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            className="flex items-center gap-1.5 rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${lockoutsLoading ? "animate-spin" : ""}`} />
             Refresh
@@ -515,8 +496,8 @@ export default function SecurityLogPage() {
 
         <div className="p-5">
           {/* What is a lockout — plain English */}
-          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800/60 dark:bg-[#0f1f3d]">
-            <p className="text-sm text-blue-800 dark:text-white">
+          <div className="mb-4 rounded-xl border border-accent-border bg-accent-surface p-4">
+            <p className="text-sm text-accent-text-strong">
               <strong>What is this?</strong> If someone enters the wrong password 5 times in a row, their login is
               temporarily blocked for 15 minutes to protect the system. This table shows who is currently blocked and
               from which network address (IP).
@@ -524,49 +505,45 @@ export default function SecurityLogPage() {
           </div>
 
           {lockoutsLoading ? (
-            <div className="flex items-center justify-center py-8 text-gray-400">
+            <div className="flex items-center justify-center py-8 text-text-tertiary">
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : lockouts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-gray-400">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">No active lockouts</p>
-              <p className="text-xs text-gray-400">All login access is normal right now.</p>
-            </div>
+            <EmptyState size="compact" illustration="security" title="No active lockouts" description="All login access is normal right now" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-left">
-                    <th className="pb-2 pr-4 font-semibold text-gray-600">Username (attempted)</th>
-                    <th className="pb-2 pr-4 font-semibold text-gray-600">IP Address</th>
-                    <th className="pb-2 pr-4 font-semibold text-gray-600">Failed Attempts</th>
-                    <th className="pb-2 pr-4 font-semibold text-gray-600">Unlocks In</th>
-                    <th className="pb-2 font-semibold text-gray-600">Action</th>
+                  <tr className="border-b border-separator-border text-left">
+                    <th className="pb-2 pr-4 font-semibold text-text-secondary">Username (attempted)</th>
+                    <th className="pb-2 pr-4 font-semibold text-text-secondary">IP Address</th>
+                    <th className="pb-2 pr-4 font-semibold text-text-secondary">Failed Attempts</th>
+                    <th className="pb-2 pr-4 font-semibold text-text-secondary">Unlocks In</th>
+                    <th className="pb-2 font-semibold text-text-secondary">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lockouts.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-50 last:border-0">
+                    <tr key={i} className="border-b border-separator-border last:border-0">
                       <td className="py-2.5 pr-4">
-                        <span className="flex items-center gap-1.5 font-medium text-gray-800">
-                          <User className="h-3.5 w-3.5 text-gray-400" />
+                        <span className="flex items-center gap-1.5 font-medium text-text-primary">
+                          <User className="h-3.5 w-3.5 text-text-tertiary" />
                           {row.username}
                         </span>
                       </td>
                       <td className="py-2.5 pr-4">
-                        <span className="flex items-center gap-1.5 font-mono text-xs text-gray-700">
-                          <Globe className="h-3.5 w-3.5 text-gray-400" />
+                        <span className="flex items-center gap-1.5 font-mono text-xs text-text-primary">
+                          <Globe className="h-3.5 w-3.5 text-text-tertiary" />
                           {row.ipAddress}
                         </span>
                       </td>
                       <td className="py-2.5 pr-4">
-                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                        <span className="rounded-full bg-danger-surface-strong px-2 py-0.5 text-caption-1-medium text-danger-text">
                           {row.failedAttempts} attempts
                         </span>
                       </td>
                       <td className="py-2.5 pr-4">
-                        <span className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                        <span className="flex items-center gap-1 text-xs text-orange-text">
                           <Clock className="h-3.5 w-3.5" />
                           {formatMinutes(row.lockedUntilSeconds)}
                         </span>
@@ -575,7 +552,7 @@ export default function SecurityLogPage() {
                         <button
                           onClick={() => void handleResetLockout(row.ipAddress, row.username)}
                           disabled={resettingKey === `${row.ipAddress}|${row.username}`}
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                          className="flex items-center gap-1.5 rounded-lg bg-success-surface px-2.5 py-1 text-caption-1-medium text-success-text hover:bg-success-surface-strong disabled:opacity-50"
                         >
                           {resettingKey === `${row.ipAddress}|${row.username}` ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -593,53 +570,53 @@ export default function SecurityLogPage() {
           )}
 
           {/* How to find your IP — non-technical instructions */}
-          <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+          <div className="mt-4 overflow-hidden rounded-xl border border-separator-border">
             <button
               onClick={() => setShowIpHelp((v) => !v)}
-              className="flex w-full items-center justify-between bg-gray-50 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
+              className="flex w-full items-center justify-between bg-fill-1 px-4 py-3 text-left text-body-medium text-text-primary hover:bg-fill-3"
             >
               <span className="flex items-center gap-2">
-                <Info className="h-4 w-4 text-blue-500" />
+                <Info className="h-4 w-4 text-accent-text" />
                 How to find your computer&apos;s IP address
               </span>
-              <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform ${showIpHelp ? "rotate-90" : ""}`} />
+              <ChevronRight className={`h-4 w-4 text-text-tertiary transition-transform ${showIpHelp ? "rotate-90" : ""}`} />
             </button>
 
             {showIpHelp && (
-              <div className="border-t border-gray-200 bg-white px-4 py-4">
-                <p className="mb-3 text-xs text-gray-500">
+              <div className="border-t border-separator-border bg-background-primary-default px-4 py-4">
+                <p className="mb-3 text-xs text-text-secondary">
                   An IP address is like your computer&apos;s home address on the network. If you see a suspicious IP in
                   the lockout table, you can check it against the computers in the office using these steps:
                 </p>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <p className="mb-2 text-xs font-semibold text-gray-800">
+                  <div className="rounded-lg border border-separator-border bg-fill-1 p-3">
+                    <p className="mb-2 text-caption-1-semibold text-text-primary">
                       Windows (any laptop/desktop)
                     </p>
-                    <ol className="space-y-1.5 text-xs text-gray-600">
-                      <li>1. Press the <kbd className="rounded border border-gray-300 bg-white px-1 py-0.5 font-mono">Windows</kbd> key</li>
-                      <li>2. Type <strong className="text-gray-800">cmd</strong> and press Enter</li>
-                      <li>3. In the black window, type <strong className="text-gray-800">ipconfig</strong> and press Enter</li>
-                      <li>4. Look for <strong className="text-gray-800">IPv4 Address</strong> — that is your IP
-                        <span className="mt-1 block font-mono text-blue-600 dark:text-blue-400">Example: 192.168.1.25</span>
+                    <ol className="space-y-1.5 text-xs text-text-secondary">
+                      <li>1. Press the <kbd className="rounded border border-border-button-default bg-background-primary-default px-1 py-0.5 font-mono">Windows</kbd> key</li>
+                      <li>2. Type <strong className="text-text-primary">cmd</strong> and press Enter</li>
+                      <li>3. In the black window, type <strong className="text-text-primary">ipconfig</strong> and press Enter</li>
+                      <li>4. Look for <strong className="text-text-primary">IPv4 Address</strong> — that is your IP
+                        <span className="mt-1 block font-mono text-accent-text">Example: 192.168.1.25</span>
                       </li>
                     </ol>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <p className="mb-2 text-xs font-semibold text-gray-800">
+                  <div className="rounded-lg border border-separator-border bg-fill-1 p-3">
+                    <p className="mb-2 text-caption-1-semibold text-text-primary">
                       Mac (MacBook)
                     </p>
-                    <ol className="space-y-1.5 text-xs text-gray-600">
-                      <li>1. Click the Apple menu → <strong className="text-gray-800">System Settings</strong></li>
-                      <li>2. Click <strong className="text-gray-800">Network</strong></li>
+                    <ol className="space-y-1.5 text-xs text-text-secondary">
+                      <li>1. Click the Apple menu → <strong className="text-text-primary">System Settings</strong></li>
+                      <li>2. Click <strong className="text-text-primary">Network</strong></li>
                       <li>3. Click your active connection (Wi-Fi or Ethernet)</li>
-                      <li>4. Your IP is shown next to <strong className="text-gray-800">IP Address</strong>
-                        <span className="mt-1 block font-mono text-blue-600 dark:text-blue-400">Example: 192.168.1.30</span>
+                      <li>4. Your IP is shown next to <strong className="text-text-primary">IP Address</strong>
+                        <span className="mt-1 block font-mono text-accent-text">Example: 192.168.1.30</span>
                       </li>
                     </ol>
                   </div>
                 </div>
-                <p className="mt-3 text-xs text-gray-400">
+                <p className="mt-3 text-xs text-text-tertiary">
                   If the locked IP matches a computer in the office, speak to that person. If it is an unfamiliar
                   address, it may be an outsider — contact your IT support.
                 </p>
@@ -650,14 +627,14 @@ export default function SecurityLogPage() {
       </section>
 
       {/* ── Section 2: Audit Trail ── */}
-      <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 px-5 py-4 space-y-3">
+      <section className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+        <div className="border-b border-separator-border px-5 py-4 space-y-3">
           {/* Row 1: title + export + refresh */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
-              <Clock className="h-5 w-5 shrink-0 text-indigo-500" />
-              <h2 className="whitespace-nowrap font-semibold text-gray-900">Audit Trail</h2>
-              <span className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+              <Clock className="h-5 w-5 shrink-0 text-purple-text" />
+              <h2 className="whitespace-nowrap font-semibold text-text-primary">Audit Trail</h2>
+              <span className="whitespace-nowrap rounded-full bg-fill-2 px-2 py-0.5 text-xs text-text-secondary">
                 {auditTotal} records
               </span>
             </div>
@@ -665,7 +642,7 @@ export default function SecurityLogPage() {
               <button
                 onClick={() => void exportCSV()}
                 disabled={exporting}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-50"
               >
                 {exporting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 CSV
@@ -673,14 +650,14 @@ export default function SecurityLogPage() {
               <button
                 onClick={() => void exportJSON()}
                 disabled={exporting}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-50"
               >
                 {exporting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 JSON
               </button>
               <button
                 onClick={() => void fetchAuditLogs()}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                className="flex items-center gap-1.5 rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${auditLoading ? "animate-spin" : ""}`} />
                 Refresh
@@ -692,18 +669,18 @@ export default function SecurityLogPage() {
           <div className="flex items-center gap-2">
             {/* User filter */}
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
               <input
                 type="text"
                 placeholder="Filter by user…"
                 value={userFilter}
                 onChange={(e) => setUserFilter(e.target.value)}
-                className="w-40 rounded-lg border border-gray-200 bg-white py-1.5 pl-7 pr-7 text-xs text-gray-700 placeholder:text-gray-400"
+                className="w-40 rounded-lg border border-separator-border bg-background-primary-default py-1.5 pl-7 pr-7 text-xs text-text-primary placeholder:text-text-placeholder"
               />
               {userFilter && (
                 <button
                   onClick={() => setUserFilter("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -716,21 +693,21 @@ export default function SecurityLogPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700"
+                className="rounded-lg border border-separator-border bg-background-primary-default px-2 py-1.5 text-xs text-text-primary"
                 title="From date"
               />
-              <span className="text-xs text-gray-400">to</span>
+              <span className="text-xs text-text-tertiary">to</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700"
+                className="rounded-lg border border-separator-border bg-background-primary-default px-2 py-1.5 text-xs text-text-primary"
                 title="To date"
               />
               {(dateFrom || dateTo) && (
                 <button
                   onClick={() => { setDateFrom(""); setDateTo(""); }}
-                  className="rounded p-1 text-gray-400 hover:text-gray-600"
+                  className="rounded p-1 text-text-tertiary hover:text-text-secondary"
                   title="Clear dates"
                 >
                   <X className="h-3 w-3" />
@@ -742,7 +719,7 @@ export default function SecurityLogPage() {
             <select
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700"
+              className="rounded-lg border border-separator-border bg-background-primary-default px-3 py-1.5 text-xs text-text-primary"
             >
               {EVENT_FILTERS.map((f) => (
                 <option key={f.value} value={f.value}>
@@ -755,64 +732,64 @@ export default function SecurityLogPage() {
 
         <div className="overflow-x-auto">
           {auditLoading ? (
-            <div className="flex items-center justify-center py-12 text-gray-400">
+            <div className="flex items-center justify-center py-12 text-text-tertiary">
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : auditLogs.length === 0 ? (
-            <div className="py-12 text-center text-sm text-gray-400">No audit records found.</div>
+            <EmptyState size="compact" illustration="security" title="No audit records found" />
           ) : (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-50">
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Date &amp; Time (IST)</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Event</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">User</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Role</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">IP Address</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Outcome</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Detail</th>
+              <thead className="sticky top-0 bg-fill-1">
+                <tr className="border-b border-separator-border text-left">
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Date &amp; Time (IST)</th>
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Event</th>
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">User</th>
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Role</th>
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">IP Address</th>
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Outcome</th>
+                  <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Detail</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {auditLogs.map((row) => (
-                  <tr key={row.id} className="hover:bg-gray-50">
-                    <td className="whitespace-nowrap px-4 py-2.5 text-xs text-gray-500">
+                  <tr key={row.id} className="hover:bg-fill-2">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-xs text-text-secondary">
                       {formatDateTime(row.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
-                      <span className="font-medium text-gray-800">
+                      <span className="font-medium text-text-primary">
                         {eventLabel(row)}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
-                      <span className="flex items-center gap-1.5 text-gray-700">
-                        <User className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-                        {row.actorName ?? <span className="text-gray-400">—</span>}
+                      <span className="flex items-center gap-1.5 text-text-primary">
+                        <User className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary" />
+                        {row.actorName ?? <span className="text-text-tertiary">—</span>}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-xs text-gray-500">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-xs text-text-secondary">
                       {row.actorRole ?? "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
-                      <span className="flex items-center gap-1.5 font-mono text-xs text-gray-600">
-                        <Globe className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+                      <span className="flex items-center gap-1.5 font-mono text-xs text-text-secondary">
+                        <Globe className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary" />
                         {row.ipAddress ?? "—"}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       <OutcomeBadge outcome={row.outcome} />
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">
+                    <td className="px-4 py-2.5 text-xs text-text-secondary">
                       {row.event === "file.download" && row.resource ? (() => {
                         const parts = row.resource.split("/");
                         const url = parts.length >= 3 ? fileUrl(parts[0], parts[1], parts[2]) : null;
                         return (
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-indigo-600 dark:text-indigo-400">{row.resource}</span>
+                            <span className="font-mono text-purple-text">{row.resource}</span>
                             {url && (
                               <button
                                 onClick={() => { setPreviewUrl(url); setPreviewLabel(row.resource ?? ""); }}
-                                className="flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-600/20 dark:text-indigo-400"
+                                className="flex items-center gap-1 rounded bg-purple-surface px-1.5 py-0.5 text-caption-1-medium text-purple-text hover:bg-purple-surface-strong"
                               >
                                 <Eye className="h-3 w-3" /> Preview
                               </button>
@@ -824,12 +801,12 @@ export default function SecurityLogPage() {
                           type="button"
                           onClick={() => { setOwnerViewChatId(conversationIdOf(row.resource)); setOwnerViewOpen(true); }}
                           title="Asks for the owner password, then shows this chat"
-                          className="flex items-center gap-1 whitespace-nowrap rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-600/20 dark:text-indigo-400"
+                          className="flex items-center gap-1 whitespace-nowrap rounded bg-purple-surface px-1.5 py-0.5 text-caption-1-medium text-purple-text hover:bg-purple-surface-strong"
                         >
                           <MessageSquare className="h-3 w-3" /> Open this chat
                         </button>
                       ) : row.resource ? (
-                        <span className="font-mono text-indigo-600 dark:text-indigo-400">{row.resource}</span>
+                        <span className="font-mono text-purple-text">{row.resource}</span>
                       ) : (
                         (row.detail && DETAIL_LABELS[row.detail]) ?? row.detail ?? "—"
                       )}
@@ -843,25 +820,25 @@ export default function SecurityLogPage() {
 
         {/* Pagination — always visible when there are records */}
         {auditTotal > 0 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3">
-            <span className="text-xs text-gray-500">
+          <div className="flex items-center justify-between border-t border-separator-border px-5 py-3">
+            <span className="text-xs text-text-secondary">
               Showing {auditPage * PAGE_SIZE + 1}–{Math.min((auditPage + 1) * PAGE_SIZE, auditTotal)} of {auditTotal} records
             </span>
             <div className="flex items-center gap-2">
               <button
                 disabled={auditPage === 0}
                 onClick={() => setAuditPage((p) => p - 1)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-separator-border text-text-secondary hover:bg-fill-2 disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-text-secondary">
                 Page {auditPage + 1} of {Math.max(totalPages, 1)}
               </span>
               <button
                 disabled={auditPage >= totalPages - 1}
                 onClick={() => setAuditPage((p) => p + 1)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-separator-border text-text-secondary hover:bg-fill-2 disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -873,30 +850,30 @@ export default function SecurityLogPage() {
       {/* ── Document Preview Modal ── */}
       {previewUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
           onClick={() => setPreviewUrl(null)}
         >
           <div
-            className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+            className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-background-primary-default shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-700">
+            <div className="flex items-center justify-between border-b border-separator-border px-5 py-3">
               <div className="flex items-center gap-2">
-                <Eye className="h-4 w-4 text-indigo-500" />
-                <span className="text-sm font-semibold text-gray-800 dark:text-white">Document Preview</span>
-                <span className="font-mono text-xs text-gray-400">{previewLabel}</span>
+                <Eye className="h-4 w-4 text-purple-text" />
+                <span className="text-body-semibold text-text-primary">Document Preview</span>
+                <span className="font-mono text-xs text-text-tertiary">{previewLabel}</span>
               </div>
               <button
                 onClick={() => setPreviewUrl(null)}
-                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* Preview area */}
-            <div className="flex flex-1 items-center justify-center overflow-auto bg-gray-50 p-4 dark:bg-gray-800">
+            <div className="flex flex-1 items-center justify-center overflow-auto bg-fill-1 p-4">
               <img
                 src={previewUrl}
                 alt="Document preview"

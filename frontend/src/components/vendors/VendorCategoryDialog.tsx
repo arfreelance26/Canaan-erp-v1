@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { inputClass } from "@/components/ui/Field";
 import { vendorCategoriesApi } from "@/lib/api";
-import { confirmDelete, showError } from "@/lib/swal";
+import { confirmDelete, showError } from "@/lib/feedback";
 import type { VendorCategory } from "@/types/vendor-category";
 
 type VendorCategoryDialogProps = {
@@ -75,7 +75,7 @@ export function VendorCategoryDialog({ open, onClose }: VendorCategoryDialogProp
             type="button"
             onClick={handleAdd}
             disabled={saving || !name.trim()}
-            className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-accent-solid px-4 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="h-4 w-4" />
             Add
@@ -84,21 +84,21 @@ export function VendorCategoryDialog({ open, onClose }: VendorCategoryDialogProp
 
         <div className="flex flex-col gap-1.5">
           {loading ? (
-            <p className="py-4 text-center text-sm text-gray-400">Loading…</p>
+            <p className="py-4 text-center text-sm text-text-tertiary">Loading…</p>
           ) : categories.length === 0 ? (
-            <p className="py-4 text-center text-sm text-gray-400">No vendor categories yet.</p>
+            <p className="py-4 text-center text-sm text-text-tertiary">No vendor categories yet.</p>
           ) : (
             categories.map((category) => (
               <div
                 key={category.id}
-                className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+                className="flex items-center justify-between rounded-lg border border-separator-border bg-fill-1 px-3 py-2"
               >
-                <span className="text-sm text-gray-800">{category.name}</span>
+                <span className="text-sm text-text-primary">{category.name}</span>
                 <button
                   type="button"
                   onClick={() => handleDelete(category)}
                   aria-label={`Delete ${category.name}`}
-                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                  className="rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-danger-surface-strong hover:text-danger-text"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

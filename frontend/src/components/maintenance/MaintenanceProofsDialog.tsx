@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Eye, FileText, ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { RiEyeLine as Eye, RiFileTextLine as FileText, RiImageLine as ImageIcon, RiLoader4Line as Loader2, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { FileViewer } from "@/components/ui/FileViewer";
 import { maintenanceApi, maintenanceRequestsApi } from "@/lib/api";
-import { confirmDelete, showError } from "@/lib/swal";
+import { confirmDelete, showError } from "@/lib/feedback";
 import type { MaintenanceProof } from "@/types/truck-maintenance";
 import { proofTypeLabel } from "./MaintenanceRecordFormDialog";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Props = {
   open: boolean;
   recordId: string | null;
@@ -115,10 +116,10 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, s
             maintenance type never wraps it mid-date. */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {subtitle && (
-            <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 font-semibold text-gray-700">{subtitle}</span>
+            <span className="rounded-full border border-separator-border bg-fill-1 px-3 py-1 font-semibold text-text-primary">{subtitle}</span>
           )}
           {proofs.length > 0 && (
-            <span className="text-gray-400">
+            <span className="text-text-tertiary">
               {images.length > 0 && `${images.length} image${images.length === 1 ? "" : "s"}`}
               {images.length > 0 && pdfs.length > 0 && " · "}
               {pdfs.length > 0 && `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"}`}
@@ -127,51 +128,45 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, s
         </div>
 
         {loading && proofs.length === 0 ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
         ) : proofs.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <ImageIcon className="h-5 w-5 text-gray-400" />
-            </div>
-            <p className="text-sm font-semibold text-gray-600">No proof of payment</p>
-            <p className="mt-1 text-xs text-gray-400">Nothing was uploaded for this record.</p>
-          </div>
+          <EmptyState size="compact" illustration="no-data" title="No proof of payment" description="Nothing was uploaded for this record" className="rounded-2xl border border-separator-border bg-background-primary-default" />
         ) : (
           <>
             {images.length > 0 && (
               <section className="flex flex-col gap-2.5">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Images</h3>
+                <h3 className="text-caption-2-semibold text-text-tertiary">Images</h3>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {images.map((p) => (
-                    <div key={p.id} className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-md">
+                    <div key={p.id} className="group relative overflow-hidden rounded-xl border border-separator-border bg-background-primary-default transition-shadow hover:shadow-md">
                       <button
                         type="button"
                         onClick={() => openProof(p)}
                         title={`Open ${p.fileName}`}
                         className="block w-full text-left"
                       >
-                        <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
+                        <div className="relative aspect-[4/3] w-full overflow-hidden bg-fill-2">
                           {thumbs[p.id] ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={thumbs[p.id]} alt={p.fileName} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                            <img src={thumbs[p.id]} alt={p.fileName} className="h-full w-full object-cover transition-transform duration-300" />
                           ) : (
                             <span className="flex h-full w-full items-center justify-center">
-                              <Loader2 className="h-5 w-5 animate-spin text-gray-300" />
+                              <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
                             </span>
                           )}
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
+                          <span className="absolute inset-0 flex items-center justify-center bg-scrim/0 opacity-0 transition group-hover:bg-scrim/30 group-hover:opacity-100">
                             {busyId === p.id ? (
-                              <Loader2 className="h-5 w-5 animate-spin text-white" />
+                              <Loader2 className="h-5 w-5 animate-spin text-on-solid" />
                             ) : (
-                              <span className="flex items-center gap-1 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-gray-800 shadow">
+                              <span className="flex items-center gap-1 rounded-full bg-background-primary-default px-3 py-1 text-caption-1-semibold text-text-primary shadow">
                                 <Eye className="h-3.5 w-3.5" /> Open
                               </span>
                             )}
                           </span>
                         </div>
                         <div className="px-3 py-2">
-                          <p className="truncate text-xs font-medium text-gray-800">{p.fileName}</p>
-                          <p className="truncate text-[11px] text-gray-400">
+                          <p className="truncate text-caption-1-medium text-text-primary">{p.fileName}</p>
+                          <p className="truncate text-[11px] text-text-tertiary">
                             {proofTypeLabel(p.fileName, p.kind)} · {fileSize(p.sizeBytes)}
                           </p>
                         </div>
@@ -182,7 +177,7 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, s
                           onClick={() => void deleteProof(p)}
                           disabled={busyId === p.id}
                           aria-label={`Delete ${p.fileName}`}
-                          className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-gray-500 opacity-0 shadow transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                          className="absolute right-2 top-2 rounded-full bg-background-primary-default p-1.5 text-text-secondary opacity-0 shadow transition hover:bg-danger-surface-strong hover:text-danger-text group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -195,22 +190,22 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, s
 
             {pdfs.length > 0 && (
               <section className="flex flex-col gap-2.5">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">PDFs</h3>
+                <h3 className="text-caption-2-semibold text-text-tertiary">PDFs</h3>
                 <ul className="flex flex-col gap-2">
                   {pdfs.map((p) => (
-                    <li key={p.id} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                    <li key={p.id} className="flex items-center gap-3 rounded-xl border border-separator-border bg-background-primary-default px-3 py-2.5">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-danger-surface text-danger-text">
                         <FileText className="h-5 w-5" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-gray-800">{p.fileName}</span>
-                        <span className="block text-xs text-gray-400">PDF · {fileSize(p.sizeBytes)}</span>
+                        <span className="block truncate text-body-medium text-text-primary">{p.fileName}</span>
+                        <span className="block text-xs text-text-tertiary">PDF · {fileSize(p.sizeBytes)}</span>
                       </span>
                       <button
                         type="button"
                         onClick={() => openProof(p)}
                         disabled={busyId === p.id}
-                        className="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                        className="flex shrink-0 items-center gap-1 rounded-full border border-separator-border px-3 py-1 text-caption-1-semibold text-text-secondary transition-colors hover:bg-fill-2 disabled:opacity-50"
                       >
                         {busyId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
                         Open
@@ -221,7 +216,7 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, s
                           onClick={() => void deleteProof(p)}
                           disabled={busyId === p.id}
                           aria-label={`Delete ${p.fileName}`}
-                          className="shrink-0 rounded-full p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                          className="shrink-0 rounded-full p-1.5 text-text-tertiary transition-colors hover:bg-danger-surface-strong hover:text-danger-text disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -233,7 +228,7 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, s
             )}
 
             {proofs[0]?.uploadedByName && (
-              <p className="text-[11px] text-gray-400">Uploaded by {proofs[0].uploadedByName}</p>
+              <p className="text-[11px] text-text-tertiary">Uploaded by {proofs[0].uploadedByName}</p>
             )}
           </>
         )}

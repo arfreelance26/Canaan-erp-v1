@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Eye, FileBarChart2, Download, Loader2, X, Inbox, Flag } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiEyeLine as Eye, RiFileChart2Line as FileBarChart2, RiDownloadLine as Download, RiLoader4Line as Loader2, RiCloseLine as X, RiInboxLine as Inbox, RiFlagLine as Flag } from "@remixicon/react";
 import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -13,9 +13,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import type { Trip } from "@/types/trip";
 
+import { EmptyState } from "@/components/ui/EmptyState";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 // IST-day inclusive range check for a stored (naive-UTC) timestamp.
 function inDateRange(iso: string | null | undefined, from: string, to: string): boolean {
   if (!iso) return false;
@@ -40,11 +42,11 @@ function fmtDate(d?: string | null) {
 function TripRow({ trip }: { trip: Trip }) {
   return (
     <li className="flex items-center gap-4 py-2.5">
-      <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
-      <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
-        {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+      <p className="w-24 shrink-0 text-body-semibold tabular-nums text-text-primary">{trip.tripId}</p>
+      <p className="min-w-0 flex-1 truncate text-xs uppercase text-text-secondary">
+        {trip.origin} <span className="px-1 text-text-tertiary">→</span> {trip.destination}
       </p>
-      <p className="shrink-0 text-[11px] tabular-nums text-gray-400">{trip.bookingReferenceNo}</p>
+      <p className="shrink-0 text-[11px] tabular-nums text-text-tertiary">{trip.bookingReferenceNo}</p>
     </li>
   );
 }
@@ -197,15 +199,7 @@ export function StaffDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
-              <Inbox className="h-5 w-5" />
-            </span>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Sheet Register</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Sheets awaiting receipt and entry</p>
-          </div>
-        </div>
+        <DashboardHero illustration="documents" title="Trip Sheet Register" description="Sheets awaiting receipt and entry" />
       </div>
 
       {/* Current Trips */}
@@ -215,27 +209,27 @@ export function StaffDashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className={`rounded-xl border px-5 py-4 ${pendingReceive.length > 0 ? "border-amber-200 bg-amber-50 dark:border-amber-400 dark:bg-amber-100" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-600">Pending Receive</p>
-          <p className="mt-1 text-4xl font-bold leading-none text-amber-700 dark:text-amber-700">{loading ? "—" : pendingReceive.length}</p>
-          <p className="mt-1 text-[11px] text-amber-500 dark:text-amber-600">Delivered by Yard, not yet received</p>
+        <div className={`rounded-xl border px-5 py-4 ${pendingReceive.length > 0 ? "border-warning-border bg-warning-surface " : "border-separator-border bg-background-primary-default "}`}>
+          <p className="text-caption-1-semibold text-warning-text">Pending Receive</p>
+          <p className="mt-1 text-display-3-semibold leading-none text-warning-text">{loading ? "—" : pendingReceive.length}</p>
+          <p className="mt-1 text-[11px] text-warning-text">Delivered by Yard, not yet received</p>
         </div>
-        <div className={`rounded-xl border px-5 py-4 ${pendingEntry.length > 0 ? "border-blue-200 bg-blue-50 dark:border-blue-400 dark:bg-blue-50" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-800">Pending Entry</p>
-          <p className="mt-1 text-4xl font-bold leading-none text-blue-700 dark:text-blue-900">{loading ? "—" : pendingEntry.length}</p>
-          <p className="mt-1 text-[11px] text-blue-500 dark:text-blue-800">Received, trip sheet not entered</p>
+        <div className={`rounded-xl border px-5 py-4 ${pendingEntry.length > 0 ? "border-accent-border bg-accent-surface " : "border-separator-border bg-background-primary-default "}`}>
+          <p className="text-caption-1-semibold text-accent-text">Pending Entry</p>
+          <p className="mt-1 text-display-3-semibold leading-none text-accent-text">{loading ? "—" : pendingEntry.length}</p>
+          <p className="mt-1 text-[11px] text-accent-text">Received, trip sheet not entered</p>
         </div>
         <button
           type="button"
           onClick={() => router.push("/trips/flagged")}
-          className={`rounded-xl border px-5 py-4 text-left transition-shadow hover:shadow-md ${flaggedNeedingFix.length > 0 ? "border-red-200 bg-red-50 dark:border-red-400 dark:bg-red-50" : "border-gray-200 bg-white dark:bg-[#141929]"}`}
+          className={`rounded-xl border px-5 py-4 text-left transition-shadow hover:shadow-md ${flaggedNeedingFix.length > 0 ? "border-danger-border bg-danger-surface " : "border-separator-border bg-background-primary-default "}`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-800">Flagged Trips</p>
-            <Flag className="h-4 w-4 text-red-400" />
+            <p className="text-caption-1-semibold text-danger-text">Flagged Trips</p>
+            <Flag className="h-4 w-4 text-danger-text" />
           </div>
-          <p className="mt-1 text-4xl font-bold leading-none text-red-700 dark:text-red-900">{loading ? "—" : flaggedNeedingFix.length}</p>
-          <p className="mt-1 text-[11px] text-red-500 dark:text-red-800">{flaggedNeedingFix.length > 0 ? "Need your fix" : "None needing a fix"}</p>
+          <p className="mt-1 text-display-3-semibold leading-none text-danger-text">{loading ? "—" : flaggedNeedingFix.length}</p>
+          <p className="mt-1 text-[11px] text-danger-text">{flaggedNeedingFix.length > 0 ? "Need your fix" : "None needing a fix"}</p>
         </button>
       </div>
 
@@ -249,9 +243,9 @@ export function StaffDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold text-gray-800">Pending Receive</h2>
+                <h2 className="text-body-semibold text-text-primary">Pending Receive</h2>
                 {!loading && pendingReceive.length > 0 && (
-                  <span className="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-[11px] font-bold tabular-nums">{pendingReceive.length}</span>
+                  <span className="rounded-full bg-warning-surface text-warning-text px-2 py-0.5 text-caption-2-semibold tabular-nums">{pendingReceive.length}</span>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -259,7 +253,7 @@ export function StaffDashboard() {
                 <button
                   type="button"
                   onClick={() => setViewModal("receive")}
-                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
                 >
                   <Eye className="h-4 w-4" />
                   View
@@ -272,16 +266,16 @@ export function StaffDashboard() {
               </div>
             ) : pendingReceive.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm font-medium text-gray-600">All sheets received</p>
+                <CheckCircle2 className="h-8 w-8 text-success-text" />
+                <p className="text-body-medium text-text-secondary">All sheets received</p>
               </div>
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+              <ul className="max-h-72 divide-y divide-separator-border overflow-y-auto pr-1">
                 {pendingReceive.map((trip) => <TripRow key={trip.id} trip={trip} />)}
               </ul>
             )}
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <Link href="/trips/reconciliation" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+            <div className="mt-3 border-t border-separator-border pt-3">
+              <Link href="/trips/reconciliation" className="text-caption-1-semibold text-accent-text transition-colors hover:text-accent-text-strong">
                 Go to Reconciliation →
               </Link>
             </div>
@@ -293,9 +287,9 @@ export function StaffDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold text-gray-800">Pending Entry</h2>
+                <h2 className="text-body-semibold text-text-primary">Pending Entry</h2>
                 {!loading && pendingEntry.length > 0 && (
-                  <span className="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-[11px] font-bold tabular-nums">{pendingEntry.length}</span>
+                  <span className="rounded-full bg-accent-surface text-accent-text px-2 py-0.5 text-caption-2-semibold tabular-nums">{pendingEntry.length}</span>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -303,7 +297,7 @@ export function StaffDashboard() {
                 <button
                   type="button"
                   onClick={() => setViewModal("entry")}
-                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
                 >
                   <Eye className="h-4 w-4" />
                   View
@@ -316,16 +310,16 @@ export function StaffDashboard() {
               </div>
             ) : pendingEntry.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm font-medium text-gray-600">All sheets entered</p>
+                <CheckCircle2 className="h-8 w-8 text-success-text" />
+                <p className="text-body-medium text-text-secondary">All sheets entered</p>
               </div>
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+              <ul className="max-h-72 divide-y divide-separator-border overflow-y-auto pr-1">
                 {pendingEntry.map((trip) => <TripRow key={trip.id} trip={trip} />)}
               </ul>
             )}
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <Link href="/trips/reconciliation" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+            <div className="mt-3 border-t border-separator-border pt-3">
+              <Link href="/trips/reconciliation" className="text-caption-1-semibold text-accent-text transition-colors hover:text-accent-text-strong">
                 Go to Reconciliation →
               </Link>
             </div>
@@ -338,40 +332,40 @@ export function StaffDashboard() {
         const rangeLabel = modalConfig.from === modalConfig.to
           ? fmtDate(modalConfig.from) : `${fmtDate(modalConfig.from)} – ${fmtDate(modalConfig.to)}`;
         const accentBtn = modalConfig.accent === "amber"
-          ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-          : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100";
+          ? "border-warning-border bg-warning-surface text-warning-text hover:bg-warning-surface-strong"
+          : "border-accent-border bg-accent-surface text-accent-text hover:bg-accent-surface-strong";
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewModal(null); }}>
-            <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewModal(null); }}>
+            <div className="w-full max-w-4xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
                 <div>
-                  <p className="font-semibold text-gray-900">Trip Sheet Tracking — {modalConfig.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {modalConfig.rows.length} trip{modalConfig.rows.length !== 1 ? "s" : ""}</p>
+                  <p className="font-semibold text-text-primary">Trip Sheet Tracking — {modalConfig.title}</p>
+                  <p className="text-xs text-text-secondary mt-0.5">{rangeLabel} · {modalConfig.rows.length} trip{modalConfig.rows.length !== 1 ? "s" : ""}</p>
                 </div>
-                <button type="button" onClick={() => setViewModal(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setViewModal(null)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3"><X className="h-4 w-4" /></button>
               </div>
               <div className="flex-1 overflow-auto px-5 py-4">
                 {modalConfig.rows.length === 0 ? (
-                  <p className="text-center text-sm text-gray-400 py-12">No trips found for the selected date range.</p>
+                  <EmptyState size="compact" illustration="logistics" title="No trips found for the selected date range" />
                 ) : (
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 z-10">
-                      <tr className="border-b border-gray-200 bg-gray-50">
+                      <tr className="border-b border-separator-border bg-fill-1">
                         {["#", "Trip ID", "Booking Ref", "Vehicle", "Driver", "Route", modalConfig.dateLabel].map((col) => (
-                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                          <th key={col} className="px-3 py-2.5 text-caption-1-semibold text-text-secondary whitespace-nowrap">{col}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-separator-border">
                       {modalConfig.rows.map((t, i) => (
-                        <tr key={t.id} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
-                          <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId}</td>
-                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
-                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
-                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.driverName ?? "—"}</td>
-                          <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[180px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
-                          <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(modalConfig.dateOf(t))}</td>
+                        <tr key={t.id} className="hover:bg-fill-2">
+                          <td className="px-3 py-2 text-text-tertiary text-xs">{i + 1}</td>
+                          <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{t.tripId}</td>
+                          <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                          <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                          <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.driverName ?? "—"}</td>
+                          <td className="px-3 py-2 text-text-secondary whitespace-nowrap max-w-[180px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                          <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{fmtDate(modalConfig.dateOf(t))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -383,7 +377,7 @@ export function StaffDashboard() {
                   type="button"
                   onClick={handleDownloadPDF}
                   disabled={downloading || modalConfig.rows.length === 0}
-                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${accentBtn}`}
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-body-medium disabled:opacity-50 disabled:cursor-not-allowed ${accentBtn}`}
                 >
                   {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   {downloading ? "Generating…" : "Download PDF"}

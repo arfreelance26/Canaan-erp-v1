@@ -4,11 +4,12 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { tripExpenseRatesApi, type TripExpenseRate, type TripExpenseRateEditEventRow } from "@/lib/api";
-import { Receipt, CheckCircle2, Loader2, AlertCircle, Anchor, ShieldCheck, Forklift, Zap, History, Pencil } from "lucide-react";
+import { RiReceiptLine as Receipt, RiCheckboxCircleLine as CheckCircle2, RiLoader4Line as Loader2, RiErrorWarningLine as AlertCircle, RiAnchorLine as Anchor, RiShieldCheckLine as ShieldCheck, RiTruckLine as Forklift, RiFlashlightLine as Zap, RiHistoryLine as History, RiPencilLine as Pencil } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { formatDateTime } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -72,13 +73,13 @@ function formToPayload(f: FormData) {
 function SaveChip({ state }: { state: SaveState }) {
   if (state === "idle") return null;
   const map = {
-    saving: { icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, text: "Saving…",     cls: "bg-gray-100 text-gray-500" },
-    saved:  { icon: <CheckCircle2 className="h-3.5 w-3.5" />,         text: "Saved",        cls: "bg-emerald-50 text-emerald-600" },
-    error:  { icon: <AlertCircle className="h-3.5 w-3.5" />,          text: "Save failed",  cls: "bg-red-50 text-red-500" },
+    saving: { icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, text: "Saving…",     cls: "bg-fill-2 text-text-secondary" },
+    saved:  { icon: <CheckCircle2 className="h-3.5 w-3.5" />,         text: "Saved",        cls: "bg-success-surface text-success-text" },
+    error:  { icon: <AlertCircle className="h-3.5 w-3.5" />,          text: "Save failed",  cls: "bg-danger-surface text-danger-text" },
   } as const;
   const { icon, text, cls } = map[state];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-caption-1-semibold ${cls}`}>
       {icon}{text}
     </span>
   );
@@ -108,11 +109,11 @@ function ExpenseRow({
   const hasValue = value !== "" && parseFloat(value) > 0;
 
   return (
-    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-5 px-5 py-3.5 transition-colors hover:bg-gray-50/70">
+    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-5 px-5 py-3.5 transition-colors hover:bg-fill-2">
       {/* Label */}
       <div>
-        <p className="text-sm font-medium text-gray-800 leading-snug">{label}</p>
-        {sublabel && <p className="mt-0.5 text-xs text-gray-400 leading-snug">{sublabel}</p>}
+        <p className="text-body-medium text-text-primary leading-snug">{label}</p>
+        {sublabel && <p className="mt-0.5 text-xs text-text-tertiary leading-snug">{sublabel}</p>}
       </div>
 
       {/* Auto-populate toggle */}
@@ -127,21 +128,21 @@ function ExpenseRow({
             ? "Auto-populate is ON — click to disable"
             : "Click to auto-populate this field in new trip sheets"
         }
-        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption-1-semibold transition ${
           !hasValue
-            ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+            ? "cursor-not-allowed border-separator-border bg-fill-1 text-text-tertiary"
             : autoPopulate
-            ? "border-blue-300 bg-blue-600 text-white shadow-sm"
-            : "border-gray-200 bg-white text-gray-400 hover:border-blue-200 hover:text-blue-500"
+            ? "border-accent-border-strong bg-accent-solid text-on-solid shadow-sm"
+            : "border-separator-border bg-background-primary-default text-text-tertiary hover:border-accent-border hover:text-accent-text"
         }`}
       >
-        <Zap className={`h-3 w-3 ${autoPopulate && hasValue ? "fill-white" : ""}`} />
+        <Zap className={`h-3 w-3 ${autoPopulate && hasValue ? "fill-on-solid" : ""}`} />
         Auto-populate
       </button>
 
       {/* Amount input */}
       <div className="relative w-40">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 select-none">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-tertiary select-none">
           ₹
         </span>
         <input
@@ -152,7 +153,7 @@ function ExpenseRow({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onBlur}
-          className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-8 pr-3 text-sm font-medium text-gray-900 transition-colors focus:border-blue-500 focus:bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="w-full rounded-xl border border-separator-border bg-fill-1 py-2.5 pl-8 pr-3 text-body-medium text-text-primary transition-colors focus:border-accent-solid focus:bg-transparent focus:outline-none focus:ring-2 focus:ring-accent-solid/20"
         />
       </div>
     </div>
@@ -175,12 +176,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className={`flex items-center gap-2.5 border-b border-gray-100 px-5 py-3.5 ${accentCls}`}>
+    <div className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+      <div className={`flex items-center gap-2.5 border-b border-separator-border px-5 py-3.5 ${accentCls}`}>
         <Icon className="h-4 w-4 shrink-0" />
-        <h3 className="text-sm font-bold">{title}</h3>
+        <h3 className="text-body-semibold">{title}</h3>
       </div>
-      <div className="divide-y divide-gray-100">{children}</div>
+      <div className="divide-y divide-separator-border">{children}</div>
     </div>
   );
 }
@@ -279,18 +280,18 @@ export default function TripExpensesPage() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
           <Receipt className="h-5 w-5" />
         </span>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Expenses</h1>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Trip Expenses</h1>
             <SaveChip state={saveState} />
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-text-secondary">
             Set default amounts · toggle{" "}
-            <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-semibold text-white">
-              <Zap className="h-2.5 w-2.5 fill-white" /> Auto-populate
+            <span className="inline-flex items-center gap-1 rounded-full bg-accent-solid px-2 py-0.5 text-caption-2-semibold text-on-solid">
+              <Zap className="h-2.5 w-2.5 fill-on-solid" /> Auto-populate
             </span>{" "}
             to pre-fill those fields in every new trip sheet
           </p>
@@ -299,7 +300,7 @@ export default function TripExpensesPage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -312,14 +313,14 @@ export default function TripExpensesPage() {
       </div>
 
       {loading ? (
-        <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
+        <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-separator-border bg-background-primary-default">
+          <Loader2 className="h-6 w-6 animate-spin text-text-tertiary" />
         </div>
       ) : (
         <div className="space-y-4">
           {/* Section 1 */}
           {(hit("Port & Operational Charges", "Port Pass Expense", "பாஸ்") || hit("Port & Operational Charges", "Weight Sheet Expense", "எடை") || hit("Port & Operational Charges", "Mamol Expense", "இறக்கு / ஏற்று மாமூல்") || hit("Port & Operational Charges", "Claimable Mamol Expense")) && (
-          <Section icon={Anchor} title="Port & Operational Charges" accentCls="bg-blue-50 text-blue-700">
+          <Section icon={Anchor} title="Port & Operational Charges" accentCls="bg-accent-surface text-accent-text">
             {hit("Port & Operational Charges", "Port Pass Expense", "பாஸ்") && (
               <ExpenseRow
               label="Port Pass Expense" sublabel="பாஸ்"
@@ -353,7 +354,7 @@ export default function TripExpensesPage() {
 
           {/* Section 2 */}
           {(hit("Government & Compliance", "Traffic / RTO / Police Expense")) && (
-          <Section icon={ShieldCheck} title="Government & Compliance" accentCls="bg-amber-50 text-amber-700">
+          <Section icon={ShieldCheck} title="Government & Compliance" accentCls="bg-warning-surface text-warning-text">
             {hit("Government & Compliance", "Traffic / RTO / Police Expense") && (
               <ExpenseRow
               label="Traffic / RTO / Police Expense"
@@ -366,7 +367,7 @@ export default function TripExpensesPage() {
 
           {/* Section 3 */}
           {(hit("Loading & Handling", "Lift On / Off", "லிப்டான்") || hit("Loading & Handling", "Crane Operator Expense") || hit("Loading & Handling", "Parking Expenses")) && (
-          <Section icon={Forklift} title="Loading & Handling" accentCls="bg-emerald-50 text-emerald-700">
+          <Section icon={Forklift} title="Loading & Handling" accentCls="bg-success-surface text-success-text">
             {hit("Loading & Handling", "Lift On / Off", "லிப்டான்") && (
               <ExpenseRow
               label="Lift On / Off" sublabel="லிப்டான்"
@@ -395,7 +396,7 @@ export default function TripExpensesPage() {
             "இறக்கு / ஏற்று மாமூல்", "Claimable Mamol Expense", "Government & Compliance", "Traffic / RTO / Police Expense",
             "Loading & Handling", "Lift On / Off", "லிப்டான்", "Crane Operator Expense", "Parking Expenses",
           ) && (
-            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+            <div className="rounded-xl border border-separator-border bg-background-primary-default p-10 text-center text-sm text-text-tertiary">
               No results match &ldquo;{search}&rdquo;.
             </div>
           )}
@@ -413,38 +414,36 @@ export default function TripExpensesPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch || ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[420px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => (
                       <tr key={ev.id}>
                         <td className="px-3 py-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">
                             <Pencil className="h-3 w-3" /> {ev.event}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-gray-600">
+                        <td className="px-3 py-2 text-text-secondary">
                           {ev.actorName}
-                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Loader2, NotebookPen, Pin, PinOff, Plus, Search, Trash2, X } from "lucide-react";
+import { RiArrowLeftLine as ArrowLeft, RiLoader4Line as Loader2, RiStickyNoteLine as NotebookPen, RiPushpinLine as Pin, RiUnpinLine as PinOff, RiAddLine as Plus, RiSearchLine as Search, RiDeleteBinLine as Trash2, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { notesApi, type NoteSummary, type NoteUsage } from "@/lib/api";
-import { confirmDelete, showError } from "@/lib/swal";
+import { confirmDelete, showError } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const AUTOSAVE_MS = 800;
 const RETRY_MS = 15_000;
 const NOTE_MAX_CHARS = 50_000;
@@ -309,42 +310,42 @@ export function NotesButton() {
         title="Notes"
         onClick={() => (open ? void closePanel() : void openPanel())}
         className={cn(
-          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300",
-          "hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
+          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300",
+          "hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
           open
-            ? "border-blue-300 bg-blue-50 text-brand-navy focus:ring-blue-500/20"
-            : "border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:bg-blue-50 hover:text-brand-navy focus:ring-blue-500/10",
+            ? "border-accent-border-strong bg-accent-surface text-accent-text-strong focus:ring-accent-solid/20"
+            : "border-separator-border bg-background-primary-default text-text-secondary hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text-strong focus:ring-accent-solid/10",
         )}
       >
-        <NotebookPen className="h-5 w-5 transition-transform duration-300 group-hover:scale-110" />
+        <NotebookPen className="h-5 w-5 transition-transform duration-300" />
       </button>
 
       {open && mounted && createPortal(
         <div className="fixed inset-0 z-[95] flex justify-end p-0 sm:p-3">
-          <div className="absolute inset-0 bg-black/40 animate-backdrop-in" onClick={() => void closePanel()} />
+          <div className="absolute inset-0 bg-scrim/40 animate-scrim-in" onClick={() => void closePanel()} />
           {/* data-no-track: the activity tracker labels clicks with a button's
               visible text — here that would be note titles/content, which
               must never reach the (Admin-visible) Activity Log. */}
           <aside
             data-no-track
-            className="animate-notes-in relative flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl sm:rounded-2xl sm:border sm:border-gray-200"
+            className="animate-notes-in relative flex h-full w-full max-w-4xl flex-col overflow-hidden bg-background-primary-default shadow-2xl sm:rounded-2xl sm:border sm:border-separator-border"
           >
             {/* Header — same icon-chip treatment as the app's page headers */}
-            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 sm:px-6">
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-separator-border px-5 py-4 sm:px-6">
               <div className="flex items-center gap-3.5">
-                <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-brand-navy shadow-sm">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text-strong shadow-sm">
                   <NotebookPen className="h-5 w-5" />
                 </span>
                 <div>
-                  <h2 className="text-lg font-bold tracking-tight text-gray-900">Notes</h2>
-                  <p className="text-xs text-gray-500">Private to you · saved automatically</p>
+                  <h2 className="text-title-3-semibold tracking-tight text-text-primary">Notes</h2>
+                  <p className="text-xs text-text-secondary">Private to you · saved automatically</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => void closePanel()}
                 aria-label="Close notes"
-                className="rounded-lg p-1 text-gray-400 transition-colors hover:text-gray-600"
+                className="rounded-lg p-1 text-text-tertiary transition-colors hover:text-text-secondary"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -353,7 +354,7 @@ export function NotesButton() {
             <div className="flex min-h-0 flex-1">
               {/* Note list */}
               <div className={cn(
-                "flex w-full flex-col border-gray-100 bg-gray-50/70 sm:w-72 sm:shrink-0 sm:border-r",
+                "flex w-full flex-col border-separator-border bg-fill-1 sm:w-72 sm:shrink-0 sm:border-r",
                 active && "hidden sm:flex",
               )}>
                 <div className="flex flex-col gap-2.5 p-4">
@@ -362,41 +363,41 @@ export function NotesButton() {
                     onClick={() => void newNote()}
                     disabled={creating || atNoteLimit}
                     title={atNoteLimit ? "You've reached the note limit — delete or merge some to add more" : undefined}
-                    className="flex items-center justify-center gap-1.5 rounded-full bg-brand-navy py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:bg-brand-navy/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                    className="flex items-center justify-center gap-1.5 rounded-full bg-accent-solid py-2.5 text-body-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                     New note
                   </button>
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
                     <input
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Search notes…"
-                      className="w-full rounded-full border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/20"
+                      className="w-full rounded-full border border-separator-border bg-background-primary-default py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-gold-solid focus:ring-2 focus:ring-gold-solid/20"
                     />
                   </div>
                   {usage ? (
                     <div className="px-1">
-                      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider">
-                        <span className={atNoteLimit ? "text-amber-600" : "text-gray-400"}>
+                      <div className="flex items-center justify-between text-caption-2-semibold">
+                        <span className={atNoteLimit ? "text-warning-text" : "text-text-tertiary"}>
                           {usage.count} of {usage.maxNotes} notes
                         </span>
-                        <span className="normal-case tracking-normal text-gray-400">{kb(usage.bytesUsed)} used</span>
+                        <span className="normal-case tracking-normal text-text-tertiary">{kb(usage.bytesUsed)} used</span>
                       </div>
-                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-gray-200">
+                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-fill-3">
                         <div
-                          className={cn("h-full rounded-full transition-all", atNoteLimit ? "bg-amber-500" : "bg-brand-navy")}
+                          className={cn("h-full rounded-full transition", atNoteLimit ? "bg-warning-solid" : "bg-accent-solid")}
                           style={{ width: `${Math.min(100, (usage.count / Math.max(1, usage.maxNotes)) * 100)}%` }}
                         />
                       </div>
                       {atNoteLimit && (
-                        <p className="mt-2 text-xs text-amber-700">You&apos;ve reached {usage.maxNotes} notes — delete or merge some to add more.</p>
+                        <p className="mt-2 text-xs text-warning-text">You&apos;ve reached {usage.maxNotes} notes — delete or merge some to add more.</p>
                       )}
                     </div>
                   ) : (
-                    <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    <p className="px-1 text-caption-2-semibold text-text-tertiary">
                       {notes.length} note{notes.length === 1 ? "" : "s"}
                     </p>
                   )}
@@ -404,17 +405,9 @@ export function NotesButton() {
 
                 <div className="custom-scrollbar flex-1 overflow-y-auto px-3 pb-4">
                   {loading && notes.length === 0 ? (
-                    <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+                    <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
                   ) : visible.length === 0 ? (
-                    <div className="mx-1 rounded-2xl border border-gray-200 bg-white px-4 py-8 text-center">
-                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-                        <NotebookPen className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <p className="text-sm font-semibold text-gray-600">{notes.length === 0 ? "No notes yet" : "No matching notes"}</p>
-                      <p className="mt-1 text-xs text-gray-400">
-                        {notes.length === 0 ? "Jot down reminders, numbers, anything — only you can see them." : "Try a different search."}
-                      </p>
-                    </div>
+                    <EmptyState size="compact" illustration="not-found" title={notes.length === 0 ? "No notes yet" : "No matching notes"} description={notes.length === 0 ? "Jot down reminders, numbers, anything — only you can see them" : "Try a different search"} className="rounded-2xl border border-separator-border bg-background-primary-default" />
                   ) : (
                     <ul className="flex flex-col gap-2">
                       {visible.map((n) => {
@@ -425,23 +418,23 @@ export function NotesButton() {
                               type="button"
                               onClick={() => void selectNote(n.id)}
                               className={cn(
-                                "relative w-full overflow-hidden rounded-xl border bg-white px-3.5 py-3 text-left transition-all duration-200",
+                                "relative w-full overflow-hidden rounded-xl border bg-background-primary-default px-3.5 py-3 text-left transition duration-200",
                                 selected
-                                  ? "border-blue-200 shadow-[0_4px_14px_-6px_rgba(27,43,94,0.25)]"
-                                  : "border-gray-200/80 hover:border-gray-300 hover:shadow-sm",
+                                  ? "border-accent-border shadow-md"
+                                  : "border-separator-border hover:border-border-button-default hover:shadow-sm",
                               )}
                             >
-                              {selected && <span className="absolute inset-y-0 left-0 w-1 bg-brand-navy" />}
+                              {selected && <span className="absolute inset-y-0 left-0 w-1 bg-accent-solid" />}
                               <span className="flex items-center gap-1.5">
-                                {n.pinned && <Pin className="h-3 w-3 shrink-0 fill-current text-brand-gold" />}
-                                <span className={cn("truncate text-sm font-semibold", n.title.trim() ? "text-gray-900" : "text-gray-400")}>
+                                {n.pinned && <Pin className="h-3 w-3 shrink-0 fill-current text-gold-text" />}
+                                <span className={cn("truncate text-body-semibold", n.title.trim() ? "text-text-primary" : "text-text-tertiary")}>
                                   {n.title.trim() || "Untitled"}
                                 </span>
                               </span>
-                              <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-gray-500">
+                              <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-text-secondary">
                                 {n.preview || "No text yet"}
                               </span>
-                              <span className="mt-1.5 block text-[11px] font-medium text-gray-400">{edited(n.updatedAt)}</span>
+                              <span className="mt-1.5 block text-caption-2-medium text-text-tertiary">{edited(n.updatedAt)}</span>
                             </button>
                           </li>
                         );
@@ -452,26 +445,26 @@ export function NotesButton() {
               </div>
 
               {/* Editor */}
-              <div className={cn("min-w-0 flex-1 flex-col bg-white", active ? "flex" : "hidden sm:flex")}>
+              <div className={cn("min-w-0 flex-1 flex-col bg-background-primary-default", active ? "flex" : "hidden sm:flex")}>
                 {active ? (
                   <>
-                    <div className="flex shrink-0 items-center gap-2 border-b border-gray-100 px-4 py-2.5 sm:px-6">
+                    <div className="flex shrink-0 items-center gap-2 border-b border-separator-border px-4 py-2.5 sm:px-6">
                       <button
                         type="button"
                         onClick={() => void selectNote(null)}
                         aria-label="Back to notes"
-                        className="rounded-full p-1.5 text-gray-500 hover:bg-gray-100 sm:hidden"
+                        className="rounded-full p-1.5 text-text-secondary hover:bg-fill-3 sm:hidden"
                       >
                         <ArrowLeft className="h-4 w-4" />
                       </button>
-                      <span className="mr-auto flex items-center gap-1.5 text-xs font-medium">
+                      <span className="mr-auto flex items-center gap-1.5 text-caption-1-medium">
                         {saveState !== "idle" && (
                           <span className={cn(
                             "h-1.5 w-1.5 rounded-full",
-                            saveState === "saving" ? "animate-pulse bg-brand-gold" : saveState === "saved" ? "bg-emerald-500" : "bg-red-500",
+                            saveState === "saving" ? "animate-pulse bg-gold-solid" : saveState === "saved" ? "bg-success-solid" : "bg-danger-solid",
                           )} />
                         )}
-                        <span className={cn("line-clamp-1", saveState === "error" ? "text-red-500" : "text-gray-400")} title={saveLabel}>
+                        <span className={cn("line-clamp-1", saveState === "error" ? "text-danger-text" : "text-text-tertiary")} title={saveLabel}>
                           {saveLabel}
                         </span>
                       </span>
@@ -480,10 +473,10 @@ export function NotesButton() {
                         onClick={() => void togglePin(active)}
                         title={active.pinned ? "Unpin" : "Pin to top"}
                         className={cn(
-                          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption-1-semibold transition-colors",
                           active.pinned
-                            ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                            : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                            ? "border-warning-border bg-warning-surface text-warning-text hover:bg-warning-surface-strong"
+                            : "border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2",
                         )}
                       >
                         {active.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
@@ -493,7 +486,7 @@ export function NotesButton() {
                         type="button"
                         onClick={() => void deleteNote(active)}
                         title="Delete note"
-                        className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                        className="flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary transition-colors hover:border-danger-border hover:bg-danger-surface-strong hover:text-danger-text"
                       >
                         <Trash2 className="h-3.5 w-3.5" /> Delete
                       </button>
@@ -506,12 +499,12 @@ export function NotesButton() {
                         onChange={(e) => edit("title", e.target.value)}
                         maxLength={200}
                         placeholder="Untitled note"
-                        className="w-full bg-transparent text-2xl font-bold tracking-tight text-gray-900 outline-none placeholder:text-gray-300"
+                        className="w-full bg-transparent text-title-1-semibold tracking-tight text-text-primary outline-none placeholder:text-text-placeholder"
                       />
-                      <div className="my-4 h-0.5 w-12 rounded-full bg-brand-gold/60" />
+                      <div className="my-4 h-0.5 w-12 rounded-full bg-gold-solid/60" />
                       {active.body === undefined ? (
                         <div className="flex flex-1 items-start justify-center pt-10">
-                          {bodyLoading && <Loader2 className="h-5 w-5 animate-spin text-gray-400" />}
+                          {bodyLoading && <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />}
                         </div>
                       ) : (
                         <textarea
@@ -519,19 +512,19 @@ export function NotesButton() {
                           onChange={(e) => edit("body", e.target.value)}
                           maxLength={NOTE_MAX_CHARS}
                           placeholder="Start writing…"
-                          className="custom-scrollbar min-h-0 w-full flex-1 resize-none bg-transparent pb-6 text-[15px] leading-7 text-gray-700 outline-none placeholder:text-gray-300"
+                          className="custom-scrollbar min-h-0 w-full flex-1 resize-none bg-transparent pb-6 text-[15px] leading-7 text-text-primary outline-none placeholder:text-text-placeholder"
                         />
                       )}
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-gray-100 bg-gray-50/70 px-6 py-2.5 text-[11px] font-medium text-gray-400 sm:px-10">
+                    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-separator-border bg-fill-1 px-6 py-2.5 text-caption-2-medium text-text-tertiary sm:px-10">
                       <span>{words} word{words === 1 ? "" : "s"}</span>
-                      <span className="h-1 w-1 rounded-full bg-gray-300" />
-                      <span className={cn(nearSizeLimit && "font-semibold text-amber-600")}>
+                      <span className="h-1 w-1 rounded-full bg-fill-4" />
+                      <span className={cn(nearSizeLimit && "font-semibold text-warning-text")}>
                         {kb(activeBytes)} of {kb(usage?.noteMaxBytes ?? 100_000)}
                       </span>
                       {active.updatedAt && (
                         <>
-                          <span className="h-1 w-1 rounded-full bg-gray-300" />
+                          <span className="h-1 w-1 rounded-full bg-fill-4" />
                           <span>Edited {edited(active.updatedAt)}</span>
                         </>
                       )}
@@ -539,16 +532,16 @@ export function NotesButton() {
                   </>
                 ) : (
                   <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-brand-navy shadow-sm">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text-strong shadow-sm">
                       <NotebookPen className="h-6 w-6" />
                     </div>
-                    <p className="text-sm font-semibold text-gray-700">Pick a note or start a new one</p>
-                    <p className="mt-1 max-w-xs text-xs text-gray-400">Everything saves automatically and stays until you delete it.</p>
+                    <p className="text-body-semibold text-text-primary">Pick a note or start a new one</p>
+                    <p className="mt-1 max-w-xs text-xs text-text-tertiary">Everything saves automatically and stays until you delete it.</p>
                     <button
                       type="button"
                       onClick={() => void newNote()}
                       disabled={creating || atNoteLimit}
-                      className="mt-5 flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="mt-5 flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-4 py-2 text-body-semibold text-text-primary shadow-sm transition-colors hover:bg-fill-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Plus className="h-4 w-4" /> New note
                     </button>

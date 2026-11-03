@@ -1,13 +1,14 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { Pencil, Trash2 } from "lucide-react";
+import { RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type TyreInventoryTableProps = {
   tyres: TyreInventoryItem[];
   fitments: TyreFitmentRecord[];
@@ -48,62 +49,60 @@ export function TyreInventoryTable({
   const canViewTyreHistory = isAdmin || authUser?.softwareDesignation === "Maintenance";
   if (tyres.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No tyres yet. Click &ldquo;Add Tyre&rdquo; to create one.
-      </div>
+      <EmptyState size="compact" illustration="logistics" title="No tyres yet" description="Click &ldquo;Add Tyre&rdquo; to create one" />
     );
   }
 
   return (
-    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[1700px] text-left text-sm whitespace-nowrap">
         <thead className="sticky top-0 z-10">
-          <tr className="border-b border-gray-200 bg-gray-50">
+          <tr className="border-b border-separator-border bg-fill-1">
             {columns.map((column, index) => (
               <th
                 key={`${column}-${index}`}
-                className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase"
+                className="px-4 py-3 text-caption-1-semibold text-text-secondary"
               >
                 {column}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-separator-border">
           {tyres.map((tyre) => {
             const isAttached = fitments.some((f) => f.tyreId === tyre.id && !f.removedDate);
             const status = isAttached ? "Attached" : "Available";
 
             return (
-              <tr key={tyre.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-900">{tyre.brand}</td>
-                <td className="px-4 py-3 text-gray-600">{tyre.tyreType}</td>
+              <tr key={tyre.id} className="hover:bg-fill-2">
+                <td className="px-4 py-3 font-medium text-text-primary">{tyre.brand}</td>
+                <td className="px-4 py-3 text-text-secondary">{tyre.tyreType}</td>
                 <td className="px-4 py-3">
                   <span
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-xs font-medium",
+                      "rounded-full px-2.5 py-1 text-caption-1-medium",
                       tyre.condition === "Rethreaded"
-                        ? "bg-amber-50 text-amber-700"
-                        : "bg-emerald-50 text-emerald-700"
+                        ? "bg-warning-surface text-warning-text"
+                        : "bg-success-surface text-success-text"
                     )}
                   >
                     {tyre.condition}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-gray-600">{tyre.tyreNumber}</td>
-                <td className="px-4 py-3 text-gray-600">{tyre.size}</td>
-                <td className="px-4 py-3 text-gray-600">₹{Number(tyre.cost).toLocaleString()}</td>
-                <td className="px-4 py-3 text-gray-600">
+                <td className="px-4 py-3 text-text-secondary">{tyre.tyreNumber}</td>
+                <td className="px-4 py-3 text-text-secondary">{tyre.size}</td>
+                <td className="px-4 py-3 text-text-secondary">₹{Number(tyre.cost).toLocaleString()}</td>
+                <td className="px-4 py-3 text-text-secondary">
                   {formatDate(tyre.purchaseDate)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-1">
                     <span
                       className={cn(
-                        "rounded-full px-2.5 py-1 text-xs font-medium",
+                        "rounded-full px-2.5 py-1 text-caption-1-medium",
                         status === "Attached"
-                          ? "bg-purple-50 text-purple-700"
-                          : "bg-blue-50 text-blue-700"
+                          ? "bg-purple-surface text-purple-text"
+                          : "bg-accent-surface text-accent-text"
                       )}
                     >
                       {status}
@@ -115,7 +114,7 @@ export function TyreInventoryTable({
                     <button
                       type="button"
                       onClick={() => onViewData?.(tyre)}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-primary hover:bg-fill-2 transition-colors"
                     >
                       View Tyre Data
                     </button>
@@ -123,7 +122,7 @@ export function TyreInventoryTable({
 <button
                       type="button"
                       onClick={() => onViewHistory(tyre)}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-primary hover:bg-fill-2 transition-colors"
                     >
                       View Tyre History
                     </button>
@@ -133,7 +132,7 @@ export function TyreInventoryTable({
                       disabled={isAttached}
                       title={isAttached ? "Remove this tyre from its truck first" : undefined}
                       onClick={() => onFlagForRetread?.(tyre)}
-                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-amber-50"
+                      className="rounded-lg border border-warning-border bg-warning-surface px-3 py-1.5 text-caption-1-medium text-warning-text hover:bg-warning-surface-strong transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-warning-surface-strong"
                     >
                       Flag for Retreading
                     </button>
@@ -142,7 +141,7 @@ export function TyreInventoryTable({
                       disabled={isAttached}
                       title={isAttached ? "Remove this tyre from its truck first" : undefined}
                       onClick={() => onFlagDiscarded?.(tyre)}
-                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-50"
+                      className="rounded-lg border border-danger-border bg-danger-surface px-3 py-1.5 text-caption-1-medium text-danger-text hover:bg-danger-surface-strong transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-danger-surface-strong"
                     >
                       Flag as Discarded
                     </button>
@@ -151,7 +150,7 @@ export function TyreInventoryTable({
                         type="button"
                         onClick={() => onEdit(tyre)}
                         aria-label={`Edit ${tyre.tyreNumber}`}
-                        className="transition-all duration-300 group rounded-md p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"
+                        className="transition duration-300 group rounded-md p-1.5 text-text-secondary hover:bg-accent-surface-strong hover:text-accent-text"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -159,7 +158,7 @@ export function TyreInventoryTable({
                         type="button"
                         onClick={() => onDelete(tyre.id)}
                         aria-label={`Delete ${tyre.tyreNumber}`}
-                        className="transition-all duration-300 group rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
+                        className="transition duration-300 group rounded-md p-1.5 text-text-secondary hover:bg-danger-surface-strong hover:text-danger-text"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

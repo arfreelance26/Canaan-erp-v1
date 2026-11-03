@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { BadgeCheck, ChevronDown, ShieldAlert, Flag, Undo2, CheckCircle2, RotateCcw } from "lucide-react";
+import { RiVerifiedBadgeLine as BadgeCheck, RiArrowDownSLine as ChevronDown, RiShieldFlashLine as ShieldAlert, RiFlagLine as Flag, RiArrowGoBackLine as Undo2, RiCheckboxCircleLine as CheckCircle2, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { tripsApi, type AuditVerifiedTrip, type TripRecheckEvent } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -13,8 +13,9 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
-import { showError, showSuccess } from "@/lib/swal";
+import { showError, showSuccess } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EVENT_ICON: Record<TripRecheckEvent["event"], typeof Flag> = {
   Flagged: Flag,
   "Returned for Review": Undo2,
@@ -24,11 +25,11 @@ const EVENT_ICON: Record<TripRecheckEvent["event"], typeof Flag> = {
 };
 
 const EVENT_COLOR: Record<TripRecheckEvent["event"], string> = {
-  Flagged: "bg-red-100 text-red-700",
-  "Returned for Review": "bg-blue-100 text-blue-700",
-  Verified: "bg-emerald-100 text-emerald-700",
-  "Verification Undone": "bg-gray-200 text-gray-700",
-  "Flagged for Re-Verification": "bg-violet-100 text-violet-700",
+  Flagged: "bg-danger-surface-strong text-danger-text",
+  "Returned for Review": "bg-accent-surface-strong text-accent-text",
+  Verified: "bg-success-surface-strong text-success-text",
+  "Verification Undone": "bg-fill-3 text-text-primary",
+  "Flagged for Re-Verification": "bg-purple-surface-strong text-purple-text",
 };
 
 /** Who can send a verified trip back to the Auditor (backend: request_reverification). */
@@ -105,12 +106,12 @@ export default function AuditVerifiedTripsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
           <BadgeCheck className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Audit Verified Trips</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Trips Audit has reviewed and signed off on</p>
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Audit Verified Trips</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Trips Audit has reviewed and signed off on</p>
         </div>
       </div>
 
@@ -131,13 +132,13 @@ export default function AuditVerifiedTripsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 text-sm text-gray-500">
+      <div className="flex items-center gap-3 text-sm text-text-secondary">
         <span>Showing {filtered.length} of {trips.length} trip{trips.length !== 1 ? "s" : ""}</span>
         {(dateFrom || dateTo) && (
           <button
             type="button"
             onClick={() => { setDateFrom(""); setDateTo(""); }}
-            className="font-medium text-blue-600 hover:text-blue-700"
+            className="font-medium text-accent-text hover:text-accent-text"
           >
             Clear dates
           </button>
@@ -145,83 +146,81 @@ export default function AuditVerifiedTripsPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          {trips.length === 0 ? "No trips have been verified yet." : "No verified trips match these filters."}
-        </div>
+        <EmptyState size="compact" illustration={trips.length === 0 ? "logistics" : "not-found"} title={trips.length === 0 ? "No trips have been verified yet" : "No verified trips match these filters"} />
       ) : (
-        <div className="overflow-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-auto rounded-xl border border-separator-border bg-background-primary-default">
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip ID</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Driver</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Route</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Date</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Verified By</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Verified On</th>
-                <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400" />
+              <tr className="border-b border-separator-border bg-fill-1">
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Trip ID</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Driver</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Route</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Date</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Verified By</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Verified On</th>
+                <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-separator-border">
               {filtered.map((trip) => {
                 const isExpanded = expandedId === trip.tripDbId;
                 const events = history.get(trip.tripDbId) ?? [];
                 return (
                   <Fragment key={trip.tripDbId}>
                     <tr
-                      className="cursor-pointer hover:bg-gray-50"
+                      className="cursor-pointer hover:bg-fill-2"
                       onClick={() => toggleExpanded(trip)}
                     >
-                      <td className="px-4 py-2.5 font-semibold text-gray-900">
+                      <td className="px-4 py-2.5 font-semibold text-text-primary">
                         {trip.tripId}
                         {trip.wasDisputed && (
                           <span
                             title="This trip was flagged and disputed before being verified"
-                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-warning-text"
                           >
                             <ShieldAlert className="h-2.5 w-2.5" /> Was Disputed
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-gray-600">{trip.driverName ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-gray-500">
-                        {trip.origin || "—"} <span className="text-gray-300">→</span> {trip.destination || "—"}
+                      <td className="px-4 py-2.5 text-text-secondary">{trip.driverName ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-text-secondary">
+                        {trip.origin || "—"} <span className="text-text-tertiary">→</span> {trip.destination || "—"}
                       </td>
-                      <td className="px-4 py-2.5 text-gray-500">{formatDate(trip.scheduledDate)}</td>
-                      <td className="px-4 py-2.5 text-gray-700">
+                      <td className="px-4 py-2.5 text-text-secondary">{formatDate(trip.scheduledDate)}</td>
+                      <td className="px-4 py-2.5 text-text-primary">
                         {trip.verifiedBy}
-                        {trip.verifiedRole && <span className="ml-1 text-[11px] text-gray-400">({trip.verifiedRole})</span>}
+                        {trip.verifiedRole && <span className="ml-1 text-[11px] text-text-tertiary">({trip.verifiedRole})</span>}
                       </td>
-                      <td className="px-4 py-2.5 text-gray-500">{formatDateTime(trip.verifiedAt)}</td>
+                      <td className="px-4 py-2.5 text-text-secondary">{formatDateTime(trip.verifiedAt)}</td>
                       <td className="px-4 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-3">
                           {canRequest && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); setReverifyTrip(trip); setReason(""); }}
-                              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-violet-300 bg-violet-50 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700 transition-colors hover:bg-violet-100"
+                              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-purple-border-strong bg-purple-surface px-2.5 py-1.5 text-caption-2-semibold text-purple-text transition-colors hover:bg-purple-surface-strong"
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
                               Flag for Re-Verification
                             </button>
                           )}
-                          <ChevronDown className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform", isExpanded && "rotate-180")} />
+                          <ChevronDown className={cn("h-4 w-4 shrink-0 text-text-tertiary transition-transform", isExpanded && "rotate-180")} />
                         </div>
                       </td>
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={7} className="border-t border-gray-100 bg-gray-50/60 px-4 py-3">
+                        <td colSpan={7} className="border-t border-separator-border bg-fill-1 px-4 py-3">
                           {trip.verifiedRemark && (
-                            <p className="mb-3 text-xs text-gray-600">
-                              <span className="font-semibold text-gray-700">Verification note:</span> {trip.verifiedRemark}
+                            <p className="mb-3 text-xs text-text-secondary">
+                              <span className="font-semibold text-text-primary">Verification note:</span> {trip.verifiedRemark}
                             </p>
                           )}
-                          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">Full Review History</p>
+                          <p className="mb-2 text-caption-2-semibold text-text-tertiary">Full Review History</p>
                           {historyLoading === trip.tripDbId ? (
-                            <p className="text-xs text-gray-400">Loading history…</p>
+                            <p className="text-xs text-text-tertiary">Loading history…</p>
                           ) : events.length === 0 ? (
-                            <p className="text-xs text-gray-400">No history found.</p>
+                            <p className="text-xs text-text-tertiary">No history found.</p>
                           ) : (
                             <ol className="flex flex-col gap-2">
                               {events.map((ev) => {
@@ -232,10 +231,10 @@ export default function AuditVerifiedTripsPage() {
                                       <Icon className="h-3.5 w-3.5" />
                                     </span>
                                     <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-gray-800">
-                                        {ev.event} <span className="font-normal text-gray-400">by {ev.actorName}{ev.actorRole ? ` (${ev.actorRole})` : ""} · {formatDateTime(ev.createdAt)}</span>
+                                      <p className="text-caption-1-semibold text-text-primary">
+                                        {ev.event} <span className="font-normal text-text-tertiary">by {ev.actorName}{ev.actorRole ? ` (${ev.actorRole})` : ""} · {formatDateTime(ev.createdAt)}</span>
                                       </p>
-                                      {ev.remark && <p className="mt-0.5 text-xs text-gray-500">{ev.remark}</p>}
+                                      {ev.remark && <p className="mt-0.5 text-xs text-text-secondary">{ev.remark}</p>}
                                     </div>
                                   </li>
                                 );
@@ -260,12 +259,12 @@ export default function AuditVerifiedTripsPage() {
         className="sm:max-w-md"
       >
         <form onSubmit={submitReverify} className="flex flex-col gap-4">
-          <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+          <div className="rounded-xl border border-purple-border bg-purple-surface px-4 py-3 text-sm text-purple-text-strong">
             This trip will lose its verification and go back to the <span className="font-semibold">Auditor</span> to be checked again.
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-gray-700">
-              Reason <span className="text-red-500">*</span>
+            <label className="text-body-2-medium text-text-primary">
+              Reason <span className="text-danger-text">*</span>
             </label>
             <textarea
               value={reason}
@@ -274,7 +273,7 @@ export default function AuditVerifiedTripsPage() {
               rows={4}
               required
               autoFocus
-              className="w-full resize-none rounded-lg border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
+              className="w-full resize-none rounded-lg border border-separator-border bg-background-primary-default px-3 py-2.5 text-sm text-text-primary outline-none transition placeholder:text-text-placeholder focus:border-purple-border-strong focus:bg-background-primary-default focus:ring-4 focus:ring-purple-solid/10"
             />
           </div>
           <div className="flex items-center justify-end gap-3 pt-1">
@@ -282,14 +281,14 @@ export default function AuditVerifiedTripsPage() {
               type="button"
               onClick={closeReverify}
               disabled={submitting}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting || !reason.trim()}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-purple-solid px-4 py-2 text-body-medium text-on-solid hover:bg-purple-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? "Sending..." : "Send to Auditor"}
             </button>

@@ -12,15 +12,15 @@ import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
 import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate, type SheetKmCheck } from "@/lib/api";
 import type { FuelLog } from "@/types/fuel-log";
-import { showError, MySwal, confirmAction } from "@/lib/swal";
+import { showError, confirmAction, prompt } from "@/lib/feedback";
 import { todayIst, formatDate } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { Trash2, PlusCircle } from "lucide-react";
+import { RiDeleteBinLine as Trash2, RiAddCircleLine as PlusCircle, RiErrorWarningLine as WarnIcon } from "@remixicon/react";
 import { haltPayFromClosure } from "@/lib/halt-pay";
 
-const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
-const subsh = "text-xs font-medium text-gray-400 uppercase tracking-wider mt-3 mb-1";
+const sh = "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
+const subsh = "text-caption-1-medium text-text-tertiary mt-3 mb-1";
 
 function recalcDerived(s: TripSheetData, haltPay: number): TripSheetData {
   const out = { ...s };
@@ -430,18 +430,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     if (!ro && approxKm > 0 && actualKm > 0 && !kmRemark) {
       const pct = Math.abs((actualKm - approxKm) / approxKm) * 100;
       if (pct > 10) {
-        const res = await MySwal.fire({
-          title: "KM Variance Alert",
-          html: `<p>Actual KM (<b>${actualKm}</b>) differs from approximate KM (<b>${approxKm}</b>) by <b>${pct.toFixed(1)}%</b> — outside the ±10% limit.</p><p class="mt-2 text-sm text-gray-500">Please enter a reason to proceed.</p>`,
-          input: "textarea",
-          inputPlaceholder: "Enter reason for KM variance...",
-          inputAttributes: { required: "true" },
-          showCancelButton: true,
-          confirmButtonText: "Save with Remark",
-          preConfirm: (val: string) => { if (!val?.trim()) { MySwal.showValidationMessage("Remark is required"); return false; } return val.trim(); },
+        const remark = await prompt({
+          title: "KM variance",
+          description: `Actual KM (${actualKm}) differs from approximate KM (${approxKm}) by ${pct.toFixed(1)}%, outside the ±10% limit. Enter a reason to proceed.`,
+          inputLabel: "Reason",
+          placeholder: "Reason for KM variance",
+          required: true,
+          confirmLabel: "Save with remark",
         });
-        if (res.isDismissed) { setSaving(false); return; }
-        kmRemark = res.value as string;
+        if (remark === null) { setSaving(false); return; }
+        kmRemark = remark;
       }
     }
 
@@ -497,8 +495,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   if (!trip) return null;
 
   const ro = readOnly;
-  const fc = ro ? `${inputClass} bg-gray-50 cursor-default` : inputClass;
-  const roClass = `w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed`;
+  const fc = ro ? `${inputClass} bg-fill-1 cursor-default` : inputClass;
+  const roClass = `w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm text-text-primary cursor-not-allowed`;
   // Auto-fetched fields: editable only with autoEditable (Admin or approved request)
   const auto = !!autoEditable && !ro;
   const ac = auto ? inputClass : roClass;
@@ -604,10 +602,10 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               readOnly
               disabled
               value={form.tripSheetDate ? form.tripSheetDate.split("-").reverse().join("-") : "—"}
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-600`}
+              className={`${inputClass} cursor-not-allowed bg-fill-1 text-text-secondary`}
               title="Auto-set to today when first opened — cannot be changed"
             />
-            <span className="mt-1 text-xs text-gray-400">Auto-set to today. Non-editable.</span>
+            <span className="mt-1 text-xs text-text-tertiary">Auto-set to today. Non-editable.</span>
           </Field>
         </div>
 
@@ -641,22 +639,22 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </Field>
 
           {/* Driver Settlement Preview card */}
-          <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3.5 flex flex-col gap-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-teal-600">Driver Settlement</p>
+          <div className="rounded-xl border border-teal-border bg-teal-surface px-4 py-3.5 flex flex-col gap-2">
+            <p className="text-caption-2-semibold text-teal-text">Driver Settlement</p>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-teal-700">Driver Batta</span>
-              <span className="text-sm font-bold text-teal-900">{fmt(form.driverPay)}</span>
+              <span className="text-xs text-teal-text">Driver Batta</span>
+              <span className="text-body-semibold text-teal-text-strong">{fmt(form.driverPay)}</span>
             </div>
-            <div className="h-px bg-teal-200" />
+            <div className="h-px bg-teal-surface-strong" />
             <div className="flex items-center justify-between">
-              <span className="text-xs text-teal-700">Driver Advance</span>
-              <span className="text-sm font-semibold text-teal-900">
+              <span className="text-xs text-teal-text">Driver Advance</span>
+              <span className="text-body-semibold text-teal-text-strong">
                 {form.driverAdvance ? `₹${Number(form.driverAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-teal-700">Additional Advance</span>
-              <span className="text-sm font-semibold text-teal-900">
+              <span className="text-xs text-teal-text">Additional Advance</span>
+              <span className="text-body-semibold text-teal-text-strong">
                 {form.additionalDriverAdvance ? `₹${Number(form.additionalDriverAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
               </span>
             </div>
@@ -669,13 +667,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Start km *">
             <DecimalInput type="number" min="0" className={fc} value={form.startKm} readOnly={ro} disabled={ro} onChange={(e) => set("startKm", e.target.value)} placeholder="e.g. 84000" />
             {startKmTooLow && (
-              <p className="mt-1 text-xs text-red-500">
+              <p className="mt-1 text-xs text-danger-text">
                 Below current odometer ({Number(currentTruck!.odometer).toLocaleString()} km). Please Check the Value.
               </p>
             )}
-            {startKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-amber-600">{w.message}</p>)}
+            {startKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-warning-text">{w.message}</p>)}
             {!ro && kmCheck?.previous && startKmChecks.length === 0 && (
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-text-tertiary">
                 Previous trip {kmCheck.previous.tripCode}{kmCheck.previous.date ? ` (${formatDate(kmCheck.previous.date)})` : ""} ended at {kmCheck.previous.endKm.toLocaleString("en-IN")} km
               </p>
             )}
@@ -683,14 +681,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="End km *">
             <DecimalInput type="number" min="0" className={fc} value={form.endKm} readOnly={ro} disabled={ro} onChange={(e) => set("endKm", e.target.value)} placeholder="e.g. 84500" />
             {n(form.endKm) > 0 && n(form.startKm) > 0 && n(form.endKm) <= n(form.startKm) && (
-              <p className="mt-1 text-xs text-red-500">End Km must be greater than Start Km.</p>
+              <p className="mt-1 text-xs text-danger-text">End Km must be greater than Start Km.</p>
             )}
-            {endKmWarning && <p className="mt-1 text-xs text-amber-600">{endKmWarning}</p>}
-            {endKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-amber-600">{w.message}</p>)}
-            {!ro && kmCheck?.odometerNote && <p className="mt-1 text-xs text-blue-600">{kmCheck.odometerNote}</p>}
+            {endKmWarning && <p className="mt-1 text-xs text-warning-text">{endKmWarning}</p>}
+            {endKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-warning-text">{w.message}</p>)}
+            {!ro && kmCheck?.odometerNote && <p className="mt-1 text-xs text-accent-text">{kmCheck.odometerNote}</p>}
           </Field>
           <Field label="Total km *">
-            <DecimalInput type="number" className={`${fc} bg-gray-50`} value={form.totalKm} readOnly placeholder="Auto-calculated" />
+            <DecimalInput type="number" className={`${fc} bg-fill-1`} value={form.totalKm} readOnly placeholder="Auto-calculated" />
           </Field>
           <Field label="Cargo Weight (tons)">
             <input className={ac} value={form.cargoWeight} readOnly={!auto} disabled={!auto} onChange={(e) => set("cargoWeight", e.target.value)} placeholder="Auto-fetched from trip" />
@@ -704,7 +702,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <Field label="Rate per Ton (₹)">
               <input className={roClass} value={form.ratePerTon} readOnly disabled placeholder="Auto-fetched from trip" />
               {form.ratePerTon && form.cargoWeight && (
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-text-tertiary">
                   {form.cargoWeight} tons × ₹{form.ratePerTon}/ton = ₹{(parseFloat(form.cargoWeight) * parseFloat(form.ratePerTon)).toLocaleString("en-IN")}
                 </p>
               )}
@@ -719,7 +717,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <button
               type="button"
               onClick={addDieselEntry}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-accent-border-strong bg-accent-surface px-3 py-1.5 text-caption-1-semibold text-accent-text hover:bg-accent-surface-strong transition-colors"
             >
               <PlusCircle className="h-3.5 w-3.5" /> Add Fill
             </button>
@@ -732,36 +730,36 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           const gap      = startOdo > 0 ? startOdo - lastOdo : null;
           const hugeGap  = gap !== null && Math.abs(gap) > 5000;
           return (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${hugeGap ? "border-amber-300 bg-amber-50" : "border-indigo-200 bg-indigo-50"}`}>
-              <p className={`text-[11px] font-bold uppercase tracking-wider mb-2 ${hugeGap ? "text-amber-700" : "text-indigo-600"}`}>
+            <div className={`rounded-xl border px-4 py-3 text-sm ${hugeGap ? "border-warning-border-strong bg-warning-surface" : "border-purple-border bg-purple-surface"}`}>
+              <p className={`text-caption-2-semibold mb-2 ${hugeGap ? "text-warning-text" : "text-purple-text"}`}>
                 Last Recorded Fill for this Truck
               </p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Date</span>
-                  <p className="font-semibold text-gray-800">{formatDate(lastFuelLog.date)}</p>
+                  <span className="text-[10px] text-text-tertiary">Date</span>
+                  <p className="font-semibold text-text-primary">{formatDate(lastFuelLog.date)}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Odometer</span>
-                  <p className="font-semibold text-gray-800">{lastOdo.toLocaleString("en-IN")} km</p>
+                  <span className="text-[10px] text-text-tertiary">Odometer</span>
+                  <p className="font-semibold text-text-primary">{lastOdo.toLocaleString("en-IN")} km</p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Fuel Filled</span>
-                  <p className="font-semibold text-gray-800">{Number(lastFuelLog.litres).toFixed(1)} L</p>
+                  <span className="text-[10px] text-text-tertiary">Fuel Filled</span>
+                  <p className="font-semibold text-text-primary">{Number(lastFuelLog.litres).toFixed(1)} L</p>
                 </div>
                 {lastFuelLog.fuelStation && (
                   <div>
-                    <span className="text-[10px] uppercase tracking-wider text-gray-400">Station</span>
-                    <p className="font-semibold text-gray-800">{lastFuelLog.fuelStation}</p>
+                    <span className="text-[10px] text-text-tertiary">Station</span>
+                    <p className="font-semibold text-text-primary">{lastFuelLog.fuelStation}</p>
                   </div>
                 )}
               </div>
               {gap !== null && (
-                <p className={`mt-2 text-xs font-medium ${hugeGap ? "text-amber-800" : "text-indigo-700"}`}>
-                  Distance since last fill: <span className="font-bold">{gap.toLocaleString("en-IN")} km</span>
+                <p className={`mt-2 text-caption-1-medium ${hugeGap ? "text-warning-text-strong" : "text-purple-text"}`}>
+                  Distance since last fill: <span className="font-semibold">{gap.toLocaleString("en-IN")} km</span>
                   {hugeGap && (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                      ⚠ Unusually large gap — please verify the Start KM
+                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text-strong">
+                      <WarnIcon className="size-3.5" />Unusually large gap — please verify the Start KM
                     </span>
                   )}
                 </p>
@@ -772,16 +770,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         <div className="flex flex-col gap-5">
           {form.dieselEntries.map((entry, idx) => (
-            <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div key={idx} className="rounded-xl border border-separator-border bg-fill-1 p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <span className="text-caption-1-semibold text-text-secondary">
                   Fill #{idx + 1}
                 </span>
                 {!ro && form.dieselEntries.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeDieselEntry(idx)}
-                    className="inline-flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700"
+                    className="inline-flex items-center gap-1 text-xs text-danger-text hover:text-danger-text"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Remove
                   </button>
@@ -790,7 +788,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   <button
                     type="button"
                     onClick={() => clearDieselEntry(idx)}
-                    className="inline-flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700"
+                    className="inline-flex items-center gap-1 text-xs text-danger-text hover:text-danger-text"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Clear
                   </button>
@@ -799,13 +797,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               {/* Whether this fill will reach Fuel History (litres > 0) */}
               {!ro && (
                 fillRecorded(entry) ? (
-                  <p className={`mb-3 text-xs ${n(entry.totalCost) > 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                  <p className={`mb-3 text-xs ${n(entry.totalCost) > 0 ? "text-success-text" : "text-warning-text"}`}>
                     {n(entry.totalCost) > 0
                       ? "Will be added to Fuel History when you save."
                       : "Will be added to Fuel History — but enter Cost Per Litre, or it's recorded at ₹0."}
                   </p>
                 ) : (
-                  <p className="mb-3 text-xs text-gray-400">
+                  <p className="mb-3 text-xs text-text-tertiary">
                     Not recorded — enter Quantity (Litres) to add this fill to Fuel History.
                   </p>
                 )
@@ -851,14 +849,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                 <Field label="Total Fuel Cost (₹)">
                   <DecimalInput
                     type="number" min="0"
-                    className={`${fc} bg-white`}
+                    className={`${fc} bg-background-primary-default`}
                     value={entry.totalCost}
                     readOnly={!!(entry.litres && entry.costPerLitre) || ro}
                     onChange={(e) => updateDieselEntry(idx, "totalCost", e.target.value)}
                     placeholder="Auto-calculated"
                   />
                   {n(entry.litres) > 0 && n(entry.costPerLitre) > 0 && (
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-text-tertiary">
                       {entry.litres} L × ₹{entry.costPerLitre}/L = ₹{n(entry.totalCost).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </p>
                   )}
@@ -879,7 +877,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             </div>
           ))}
           {form.dieselEntries.length > 1 && (
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800">
+            <div className="rounded-lg border border-accent-border bg-accent-surface px-4 py-2 text-body-semibold text-accent-text-strong">
               Total Diesel Cost: ₹{form.dieselEntries.reduce((sum, e) => sum + n(e.totalCost), 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
           )}
@@ -890,17 +888,17 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Company Halt Days (Driver)">
             <input className={roClass} value={companyHaltDays > 0 ? String(companyHaltDays) : ""} readOnly disabled placeholder="Auto-fetched" />
-            <p className="mt-1 text-xs text-gray-400">Included in trip expenses</p>
+            <p className="mt-1 text-xs text-text-tertiary">Included in trip expenses</p>
           </Field>
           <Field label="Company Halt Pay (₹)">
             <input className={roClass} value={companyHaltPay > 0 ? companyHaltPay.toFixed(2) : ""} readOnly disabled placeholder="Auto-calculated" />
           </Field>
           <Field label="Party Halt Days (Customer)">
-            <input className={`${roClass} ${partyHaltDays > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`} value={partyHaltDays > 0 ? String(partyHaltDays) : ""} readOnly disabled placeholder="Auto-fetched" />
-            <p className="mt-1 text-xs text-amber-500">Not included in trip expenses — recoverable from customer</p>
+            <input className={`${roClass} ${partyHaltDays > 0 ? "border-warning-border bg-warning-surface text-warning-text" : ""}`} value={partyHaltDays > 0 ? String(partyHaltDays) : ""} readOnly disabled placeholder="Auto-fetched" />
+            <p className="mt-1 text-xs text-warning-text">Not included in trip expenses — recoverable from customer</p>
           </Field>
           <Field label="Party Halt Pay (₹)">
-            <input className={`${roClass} ${partyHaltPay > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`} value={partyHaltPay > 0 ? partyHaltPay.toFixed(2) : ""} readOnly disabled placeholder="Auto-calculated" />
+            <input className={`${roClass} ${partyHaltPay > 0 ? "border-warning-border bg-warning-surface text-warning-text" : ""}`} value={partyHaltPay > 0 ? partyHaltPay.toFixed(2) : ""} readOnly disabled placeholder="Auto-calculated" />
           </Field>
           <Field label="Halt Remarks" className="sm:col-span-2">
             <input className={roClass} value={haltRemarks} readOnly disabled placeholder="Auto-fetched" />
@@ -960,7 +958,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   description: "",
                   cost: rt.defaultCost !== "0" ? rt.defaultCost : "",
                 }])}
-                className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                className="rounded-full border border-accent-border bg-accent-surface px-3 py-1 text-caption-1-medium text-accent-text hover:bg-accent-surface-strong transition-colors"
               >
                 + {rt.name}
               </button>
@@ -972,14 +970,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             set("majorRepairs", form.majorRepairs.map((r, i) => i === idx ? { ...r, ...patch } : r));
           };
           return (
-            <div key={idx} className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-3">
+            <div key={idx} className="rounded-xl border border-orange-border bg-orange-surface/40 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wide text-orange-700">Repair {idx + 1}</span>
+                <span className="text-caption-1-semibold text-orange-text">Repair {idx + 1}</span>
                 {!ro && (
                   <button
                     type="button"
                     onClick={() => set("majorRepairs", form.majorRepairs.filter((_, i) => i !== idx))}
-                    className="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-500 hover:bg-red-50 transition-colors"
+                    className="rounded-lg border border-danger-border px-2.5 py-1 text-xs text-danger-text hover:bg-danger-surface-strong transition-colors"
                   >
                     Remove
                   </button>
@@ -1051,20 +1049,20 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               description: "",
               cost: "",
             }])}
-            className="self-start rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
+            className="self-start rounded-lg border border-accent-border px-3 py-1.5 text-caption-1-medium text-accent-text hover:bg-accent-surface-strong"
           >
             + Add Repair
           </button>
         )}
         {(form.majorRepairs || []).length > 0 && (
-          <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 flex flex-col gap-2">
+          <div className="rounded-xl border border-orange-border bg-orange-surface px-4 py-3 flex flex-col gap-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-semibold text-orange-800">Major Repairs Total</span>
-              <span className="text-sm font-bold text-orange-800">
+              <span className="text-body-semibold text-orange-text-strong">Major Repairs Total</span>
+              <span className="text-body-semibold text-orange-text-strong">
                 {fmt(String((form.majorRepairs || []).reduce((sum, r) => sum + n(r.cost), 0)))}
               </span>
             </div>
-            <p className="text-xs text-orange-600 leading-relaxed">
+            <p className="text-xs text-orange-text leading-relaxed">
               Note: These maintenance charges will be recorded for this truck but will not be included in the cost of this trip.
               Each repair goes to Maintenance Approvals first and is added to the truck&apos;s record once Admin or Accounts approves it.
             </p>
@@ -1075,7 +1073,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Other Expenses *">
             <DecimalInput type="number" min="0" className={fc} value={form.otherExpenses} readOnly={ro} disabled={ro} onChange={(e) => set("otherExpenses", e.target.value)} placeholder="e.g. 0" />
-            <p className="mt-1 text-xs text-amber-600">Note: Please don&apos;t add maintenance charges here.</p>
+            <p className="mt-1 text-xs text-warning-text">Note: Please don&apos;t add maintenance charges here.</p>
           </Field>
         </div>
 
@@ -1098,18 +1096,18 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             const current   = (parseFloat(form.driverAdvance) || 0) + (parseFloat(form.additionalDriverAdvance) || 0);
             if (corrected > 0 && Math.abs(current - corrected) < 0.01) return null;
             return (
-              <div className="sm:col-span-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                <span className="mt-0.5 text-amber-500 text-sm">⚠</span>
-                <div className="text-sm text-amber-800">
+              <div className="sm:col-span-3 flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface px-4 py-3">
+                <WarnIcon className="mt-0.5 size-4 shrink-0 text-warning-text" />
+                <div className="text-sm text-warning-text-strong">
                   <p className="font-semibold">Advance Mismatch Recorded by Yard Supervisor</p>
                   <p className="mt-0.5">
                     Advance paid to driver was recorded as{" "}
                     <span className="font-semibold">₹{Number(closure?.driverAdvance || 0).toLocaleString("en-IN")}</span>,
                     but the correct amount noted is{" "}
-                    <span className="font-semibold text-amber-900">₹{corrected.toLocaleString("en-IN")}</span>.
+                    <span className="font-semibold text-warning-text-strong">₹{corrected.toLocaleString("en-IN")}</span>.
                     Update the advance fields below to match.
                     {trip.advanceVerificationRemark && (
-                      <span className="block mt-0.5 text-amber-700">Remark: {trip.advanceVerificationRemark}</span>
+                      <span className="block mt-0.5 text-warning-text">Remark: {trip.advanceVerificationRemark}</span>
                     )}
                   </p>
                 </div>
@@ -1127,9 +1125,9 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               placeholder="e.g. 1000"
             />
             {(() => {
-              if (form.driverCompensationType === "CUSTOM") return <p className="mt-1 text-xs text-gray-400">Custom batta amount based on compensation type.</p>;
-              if (form.driverCompensationType === "PER KM" && n(form.totalKm) > 0) return <p className="mt-1 text-xs text-gray-400">Per-km rate × {n(form.totalKm).toLocaleString()} km. Edit to set amount.</p>;
-              return <p className="mt-1 text-xs text-gray-400">Batta paid to driver for this trip.</p>;
+              if (form.driverCompensationType === "CUSTOM") return <p className="mt-1 text-xs text-text-tertiary">Custom batta amount based on compensation type.</p>;
+              if (form.driverCompensationType === "PER KM" && n(form.totalKm) > 0) return <p className="mt-1 text-xs text-text-tertiary">Per-km rate × {n(form.totalKm).toLocaleString()} km. Edit to set amount.</p>;
+              return <p className="mt-1 text-xs text-text-tertiary">Batta paid to driver for this trip.</p>;
             })()}
           </Field>
           <Field label="Driver Advance (₹)">
@@ -1142,7 +1140,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               onChange={(e) => updateAdvanceField("driver", e.target.value)}
               placeholder="e.g. 2000"
             />
-            <p className="mt-1 text-xs text-gray-400">Advance paid at trip assignment.</p>
+            <p className="mt-1 text-xs text-text-tertiary">Advance paid at trip assignment.</p>
           </Field>
           <Field label="Initial Disbursed Advance (₹)">
             <input
@@ -1155,12 +1153,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
               placeholder="e.g. 500"
             />
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-text-tertiary">
               Actual amount disbursed to driver — must be less than Driver Advance
               {form.driverAdvance ? ` (₹${parseFloat(form.driverAdvance).toLocaleString("en-IN")})` : ""}.
               Leave blank if the full advance was sent.
               {localInitialDisbursedAdvance && (
-                <span className="ml-1 font-semibold text-blue-600">
+                <span className="ml-1 font-semibold text-accent-text">
                   Balance uses ₹{parseFloat(localInitialDisbursedAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} as advance.
                 </span>
               )}
@@ -1176,16 +1174,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               onChange={(e) => updateAdvanceField("additional", e.target.value)}
               placeholder="e.g. 500"
             />
-            <p className="mt-1 text-xs text-gray-400">Extra advance paid during the trip.</p>
+            <p className="mt-1 text-xs text-text-tertiary">Extra advance paid during the trip.</p>
           </Field>
           <Field label="Driver Balance">
-            <DecimalInput type="number" className={`${fc} bg-gray-50 font-semibold`} value={form.driverBalance} readOnly placeholder="Auto-calculated" />
+            <DecimalInput type="number" className={`${fc} bg-fill-1 font-semibold`} value={form.driverBalance} readOnly placeholder="Auto-calculated" />
             {(() => {
               const bal = n(form.driverBalance);
               const amt = `₹${Math.abs(bal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-              if (bal > 0)  return <p className="mt-1 text-xs font-medium text-emerald-600">Company owes {amt} to the driver.</p>;
-              if (bal < 0)  return <p className="mt-1 text-xs font-medium text-amber-600">Driver owes {amt} to the company.</p>;
-              if (n(form.driverAdvanceAmount) > 0) return <p className="mt-1 text-xs text-gray-400">Settled — expenses equal advance.</p>;
+              if (bal > 0)  return <p className="mt-1 text-caption-1-medium text-success-text">Company owes {amt} to the driver.</p>;
+              if (bal < 0)  return <p className="mt-1 text-caption-1-medium text-warning-text">Driver owes {amt} to the company.</p>;
+              if (n(form.driverAdvanceAmount) > 0) return <p className="mt-1 text-xs text-text-tertiary">Settled — expenses equal advance.</p>;
               return null;
             })()}
           </Field>
@@ -1193,7 +1191,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 9. Expense Summary ── */}
         <p className={sh}>Expense Summary</p>
-        <div className="rounded-xl border border-gray-200 overflow-hidden text-sm">
+        <div className="rounded-xl border border-separator-border overflow-hidden text-sm">
           {[
             { label: "Driver Batta",              value: form.driverPay },
             { label: "Halt Pay",                  value: String(haltPay) },
@@ -1210,32 +1208,32 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           ].map(({ label, value }) => {
             const amt = n(value);
             return (
-              <div key={label} className={`flex justify-between items-center px-4 py-2.5 border-b border-gray-100 ${amt === 0 ? "text-gray-400" : "text-gray-700"}`}>
+              <div key={label} className={`flex justify-between items-center px-4 py-2.5 border-b border-separator-border ${amt === 0 ? "text-text-tertiary" : "text-text-primary"}`}>
                 <span>{label}</span>
                 <span className={amt > 0 ? "font-semibold" : ""}>{fmt(value)}</span>
               </div>
             );
           })}
-          <div className="bg-gray-50 px-4 py-3 flex flex-col gap-2">
+          <div className="bg-fill-1 px-4 py-3 flex flex-col gap-2">
             <div className="flex justify-between">
-              <span className="font-semibold text-blue-700">Trip Expenses</span>
-              <span className="font-semibold text-blue-700">{fmt(form.tripExpensesTotal)}</span>
+              <span className="font-semibold text-accent-text">Trip Expenses</span>
+              <span className="font-semibold text-accent-text">{fmt(form.tripExpensesTotal)}</span>
             </div>
-            <div className="flex justify-between text-gray-600">
-              <span className="font-medium">Driver Expenses <span className="text-xs font-normal text-gray-400">(out-of-pocket)</span></span>
+            <div className="flex justify-between text-text-secondary">
+              <span className="font-medium">Driver Expenses <span className="text-caption-1-regular text-text-tertiary">(out-of-pocket)</span></span>
               <span className="font-medium">{fmt(form.driverExpensesTotal)}</span>
             </div>
-            <div className="flex justify-between border-t border-gray-200 pt-2 mt-0.5">
-              <span className="font-bold text-emerald-700 text-base">Total Expense</span>
-              <span className="font-bold text-emerald-700 text-base">{fmt(form.totalExpense)}</span>
+            <div className="flex justify-between border-t border-separator-border pt-2 mt-0.5">
+              <span className="text-success-text text-headline-semibold">Total Expense</span>
+              <span className="text-success-text text-headline-semibold">{fmt(form.totalExpense)}</span>
             </div>
           </div>
         </div>
 
         {partyHaltPay > 0 && (
-          <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-            <span className="mt-0.5 text-amber-500">⚠</span>
-            <p className="text-sm text-amber-800">
+          <div className="flex items-start gap-2 rounded-xl border border-warning-border-strong bg-warning-surface px-4 py-3">
+            <WarnIcon className="mt-0.5 size-4 shrink-0 text-warning-text" />
+            <p className="text-sm text-warning-text-strong">
               <span className="font-semibold">Party Halt has been mentioned</span> — make sure to pay{" "}
               <span className="font-semibold">₹{partyHaltPay.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>{" "}
               to the Driver for {partyHaltDays} party halt {partyHaltDays === 1 ? "day" : "days"} (this amount is recoverable from the customer).
@@ -1249,36 +1247,36 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <p className={sh}>Invoicing</p>
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-gray-700">Is this trip to be Invoiced?</span>
-                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <span className="text-body-medium text-text-primary">Is this trip to be Invoiced?</span>
+                <div className="inline-flex rounded-lg border border-separator-border overflow-hidden shadow-sm">
                   <button
                     type="button"
                     onClick={() => setInvoiceRequired(true)}
-                    className={`px-6 py-2 text-sm font-semibold transition-colors ${invoiceRequired ? "bg-blue-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                    className={`px-6 py-2 text-body-semibold transition-colors ${invoiceRequired ? "bg-accent-solid text-on-solid" : "bg-background-primary-default text-text-secondary hover:bg-fill-2"}`}
                   >
                     Yes
                   </button>
                   <button
                     type="button"
                     onClick={() => setInvoiceRequired(false)}
-                    className={`px-6 py-2 text-sm font-semibold transition-colors border-l border-gray-200 ${!invoiceRequired ? "bg-amber-500 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                    className={`px-6 py-2 text-body-semibold transition-colors border-l border-separator-border ${!invoiceRequired ? "bg-warning-solid text-on-solid" : "bg-background-primary-default text-text-secondary hover:bg-fill-2"}`}
                   >
                     No
                   </button>
                 </div>
               </div>
               {invoiceRequired ? (
-                <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-                  <span className="mt-0.5 text-blue-500 text-sm">ℹ</span>
-                  <p className="text-sm text-blue-800">
+                <div className="flex items-start gap-2 rounded-lg border border-accent-border bg-accent-surface px-4 py-3">
+                  <span className="mt-0.5 text-accent-text text-sm">ℹ</span>
+                  <p className="text-sm text-accent-text-strong">
                     <span className="font-semibold">Invoice Required — </span>
                     After verification this trip will be available for invoicing on the <span className="font-semibold">Verification &amp; Invoicing</span> page before going to Trip History.
                   </p>
                 </div>
               ) : (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                  <span className="mt-0.5 text-amber-500 text-sm">⚠</span>
-                  <p className="text-sm text-amber-800">
+                <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface px-4 py-3">
+                  <WarnIcon className="mt-0.5 size-4 shrink-0 text-warning-text" />
+                  <p className="text-sm text-warning-text-strong">
                     <span className="font-semibold">No Invoice — </span>
                     This trip will be verified on the <span className="font-semibold">Verification &amp; Invoicing</span> page but will <span className="font-semibold">skip invoicing</span> and go directly to <span className="font-semibold">Trip History</span>.
                   </p>
@@ -1296,14 +1294,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             placeholder="Any additional notes…" />
         </Field>
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+        <div className="flex justify-end gap-3 border-t border-separator-border pt-4">
           <button type="button" onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+            className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2">
             {ro ? "Close" : "Cancel"}
           </button>
           {!ro && (
             <button type="submit" disabled={saving}
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+              className="rounded-lg bg-accent-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-60">
               {saving ? "Saving…" : "Save Trip Sheet"}
             </button>
           )}

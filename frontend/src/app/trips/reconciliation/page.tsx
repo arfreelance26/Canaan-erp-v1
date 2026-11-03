@@ -16,10 +16,10 @@ import type { EditApprovalResourceType, EditApprovalRequest } from "@/types/edit
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Eye, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, Trash2, History, Plus, Pencil, XCircle, RotateCcw } from "lucide-react";
+import { RiEyeLine as Eye, RiCheckboxCircleLine as CheckCircle2, RiDownloadLine as Download, RiInboxLine as Inbox, RiFileList3Line as ClipboardList, RiNavigationLine as Navigation, RiCloseLine as X, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw, RiCheckLine as OkIcon, RiCloseLine as NoIcon, RiTimeLine as WaitIcon } from "@remixicon/react";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -41,20 +41,21 @@ const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<TripEditEventRow["event"], string> = {
-  "Booking Created": "bg-blue-100 text-blue-700",
-  "Booking Edited": "bg-amber-100 text-amber-700",
-  "Trip Sheet Saved": "bg-violet-100 text-violet-700",
-  "Trip Updated": "bg-amber-100 text-amber-700",
-  "Trip Closed": "bg-emerald-100 text-emerald-700",
-  "Verification Confirmed": "bg-emerald-100 text-emerald-700",
-  "Verification Rejected": "bg-red-100 text-red-700",
-  "Trip Deleted": "bg-red-100 text-red-700",
-  "Trip Restored": "bg-emerald-100 text-emerald-700",
+  "Booking Created": "bg-accent-surface-strong text-accent-text",
+  "Booking Edited": "bg-warning-surface-strong text-warning-text",
+  "Trip Sheet Saved": "bg-purple-surface-strong text-purple-text",
+  "Trip Updated": "bg-warning-surface-strong text-warning-text",
+  "Trip Closed": "bg-success-surface-strong text-success-text",
+  "Verification Confirmed": "bg-success-surface-strong text-success-text",
+  "Verification Rejected": "bg-danger-surface-strong text-danger-text",
+  "Trip Deleted": "bg-danger-surface-strong text-danger-text",
+  "Trip Restored": "bg-success-surface-strong text-success-text",
 };
 import { useNotifications } from "@/context/NotificationContext";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 import { todayIst } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type DialogMode = "add" | "view" | "edit";
 
 // Reconciliation stage → color/label, matching the status filter cards.
@@ -186,7 +187,7 @@ export default function TripReconciliationPage() {
     if (!isAdminOrManager) return;
     const p = payload as { trip_id_str?: string; booking_reference_no?: string; reported_by?: string };
     showError(
-      `⚠️ Trip Sheet Not Received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Yard Supervisor but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
+      `Trip sheet not received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Yard Supervisor but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
     );
     setRefreshKey(k => k + 1);
   });
@@ -701,12 +702,12 @@ export default function TripReconciliationPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-border bg-purple-surface text-purple-text shadow-sm">
           <ClipboardList className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Reconciliation</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Trip Reconciliation</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">
             View and manage booking sheets and trip sheets for closed trips
           </p>
         </div>
@@ -714,7 +715,7 @@ export default function TripReconciliationPage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="ml-auto flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="ml-auto flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -731,7 +732,7 @@ export default function TripReconciliationPage() {
         <button
           type="button"
           onClick={() => setShowCurrentTrips(true)}
-          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-50 hover:shadow-md"
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-accent-border bg-background-primary-default px-4 text-body-medium text-accent-text shadow-sm transition duration-300 hover:bg-accent-surface-strong hover:shadow-md"
         >
           <Navigation className="h-4 w-4" />
           View Current Trips
@@ -750,7 +751,7 @@ export default function TripReconciliationPage() {
             type="button"
             onClick={() => setShowReportModal(true)}
             title="View and download trip sheets for selected date range"
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Eye className="h-4 w-4" />
             View
@@ -762,34 +763,34 @@ export default function TripReconciliationPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Rejected", "Request Raised", "Request Approved", "Request Rejected"] as const).map((f) => {
           const colors: Record<string, string> = {
-            "All":                  "border-gray-200 bg-white text-gray-700",
-            "Pending Receive":      "border-amber-200 bg-amber-50 text-amber-700",
-            "Pending Sheet Entry":  "border-blue-200 bg-blue-50 text-blue-700",
-            "Sheet Entered":        "border-emerald-200 bg-emerald-50 text-emerald-700",
-            "Rejected":             "border-rose-200 bg-rose-50 text-rose-700",
-            "Request Raised":       "border-purple-200 bg-purple-50 text-purple-700",
-            "Request Approved":     "border-teal-200 bg-teal-50 text-teal-700",
-            "Request Rejected":    "border-orange-200 bg-orange-50 text-orange-700",
+            "All":                  "border-separator-border bg-background-primary-default text-text-primary",
+            "Pending Receive":      "border-warning-border bg-warning-surface text-warning-text",
+            "Pending Sheet Entry":  "border-accent-border bg-accent-surface text-accent-text",
+            "Sheet Entered":        "border-success-border bg-success-surface text-success-text",
+            "Rejected":             "border-danger-border bg-danger-surface text-danger-text",
+            "Request Raised":       "border-purple-border bg-purple-surface text-purple-text",
+            "Request Approved":     "border-teal-border bg-teal-surface text-teal-text",
+            "Request Rejected":    "border-orange-border bg-orange-surface text-orange-text",
           };
           const activeRing: Record<string, string> = {
-            "All":                  "ring-2 ring-gray-400",
-            "Pending Receive":      "ring-2 ring-amber-400",
-            "Pending Sheet Entry":  "ring-2 ring-blue-400",
-            "Sheet Entered":        "ring-2 ring-emerald-400",
-            "Rejected":             "ring-2 ring-rose-400",
-            "Request Raised":       "ring-2 ring-purple-400",
-            "Request Approved":     "ring-2 ring-teal-400",
-            "Request Rejected":    "ring-2 ring-orange-400",
+            "All":                  "ring-2 ring-border-button-default",
+            "Pending Receive":      "ring-2 ring-warning-border-strong",
+            "Pending Sheet Entry":  "ring-2 ring-accent-border-strong",
+            "Sheet Entered":        "ring-2 ring-success-border-strong",
+            "Rejected":             "ring-2 ring-danger-border-strong",
+            "Request Raised":       "ring-2 ring-purple-border-strong",
+            "Request Approved":     "ring-2 ring-teal-border-strong",
+            "Request Rejected":    "ring-2 ring-orange-border-strong",
           };
           return (
             <button
               key={f}
               type="button"
               onClick={() => { setStatusFilter(f); setApprovedSubFilter("All"); setPage(1); }}
-              className={`flex flex-col items-center rounded-xl border px-3 py-3 transition-all ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
+              className={`flex flex-col items-center rounded-xl border px-3 py-3 transition ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
             >
-              <span className="text-xl font-bold">{counts[f]}</span>
-              <span className="text-xs font-medium text-center">{f}</span>
+              <span className="text-title-2-semibold">{counts[f]}</span>
+              <span className="text-caption-1-medium text-center">{f}</span>
             </button>
           );
         })}
@@ -798,7 +799,7 @@ export default function TripReconciliationPage() {
       {/* Completed / Pending sub-filter — only under "Request Approved" */}
       {statusFilter === "Request Approved" && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">Refine:</span>
+          <span className="text-caption-1-medium text-text-secondary">Refine:</span>
           {(["All", "Completed", "Pending"] as const).map((sf) => {
             const active = approvedSubFilter === sf;
             const count = sf === "All" ? counts["Request Approved"] : approvedSubCounts[sf];
@@ -807,14 +808,14 @@ export default function TripReconciliationPage() {
                 key={sf}
                 type="button"
                 onClick={() => { setApprovedSubFilter(sf); setPage(1); }}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption-1-semibold transition-colors ${
                   active
                     ? sf === "Completed"
-                      ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+                      ? "border-success-border-strong bg-success-surface-strong text-success-text"
                       : sf === "Pending"
-                        ? "border-amber-300 bg-amber-100 text-amber-700"
-                        : "border-gray-400 bg-[#111827] text-white dark:border-[#5b7bd5] dark:bg-[#26305a]"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                        ? "border-warning-border-strong bg-warning-surface-strong text-warning-text"
+                        : "border-border-button-hover bg-inverse text-on-solid "
+                    : "border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2"
                 }`}
               >
                 {sf} ({count})
@@ -825,25 +826,25 @@ export default function TripReconciliationPage() {
       )}
 
       {/* Workflow legend */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
-        <span className="font-semibold text-gray-600">Workflow:</span>
-        <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5 text-amber-500" /> Sheet delivered by Yard → pending receive</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-blue-500" /> Received → pending sheet entry</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Sheet entered → moves to Verification</span>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
+        <span className="font-semibold text-text-secondary">Workflow:</span>
+        <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5 text-warning-text" /> Sheet delivered by Yard → pending receive</span>
+        <span className="text-text-tertiary">›</span>
+        <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-accent-text" /> Received → pending sheet entry</span>
+        <span className="text-text-tertiary">›</span>
+        <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-success-text" /> Sheet entered → moves to Verification</span>
       </div>
 
       {/* Active filter label */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-text-secondary">
         <span>
-          Showing <span className="font-semibold text-gray-800">{filteredTrips.length}</span> of{" "}
-          <span className="font-semibold text-gray-800">{trips.length}</span> trips
+          Showing <span className="font-semibold text-text-primary">{filteredTrips.length}</span> of{" "}
+          <span className="font-semibold text-text-primary">{trips.length}</span> trips
           {statusFilter !== "All" && (
             <>
-              {" "}— filtered by <span className="font-semibold text-gray-800">{statusFilter}</span>
+              {" "}— filtered by <span className="font-semibold text-text-primary">{statusFilter}</span>
               {statusFilter === "Request Approved" && approvedSubFilter !== "All" && (
-                <> / <span className="font-semibold text-gray-800">{approvedSubFilter}</span></>
+                <> / <span className="font-semibold text-text-primary">{approvedSubFilter}</span></>
               )}
             </>
           )}
@@ -852,7 +853,7 @@ export default function TripReconciliationPage() {
           <button
             type="button"
             onClick={() => { setStatusFilter("All"); setApprovedSubFilter("All"); setPage(1); }}
-            className="ml-1 rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+            className="ml-1 rounded-full border border-border-button-default bg-background-primary-default px-2 py-0.5 text-xs text-text-secondary hover:bg-fill-3"
           >
             Clear
           </button>
@@ -860,24 +861,22 @@ export default function TripReconciliationPage() {
       </div>
 
       {filteredTrips.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          No closed trips yet.
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No closed trips yet" />
       ) : (
         <>
-        <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default">
           <table className="w-full min-w-[1300px] text-left text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b border-gray-200 bg-gray-50">
+              <tr className="border-b border-separator-border bg-fill-1">
                 {["Trip Sheet Status", "Actions", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref", "Customer",
                   "Hire Amount", "Total Expense", "Delete"].map((col) => (
-                  <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <th key={col} className="px-4 py-2 text-caption-1-semibold text-text-secondary">
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-separator-border">
               {paginatedTrips.map((trip) => {
                 const sheet = sheets.get(trip.id);
                 const customer = customerById.get(trip.customerId);
@@ -889,14 +888,14 @@ export default function TripReconciliationPage() {
                     <td className="px-4 py-2">
                       <span className={`${stageBadgeClass(stage.color)} mb-2`}>{stage.label}</span>
                       <div className="flex flex-col gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 w-fit">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-success-surface-strong px-2.5 py-1 text-caption-1-semibold text-success-text w-fit">
                           <CheckCircle2 className="h-3 w-3" />
                           Delivered
                         </span>
                         {trip.tripSheetCollectedAt && (
-                          <p className="text-[11px] text-gray-500 leading-snug max-w-[160px] whitespace-normal">
+                          <p className="text-[11px] text-text-secondary leading-snug max-w-[160px] whitespace-normal">
                             Trip Sheet for this Trip has been handed over on{" "}
-                            <span className="font-semibold text-gray-700">
+                            <span className="font-semibold text-text-primary">
                               {new Date(
                                 trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+")
                                   ? trip.tripSheetCollectedAt
@@ -911,11 +910,11 @@ export default function TripReconciliationPage() {
                           </p>
                         )}
                         {trip.tripSheetReceived ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 w-fit">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-surface-strong px-2.5 py-1 text-caption-1-semibold text-accent-text w-fit">
                             <CheckCircle2 className="h-3 w-3" />
                             Received
                             {trip.tripSheetReceivedAt && (
-                              <span className="font-normal text-blue-500">
+                              <span className="font-normal text-accent-text">
                                 {new Date(
                                   trip.tripSheetReceivedAt.endsWith("Z") || trip.tripSheetReceivedAt.includes("+")
                                     ? trip.tripSheetReceivedAt
@@ -929,7 +928,7 @@ export default function TripReconciliationPage() {
                             type="button"
                             disabled={toggling.has(trip.id)}
                             onClick={() => handleMarkReceived(trip)}
-                            className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 w-fit"
+                            className="rounded-lg bg-accent-solid px-2.5 py-1 text-caption-1-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-50 w-fit"
                           >
                             {toggling.has(trip.id) ? "..." : "Mark as Received"}
                           </button>
@@ -937,7 +936,7 @@ export default function TripReconciliationPage() {
                         {sheet ? (
                           <span
                             title="Trip sheet has already been entered — cannot unmark delivery"
-                            className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-400 cursor-not-allowed w-fit"
+                            className="inline-block rounded-lg border border-separator-border bg-fill-1 px-2.5 py-1 text-caption-1-semibold text-text-tertiary cursor-not-allowed w-fit"
                           >
                             Locked
                           </span>
@@ -946,7 +945,7 @@ export default function TripReconciliationPage() {
                             type="button"
                             disabled={toggling.has(trip.id)}
                             onClick={() => handleMarkNotReceived(trip)}
-                            className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-50 w-fit"
+                            className="rounded-lg border border-danger-border-strong bg-danger-surface px-2.5 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 w-fit"
                           >
                             {toggling.has(trip.id) ? "..." : "Mark as Not Received"}
                           </button>
@@ -959,13 +958,13 @@ export default function TripReconciliationPage() {
                       <div className="flex flex-col gap-2">
                         {/* Booking Sheet */}
                         <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Booking Sheet</p>
+                          <p className="text-caption-2-semibold text-text-tertiary">Booking Sheet</p>
                           {(() => {
                             const appr = getBookingSheetApproval(trip);
                             if (!appr) return null;
                             return (
-                              <p className="mb-0.5 text-[10px] font-semibold text-emerald-700">
-                                ✓ {appr.approvedByName ?? "Approver"} approved your Edit Request
+                              <p className="mb-0.5 flex items-center gap-1 text-caption-2-semibold text-success-text">
+                                <OkIcon className="size-3.5 shrink-0" />{appr.approvedByName ?? "Approver"} approved your Edit Request
                               </p>
                             );
                           })()}
@@ -973,14 +972,14 @@ export default function TripReconciliationPage() {
                             <button
                               type="button"
                               onClick={() => openBookingSheet(trip, true)}
-                              className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                              className="rounded-lg border border-border-button-default px-2.5 py-1 text-caption-1-semibold text-text-primary hover:bg-fill-3"
                             >
                               View
                             </button>
                             <button
                               type="button"
                               onClick={() => openBookingSheet(trip, false)}
-                              className="rounded-lg border border-purple-300 px-2.5 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-50"
+                              className="rounded-lg border border-purple-border-strong px-2.5 py-1 text-caption-1-semibold text-purple-text hover:bg-purple-surface-strong"
                             >
                               {isStaff ? "Request Edit" : "Edit"}
                             </button>
@@ -989,39 +988,40 @@ export default function TripReconciliationPage() {
 
                         {/* Trip Sheet */}
                         <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Trip Sheet</p>
+                          <p className="text-caption-2-semibold text-text-tertiary">Trip Sheet</p>
                           {(() => {
                             const req = latestRequestByTripId.get(trip.id);
                             if (!req) return null;
                             const approved = req.status === "Approved";
                             const rejected = req.status === "Rejected";
                             const style = approved
-                              ? { border: "border-teal-200 bg-teal-50", text: "text-teal-700", label: "✓ Edit Request Approved" }
+                              ? { border: "border-teal-border bg-teal-surface", text: "text-teal-text", label: "Edit Request Approved", Icon: OkIcon }
                               : rejected
-                                ? { border: "border-orange-200 bg-orange-50", text: "text-orange-700", label: "✗ Edit Request Rejected" }
-                                : { border: "border-purple-200 bg-purple-50", text: "text-purple-700", label: "⏳ Edit Request Raised" };
+                                ? { border: "border-orange-border bg-orange-surface", text: "text-orange-text", label: "Edit Request Rejected", Icon: NoIcon }
+                                : { border: "border-purple-border bg-purple-surface", text: "text-purple-text", label: "Edit Request Raised", Icon: WaitIcon };
                             return (
                               <div className={`mb-1 rounded-lg border px-2.5 py-1.5 flex flex-col gap-0.5 max-w-[220px] ${style.border}`}>
-                                <p className={`text-[10px] font-bold ${style.text}`}>
+                                <p className={`flex items-center gap-1 text-caption-2-semibold ${style.text}`}>
+                                  <style.Icon className="size-3.5 shrink-0" />
                                   {style.label}
                                 </p>
                                 {isAdmin && (
-                                  <p className="text-[10px] text-gray-600">
+                                  <p className="text-[10px] text-text-secondary">
                                     Raised by: <span className="font-semibold">{req.staffName}</span>
                                     {req.staffCode ? ` (${req.staffCode})` : ""}
                                   </p>
                                 )}
-                                <p className="text-[10px] text-gray-600 whitespace-normal leading-snug">
+                                <p className="text-[10px] text-text-secondary whitespace-normal leading-snug">
                                   Reason: {req.reason}
                                 </p>
                                 {approved && req.approvedByName && (
-                                  <p className="text-[10px] text-emerald-600">Approved by: {req.approvedByName}</p>
+                                  <p className="text-[10px] text-success-text">Approved by: {req.approvedByName}</p>
                                 )}
                                 {rejected && req.approvedByName && (
-                                  <p className="text-[10px] text-orange-600">Rejected by: {req.approvedByName}</p>
+                                  <p className="text-[10px] text-orange-text">Rejected by: {req.approvedByName}</p>
                                 )}
                                 {rejected && req.adminNote && (
-                                  <p className="text-[10px] text-orange-600 whitespace-normal leading-snug">
+                                  <p className="text-[10px] text-orange-text whitespace-normal leading-snug">
                                     Note: {req.adminNote}
                                   </p>
                                 )}
@@ -1029,16 +1029,16 @@ export default function TripReconciliationPage() {
                             );
                           })()}
                           {trip.verificationStatus === "rejected" && (
-                            <div className="mb-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 flex flex-col gap-1.5">
-                              <p className="text-[11px] font-bold text-rose-700">✗ Rejected by Accounts</p>
+                            <div className="mb-1 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-2 flex flex-col gap-1.5">
+                              <p className="flex items-center gap-1 text-caption-2-semibold text-danger-text"><NoIcon className="size-3.5 shrink-0" />Rejected by Accounts</p>
                               {trip.verificationRejectionReason && (
-                                <p className="text-[10px] text-rose-600 max-w-[200px] whitespace-normal leading-snug">
+                                <p className="text-[10px] text-danger-text max-w-[200px] whitespace-normal leading-snug">
                                   {trip.verificationRejectionReason}
                                 </p>
                               )}
                               {getTripSheetApproval(trip) ? (
-                                <p className="text-[10px] font-semibold text-emerald-700">
-                                  ✓ {getTripSheetApproval(trip)!.approvedByName ?? "Approver"} approved your Edit Request
+                                <p className="flex items-center gap-1 text-caption-2-semibold text-success-text">
+                                  <OkIcon className="size-3.5 shrink-0" />{getTripSheetApproval(trip)!.approvedByName ?? "Approver"} approved your Edit Request
                                 </p>
                               ) : (
                                 <button
@@ -1051,7 +1051,7 @@ export default function TripReconciliationPage() {
                                     });
                                     setEditRequestOpen(true);
                                   }}
-                                  className="self-start rounded-lg border border-rose-400 bg-white px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                                  className="self-start rounded-lg border border-danger-border-strong bg-background-primary-default px-2.5 py-1 text-caption-2-semibold text-danger-text hover:bg-danger-surface-strong"
                                 >
                                   Request Edit Approval from Kumar
                                 </button>
@@ -1061,7 +1061,7 @@ export default function TripReconciliationPage() {
                                   type="button"
                                   disabled={resubmitting.has(trip.id)}
                                   onClick={() => handleResubmitVerification(trip)}
-                                  className="self-start rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                                  className="self-start rounded-lg bg-danger-solid px-2.5 py-1 text-caption-2-semibold text-on-solid hover:bg-danger-solid-hover disabled:opacity-50"
                                 >
                                   {resubmitting.has(trip.id) ? "Re-submitting..." : "Re-submit for Verification"}
                                 </button>
@@ -1072,8 +1072,8 @@ export default function TripReconciliationPage() {
                             const appr = getTripSheetApproval(trip);
                             if (!appr || trip.verificationStatus === "rejected") return null;
                             return (
-                              <p className="mb-0.5 text-[10px] font-semibold text-emerald-700">
-                                ✓ {appr.approvedByName ?? "Approver"} approved your Edit Request
+                              <p className="mb-0.5 flex items-center gap-1 text-caption-2-semibold text-success-text">
+                                <OkIcon className="size-3.5 shrink-0" />{appr.approvedByName ?? "Approver"} approved your Edit Request
                               </p>
                             );
                           })()}
@@ -1082,14 +1082,14 @@ export default function TripReconciliationPage() {
                               <button
                                 type="button"
                                 onClick={() => openDialog(trip, "view")}
-                                className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                                className="rounded-lg border border-border-button-default px-2.5 py-1 text-caption-1-semibold text-text-primary hover:bg-fill-3"
                               >
                                 View
                               </button>
                               <button
                                 type="button"
                                 onClick={() => openDialog(trip, "edit")}
-                                className="rounded-lg border border-blue-300 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                className="rounded-lg border border-accent-border-strong px-2.5 py-1 text-caption-1-semibold text-accent-text hover:bg-accent-surface-strong"
                               >
                                 {isStaff ? "Request Edit" : "Edit"}
                               </button>
@@ -1100,7 +1100,7 @@ export default function TripReconciliationPage() {
                               disabled={!trip.tripSheetReceived}
                               title={!trip.tripSheetReceived ? "Mark the trip sheet as received first" : undefined}
                               onClick={() => openDialog(trip, "add")}
-                              className="self-start rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="self-start rounded-lg bg-accent-solid px-2.5 py-1 text-caption-1-semibold text-on-solid hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               ADD
                             </button>
@@ -1111,29 +1111,29 @@ export default function TripReconciliationPage() {
                     </td>
 
                     {/* Trip detail columns */}
-                    <td className="px-4 py-2 font-medium text-gray-800">
+                    <td className="px-4 py-2 font-medium text-text-primary">
                       {trip.truckRegistration ?? "—"}
                     </td>
-                    <td className="px-4 py-2 text-gray-700">
+                    <td className="px-4 py-2 text-text-primary">
                       <span>{trip.driverName ?? "—"}</span>
                       {trip.driverChangeRemark && (
-                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[140px] whitespace-normal">
+                        <p className="mt-0.5 text-[11px] text-warning-text leading-snug max-w-[140px] whitespace-normal">
                           Remark: {trip.driverChangeRemark}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
-                    <td className="px-4 py-2 text-gray-600">
-                      {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                    <td className="px-4 py-2 text-text-secondary font-mono text-xs">{containerRef(trip)}</td>
+                    <td className="px-4 py-2 text-text-secondary">
+                      {trip.origin} <span className="text-text-tertiary">→</span> {trip.destination}
                     </td>
-                    <td className="px-4 py-2 font-medium text-gray-900">{trip.tripId}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
-                    <td className="px-4 py-2 font-medium text-blue-700">
-                      {sheet ? fmt(n(sheet.hireAmount)) : <span className="text-gray-400">—</span>}
+                    <td className="px-4 py-2 font-medium text-text-primary">{trip.tripId}</td>
+                    <td className="px-4 py-2 text-text-secondary text-xs">{trip.bookingReferenceNo}</td>
+                    <td className="px-4 py-2 text-text-secondary">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
+                    <td className="px-4 py-2 font-medium text-accent-text">
+                      {sheet ? fmt(n(sheet.hireAmount)) : <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-4 py-2 font-medium text-emerald-700">
-                      {sheet ? fmt(n(sheet.totalExpense)) : <span className="text-gray-400">—</span>}
+                    <td className="px-4 py-2 font-medium text-success-text">
+                      {sheet ? fmt(n(sheet.totalExpense)) : <span className="text-text-tertiary">—</span>}
                     </td>
                     <td className="px-4 py-2">
                       {isAdmin ? (
@@ -1141,7 +1141,7 @@ export default function TripReconciliationPage() {
                           type="button"
                           onClick={() => setDeleteRequestTrip(trip)}
                           title="Delete this trip and all its data"
-                          className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                          className="flex items-center gap-1 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-1 text-caption-1-semibold text-danger-text hover:bg-danger-surface-strong transition-colors"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Delete
@@ -1151,7 +1151,7 @@ export default function TripReconciliationPage() {
                           type="button"
                           onClick={() => setDeleteRequestTrip(trip)}
                           title="Request Admin to delete this trip"
-                          className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                          className="flex items-center gap-1 rounded-lg border border-warning-border bg-warning-surface px-2.5 py-1 text-caption-1-semibold text-warning-text hover:bg-warning-surface-strong transition-colors"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Request Delete
@@ -1167,8 +1167,8 @@ export default function TripReconciliationPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <p className="text-sm text-gray-500">
+          <div className="flex items-center justify-between rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+            <p className="text-sm text-text-secondary">
               Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredTrips.length)} of {filteredTrips.length} trips
             </p>
             <div className="flex items-center gap-1">
@@ -1176,7 +1176,7 @@ export default function TripReconciliationPage() {
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage === 1}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
@@ -1189,16 +1189,16 @@ export default function TripReconciliationPage() {
                 }, [])
                 .map((item, i) =>
                   item === "..." ? (
-                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-text-tertiary">…</span>
                   ) : (
                     <button
                       key={item}
                       type="button"
                       onClick={() => setPage(item as number)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`rounded-lg px-3 py-1.5 text-caption-1-medium transition-colors ${
                         safePage === item
-                          ? "bg-blue-600 text-white"
-                          : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                          ? "bg-accent-solid text-on-solid"
+                          : "border border-separator-border text-text-secondary hover:bg-fill-2"
                       }`}
                     >
                       {item}
@@ -1209,7 +1209,7 @@ export default function TripReconciliationPage() {
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage === totalPages}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Next
               </button>
@@ -1256,22 +1256,22 @@ export default function TripReconciliationPage() {
 
       {/* Current Trips dialog */}
       <div
-        className={`fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/50 transition-opacity duration-150 ${showCurrentTrips ? "opacity-100" : "opacity-0 invisible"}`}
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 bg-scrim/50 transition-opacity duration-150 ${showCurrentTrips ? "opacity-100" : "opacity-0 invisible"}`}
         onClick={() => setShowCurrentTrips(false)}
       >
         <div
-          className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl overflow-hidden"
+          className="w-full max-w-4xl rounded-2xl bg-background-primary-default shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <div className="flex items-center justify-between border-b border-separator-border px-5 py-4">
             <div className="flex items-center gap-2.5">
-              <Navigation className="h-4 w-4 text-blue-600" />
-              <h2 className="text-sm font-bold text-gray-900">Current Trips</h2>
+              <Navigation className="h-4 w-4 text-accent-text" />
+              <h2 className="text-body-semibold text-text-primary">Current Trips</h2>
             </div>
             <button
               type="button"
               onClick={() => setShowCurrentTrips(false)}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1334,23 +1334,23 @@ export default function TripReconciliationPage() {
           return true;
         });
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
-            <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+            <div className="w-full max-w-5xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
                 <div>
-                  <p className="font-semibold text-gray-900">Trip Reconciliation Report</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} trip sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
+                  <p className="font-semibold text-text-primary">Trip Reconciliation Report</p>
+                  <p className="text-xs text-text-secondary mt-0.5">{rangeLabel} · {pdfTrips.length} trip sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
                 </div>
-                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3"><X className="h-4 w-4" /></button>
               </div>
               {/* Modal filters */}
-              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-gray-50">
+              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-fill-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Status:</span>
+                  <span className="text-caption-1-medium text-text-secondary whitespace-nowrap">Status:</span>
                   <select
                     value={modalStatusFilter}
                     onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
-                    className="rounded-lg border border-gray-200 bg-white py-1.5 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                    className="rounded-lg border border-separator-border bg-background-primary-default py-1.5 px-2 text-sm outline-none focus:border-accent-solid focus:ring-2 focus:ring-accent-solid/10"
                   >
                     <option value="All">All</option>
                     <option value="Sheet Entered">Sheet Entered</option>
@@ -1362,7 +1362,7 @@ export default function TripReconciliationPage() {
                   <button
                     type="button"
                     onClick={() => setModalStatusFilter("All")}
-                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                    className="rounded-full border border-border-button-default bg-background-primary-default px-2.5 py-1 text-xs text-text-secondary hover:bg-fill-3"
                   >
                     Clear
                   </button>
@@ -1370,17 +1370,17 @@ export default function TripReconciliationPage() {
               </div>
               <div className="flex-1 overflow-auto px-5 py-4">
                 {pdfTrips.length === 0 ? (
-                  <p className="text-center text-sm text-gray-400 py-12">No trip sheets found for the selected date range.</p>
+                  <EmptyState size="compact" illustration="logistics" title="No trip sheets found for the selected date range" />
                 ) : (
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 z-10">
-                      <tr className="border-b border-gray-200 bg-gray-50">
+                      <tr className="border-b border-separator-border bg-fill-1">
                         {["#", "Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Hire Amt", "Total Exp", "Sheet Date"].map((col) => (
-                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                          <th key={col} className="px-3 py-2.5 text-caption-1-semibold text-text-secondary whitespace-nowrap">{col}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-separator-border">
                       {pdfTrips.map((t, i) => {
                         const sheet = sheets.get(t.id);
                         const closure = closures.get(t.id);
@@ -1390,18 +1390,18 @@ export default function TripReconciliationPage() {
                         ) : "—";
                         const customer = customers.find((c) => c.id === t.customerId);
                         return (
-                          <tr key={t.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
-                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId ?? t.id}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[130px] truncate">{customer?.name ?? t.shipperConsignee ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.driverName ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{hireAmt}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{totalExp}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.tripSheetDate ? fmtDate(t.tripSheetDate) : "—"}</td>
+                          <tr key={t.id} className="hover:bg-fill-2">
+                            <td className="px-3 py-2 text-text-tertiary text-xs">{i + 1}</td>
+                            <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{t.tripId ?? t.id}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap max-w-[130px] truncate">{customer?.name ?? t.shipperConsignee ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.containerNumber ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.driverName ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{hireAmt}</td>
+                            <td className="px-3 py-2 text-text-primary whitespace-nowrap">{totalExp}</td>
+                            <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{t.tripSheetDate ? fmtDate(t.tripSheetDate) : "—"}</td>
                           </tr>
                         );
                       })}
@@ -1420,10 +1420,10 @@ export default function TripReconciliationPage() {
                       ...(dateFrom ? { from_date: dateFrom } : {}),
                       ...(dateTo ? { to_date: dateTo } : {}),
                     }}
-                    className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 )}
-                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}
                 </button>
@@ -1447,7 +1447,7 @@ export default function TripReconciliationPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by trip ID, driver, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -1457,39 +1457,37 @@ export default function TripReconciliationPage() {
               ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No trip edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "logistics" : "not-found"} title={editHistoryEvents.length === 0 ? "No trip edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Trip</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">
+                          <td className="px-3 py-2 font-semibold text-text-primary">
                             {ev.tripIdStr}
-                            {ev.driverName && <span className="text-[11px] font-normal text-gray-400"> ({ev.driverName})</span>}
+                            {ev.driverName && <span className="text-caption-2-regular text-text-tertiary"> ({ev.driverName})</span>}
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

@@ -23,11 +23,11 @@ export function DateRangePill({
   toPlaceholder = "To",
 }: Props) {
   return (
-    <div className="flex h-10 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md dark:border-gray-300/30 dark:bg-gray-200 [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-500">
+    <div className="flex h-10 items-center gap-1 rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition-transform duration-300 hover:shadow-md [&_.border-gold-solid]:!border-0 [&_.border-gold-solid]:!bg-transparent [&_.border-gold-solid]:!px-1 [&_.border-gold-solid]:!py-1 [&_.border-gold-solid]:!shadow-none [&_.border-brand-gold_svg]:!text-text-secondary">
       <div className="w-[112px]">
         <DatePickerInput value={from} onChange={onFromChange} placeholder={fromPlaceholder} clearable={false} />
       </div>
-      <span className="text-xs text-gray-300">–</span>
+      <span className="text-xs text-text-tertiary">–</span>
       <div className="w-[112px]">
         <DatePickerInput value={to} onChange={onToChange} placeholder={toPlaceholder} clearable={false} />
       </div>

@@ -27,8 +27,8 @@ export function TablePagination({
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <p className="text-sm text-gray-500">
+    <div className="flex items-center justify-between rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+      <p className="text-sm text-text-secondary">
         Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalItems)} of {totalItems} {itemLabel}
       </p>
       <div className="flex items-center gap-1">
@@ -36,7 +36,7 @@ export function TablePagination({
           type="button"
           onClick={() => onPageChange(Math.max(1, page - 1))}
           disabled={page === 1}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Previous
         </button>
@@ -49,16 +49,16 @@ export function TablePagination({
           }, [])
           .map((item, i) =>
             item === "..." ? (
-              <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+              <span key={`ellipsis-${i}`} className="px-2 text-xs text-text-tertiary">…</span>
             ) : (
               <button
                 key={item}
                 type="button"
                 onClick={() => onPageChange(item as number)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-caption-1-medium transition-colors ${
                   page === item
-                    ? "bg-blue-600 text-white"
-                    : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    ? "bg-accent-solid text-on-solid"
+                    : "border border-separator-border text-text-secondary hover:bg-fill-2"
                 }`}
               >
                 {item}
@@ -69,7 +69,7 @@ export function TablePagination({
           type="button"
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rounded-lg border border-separator-border px-3 py-1.5 text-caption-1-medium text-text-secondary hover:bg-fill-2 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Next
         </button>

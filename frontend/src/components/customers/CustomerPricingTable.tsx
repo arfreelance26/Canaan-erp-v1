@@ -1,10 +1,11 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type CustomerPricingTableProps = {
   pricing: CustomerPricing[];
   customers: Customer[];
@@ -13,17 +14,15 @@ type CustomerPricingTableProps = {
 };
 
 const statusStyles: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-700",
-  INACTIVE: "bg-gray-100 text-gray-700",
-  BLACKLISTED: "bg-red-100 text-red-700",
+  ACTIVE: "bg-success-surface-strong text-success-text",
+  INACTIVE: "bg-fill-2 text-text-primary",
+  BLACKLISTED: "bg-danger-surface-strong text-danger-text",
 };
 
 export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: CustomerPricingTableProps) {
   if (pricing.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No customer pricing yet. Click &ldquo;Add Pricing&rdquo; to create one.
-      </div>
+      <EmptyState size="compact" illustration="no-data" title="No customer pricing yet" description="Click &ldquo;Add Pricing&rdquo; to create one" />
     );
   }
 
@@ -36,33 +35,33 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
   };
 
   return (
-    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[900px] text-left text-sm whitespace-nowrap">
         <thead className="sticky top-0 z-10">
-          <tr className="border-b border-gray-200 bg-gray-50">
-            {hasData.customerName && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>}
-            {hasData.customerDestination && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Destination</th>}
-            {hasData.rate && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Rate</th>}
-            {hasData.commissionAmount && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Commission Amount</th>}
-            {hasData.status && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Status</th>}
-            <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actions</th>
+          <tr className="border-b border-separator-border bg-fill-1">
+            {hasData.customerName && <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Customer Name</th>}
+            {hasData.customerDestination && <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Customer Destination</th>}
+            {hasData.rate && <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Rate</th>}
+            {hasData.commissionAmount && <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Commission Amount</th>}
+            {hasData.status && <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Status</th>}
+            <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-separator-border">
           {pricing.map((entry) => {
             const customer = customers.find((c) => c.id === entry.customerId);
             return (
-              <tr key={entry.id} className="hover:bg-gray-50">
-                {hasData.customerName && <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>}
-                {hasData.customerDestination && <td className="px-4 py-3 text-gray-600">{entry.customerDestination}</td>}
-                {hasData.rate && <td className="px-4 py-3 text-gray-600">{entry.rate}</td>}
-                {hasData.commissionAmount && <td className="px-4 py-3 text-gray-600">{entry.commissionAmount || "—"}</td>}
+              <tr key={entry.id} className="hover:bg-fill-2">
+                {hasData.customerName && <td className="px-4 py-3 font-medium text-text-primary">{customer?.name ?? "—"}</td>}
+                {hasData.customerDestination && <td className="px-4 py-3 text-text-secondary">{entry.customerDestination}</td>}
+                {hasData.rate && <td className="px-4 py-3 text-text-secondary">{entry.rate}</td>}
+                {hasData.commissionAmount && <td className="px-4 py-3 text-text-secondary">{entry.commissionAmount || "—"}</td>}
                 {hasData.status && (
                   <td className="px-4 py-3">
                     <span
                       className={cn(
-                        "rounded-full px-2.5 py-1 text-xs font-medium",
-                        statusStyles[entry.status] ?? "bg-gray-100 text-gray-600"
+                        "rounded-full px-2.5 py-1 text-caption-1-medium",
+                        statusStyles[entry.status] ?? "bg-fill-2 text-text-secondary"
                       )}
                     >
                       {entry.status}
@@ -75,7 +74,7 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
                       type="button"
                       onClick={() => onEdit(entry)}
                       aria-label={`Edit pricing for ${customer?.name ?? "customer"}`}
-                      className="transition-all duration-300 group rounded-md p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"
+                      className="transition duration-300 group rounded-md p-1.5 text-text-secondary hover:bg-accent-surface-strong hover:text-accent-text"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
@@ -83,7 +82,7 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
                       type="button"
                       onClick={() => onDelete(entry.id)}
                       aria-label={`Delete pricing for ${customer?.name ?? "customer"}`}
-                      className="transition-all duration-300 group rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
+                      className="transition duration-300 group rounded-md p-1.5 text-text-secondary hover:bg-danger-surface-strong hover:text-danger-text"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

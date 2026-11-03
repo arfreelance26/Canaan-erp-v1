@@ -25,14 +25,14 @@ import {
 } from "@/lib/trip-data";
 import { branchesApi, tripsApi, defaultBattaApi, type DefaultBattaRate } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { computeHaltPay, haltPayFromClosure, haltRatesFor } from "@/lib/halt-pay";
 
 const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER"];
 
-const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
-const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+const roClass = "w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm text-text-primary cursor-not-allowed";
+const sh = "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 
 // Driver batta = hire amount × branch's halt-day percentage. Mirrors the same
 // calculation in TripFormDialog so editing a booking sheet stays consistent
@@ -570,7 +570,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                   className={fc}
                 />
                 {tf.cargoWeight && tf.ratePerTon && (
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-text-tertiary">
                     {tf.cargoWeight} tons × ₹{tf.ratePerTon}/ton = ₹{(parseFloat(tf.cargoWeight) * parseFloat(tf.ratePerTon)).toLocaleString("en-IN")}
                   </p>
                 )}
@@ -768,23 +768,23 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                     placeholder="e.g. Delayed at port due to documentation issues"
                   />
                 </Field>
-                <div className="sm:col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex flex-col gap-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                <div className="sm:col-span-2 rounded-lg border border-accent-border bg-accent-surface px-4 py-3 flex flex-col gap-1.5">
+                  <p className="text-caption-1-semibold text-accent-text">
                     Halt Compensation Summary · {haltRates.sizeLabel} · {truckBranch?.name ?? "Branch"}
                   </p>
                   {halt.companyDays > 0 && (
-                    <div className="flex items-center justify-between text-sm text-blue-800">
+                    <div className="flex items-center justify-between text-sm text-accent-text-strong">
                       <span>Company Halt — {halt.companyDays} day{halt.companyDays !== 1 ? "s" : ""} × ₹{halt.companyRate.toLocaleString("en-IN")}</span>
                       <span className="font-semibold">₹{halt.companyPay.toLocaleString("en-IN")}</span>
                     </div>
                   )}
                   {halt.partyDays > 0 && (
-                    <div className="flex items-center justify-between text-sm text-blue-800">
-                      <span>Customer Halt — {halt.partyDays} day{halt.partyDays !== 1 ? "s" : ""} × ₹{halt.partyRate.toLocaleString("en-IN")} <span className="text-xs text-blue-500">(billed to customer)</span></span>
+                    <div className="flex items-center justify-between text-sm text-accent-text-strong">
+                      <span>Customer Halt — {halt.partyDays} day{halt.partyDays !== 1 ? "s" : ""} × ₹{halt.partyRate.toLocaleString("en-IN")} <span className="text-xs text-accent-text">(billed to customer)</span></span>
                       <span className="font-semibold">₹{halt.partyPay.toLocaleString("en-IN")}</span>
                     </div>
                   )}
-                  <div className="mt-1 flex items-center justify-between border-t border-blue-200 pt-1.5 text-sm font-bold text-blue-900">
+                  <div className="mt-1 flex items-center justify-between border-t border-accent-border pt-1.5 text-body-semibold text-accent-text-strong">
                     <span>Driver Halt Compensation</span>
                     <span>₹{halt.total.toLocaleString("en-IN")}</span>
                   </div>
@@ -794,11 +794,11 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           </div>
         </section>
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+        <div className="flex justify-end gap-3 border-t border-separator-border pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-secondary hover:bg-fill-2"
           >
             {readOnly ? "Close" : "Cancel"}
           </button>
@@ -806,7 +806,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-accent-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save Changes"}
             </button>

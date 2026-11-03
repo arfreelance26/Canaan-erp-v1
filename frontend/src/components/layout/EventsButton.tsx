@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useRef, useState } from "react";
 import ReactDatePicker from "react-datepicker";
-import { CalendarClock, CalendarDays, Check, CheckCircle2, Clock, History, Loader2, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { RiCalendarScheduleLine as CalendarClock, RiCalendar2Line as CalendarDays, RiCheckLine as Check, RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiHistoryLine as History, RiLoader4Line as Loader2, RiAddLine as Plus, RiSearchLine as Search, RiDeleteBinLine as Trash2, RiGroupLine as Users, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/ui/Dialog";
 import { Avatar } from "@/components/chat/shared";
@@ -10,8 +10,9 @@ import { chatApi, eventsApi, type CanaanEvent } from "@/lib/api";
 import type { ChatMember, ChatConversation } from "@/types/chat";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { showError, showToast, confirmDelete, confirmAction } from "@/lib/swal";
+import { showError, showToast, confirmDelete, confirmAction } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Tab = "user" | "group";
 type View = "list" | "create" | "history";
 
@@ -25,14 +26,14 @@ function formatWhen(iso: string | null): string {
 }
 
 const pickerTriggerClass = cn(
-  "flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-sm outline-none transition-colors",
-  "focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-500/20"
+  "flex w-full items-center gap-2 rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-left text-sm outline-none transition-colors",
+  "focus:border-orange-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-orange-solid/20"
 );
 
 const EventDateTrigger = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ value, onClick }, ref) => (
-    <button ref={ref} type="button" onClick={onClick} className={cn(pickerTriggerClass, value ? "text-gray-800" : "text-gray-400")}>
-      <CalendarDays className="h-4 w-4 shrink-0 text-orange-400" />
+    <button ref={ref} type="button" onClick={onClick} className={cn(pickerTriggerClass, value ? "text-text-primary" : "text-text-tertiary")}>
+      <CalendarDays className="h-4 w-4 shrink-0 text-orange-text" />
       <span className="truncate">{value || "Date"}</span>
     </button>
   )
@@ -41,8 +42,8 @@ EventDateTrigger.displayName = "EventDateTrigger";
 
 const EventTimeTrigger = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ value, onClick }, ref) => (
-    <button ref={ref} type="button" onClick={onClick} className={cn(pickerTriggerClass, value ? "text-gray-800" : "text-gray-400")}>
-      <Clock className="h-4 w-4 shrink-0 text-orange-400" />
+    <button ref={ref} type="button" onClick={onClick} className={cn(pickerTriggerClass, value ? "text-text-primary" : "text-text-tertiary")}>
+      <Clock className="h-4 w-4 shrink-0 text-orange-text" />
       <span className="truncate">{value || "Time"}</span>
     </button>
   )
@@ -254,14 +255,14 @@ export function EventsButton() {
         title="Upcoming meetings"
         onClick={() => setOpen(true)}
         className={cn(
-          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300",
-          "hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(194,101,30,0.22)] focus:outline-none focus:ring-4 focus:ring-orange-500/20",
-          "border-orange-200 bg-gradient-to-br from-orange-50 to-white text-orange-700 hover:border-orange-300 hover:from-orange-100"
+          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300",
+          "shadow-md focus:outline-none focus:ring-4 focus:ring-orange-solid/20",
+          "border-orange-border bg-orange-surface text-orange-text hover:border-orange-border-strong"
         )}
       >
-        <CalendarClock className="h-5 w-5 transition-transform duration-300 group-hover:scale-110 group-hover:text-orange-800" />
+        <CalendarClock className="h-5 w-5 transition-transform duration-300 group-hover:text-orange-text-strong" />
         {events.length > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-600 px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-solid px-1 text-caption-2-semibold text-on-solid">
             {events.length > 9 ? "9+" : events.length}
           </span>
         )}
@@ -280,14 +281,14 @@ export function EventsButton() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Meeting title"
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+              className="w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm outline-none focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
             />
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Description (optional)"
               rows={2}
-              className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+              className="w-full resize-none rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm outline-none focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
             />
             <div className="flex gap-2">
               <ReactDatePicker
@@ -321,10 +322,10 @@ export function EventsButton() {
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Location (optional)"
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+              className="w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm outline-none focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
             />
 
-            <div className="flex gap-2 rounded-full bg-gray-100 p-1">
+            <div className="flex gap-2 rounded-full bg-fill-2 p-1">
               {([
                 { id: "user", label: "User" },
                 { id: "group", label: "Group" },
@@ -334,8 +335,8 @@ export function EventsButton() {
                   type="button"
                   onClick={() => setTab(t.id)}
                   className={cn(
-                    "flex-1 rounded-full py-1.5 text-sm font-semibold transition-colors",
-                    tab === t.id ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    "flex-1 rounded-full py-1.5 text-body-semibold transition-colors",
+                    tab === t.id ? "bg-background-primary-default text-accent-text-strong shadow-sm" : "text-text-secondary hover:text-text-primary"
                   )}
                 >
                   {t.label}
@@ -344,20 +345,20 @@ export function EventsButton() {
             </div>
 
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={tab === "user" ? "Search people…" : "Search groups…"}
-                className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+                className="w-full rounded-full border border-separator-border bg-fill-1 py-2 pl-9 pr-3 text-sm outline-none focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
               />
             </div>
 
             <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
               {pickerLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                  <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
                 </div>
               ) : tab === "user" ? (
                 filteredContacts.map((c) => {
@@ -369,12 +370,12 @@ export function EventsButton() {
                       onClick={() => toggleTarget({ type: "user", id: Number(c.staffId), label: c.name })}
                       className={cn(
                         "flex items-center gap-3 rounded-xl border px-2 py-2 text-left transition-colors",
-                        selected ? "border-orange-200 bg-orange-50" : "border-transparent hover:bg-gray-50"
+                        selected ? "border-orange-border bg-orange-surface" : "border-transparent hover:bg-fill-2"
                       )}
                     >
                       <Avatar name={c.name} photoUrl={c.photoUrl} size={32} />
-                      <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">{c.name}</p>
-                      {selected && <Check className="h-4 w-4 shrink-0 text-orange-600" />}
+                      <p className="min-w-0 flex-1 truncate text-body-medium text-text-primary">{c.name}</p>
+                      {selected && <Check className="h-4 w-4 shrink-0 text-orange-text" />}
                     </button>
                   );
                 })
@@ -388,12 +389,12 @@ export function EventsButton() {
                       onClick={() => toggleTarget({ type: "group", id: g.id, label: g.title ?? "Group" })}
                       className={cn(
                         "flex items-center gap-3 rounded-xl border px-2 py-2 text-left transition-colors",
-                        selected ? "border-orange-200 bg-orange-50" : "border-transparent hover:bg-gray-50"
+                        selected ? "border-orange-border bg-orange-surface" : "border-transparent hover:bg-fill-2"
                       )}
                     >
                       <Avatar name={g.title ?? "Group"} photoUrl={g.hasPhoto ? chatApi.groupPhotoUrl(g.id) : null} size={32} group />
-                      <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">{g.title}</p>
-                      {selected && <Check className="h-4 w-4 shrink-0 text-orange-600" />}
+                      <p className="min-w-0 flex-1 truncate text-body-medium text-text-primary">{g.title}</p>
+                      {selected && <Check className="h-4 w-4 shrink-0 text-orange-text" />}
                     </button>
                   );
                 })
@@ -405,14 +406,14 @@ export function EventsButton() {
                 {targets.map((t) => (
                   <span
                     key={`${t.type}-${t.id}`}
-                    className="flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 py-1 pl-2.5 pr-1 text-xs font-medium text-orange-700"
+                    className="flex items-center gap-1 rounded-full border border-orange-border bg-orange-surface py-1 pl-2.5 pr-1 text-caption-1-medium text-orange-text"
                   >
                     {t.label}
                     <button
                       type="button"
                       onClick={() => toggleTarget(t)}
                       aria-label={`Remove ${t.label}`}
-                      className="rounded-full p-0.5 text-orange-400 transition-colors hover:bg-orange-100 hover:text-orange-700"
+                      className="rounded-full p-0.5 text-orange-text transition-colors hover:bg-orange-surface-strong hover:text-orange-text"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -425,7 +426,7 @@ export function EventsButton() {
               <button
                 type="button"
                 onClick={() => setView("list")}
-                className="flex-1 rounded-full border border-gray-200 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                className="flex-1 rounded-full border border-separator-border py-2 text-body-semibold text-text-secondary transition-colors hover:bg-fill-2"
               >
                 Back
               </button>
@@ -433,7 +434,7 @@ export function EventsButton() {
                 type="button"
                 onClick={handleCreate}
                 disabled={!title.trim() || !startsAt || targets.length === 0 || submitting}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-orange-600 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-orange-solid py-2 text-body-semibold text-on-solid shadow-sm transition hover:bg-orange-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Schedule
@@ -445,46 +446,40 @@ export function EventsButton() {
             <button
               type="button"
               onClick={() => setView("list")}
-              className="self-start text-sm font-semibold text-gray-500 transition-colors hover:text-gray-700"
+              className="self-start text-body-semibold text-text-secondary transition-colors hover:text-text-primary"
             >
               ← Back to upcoming
             </button>
-            <p className="-mt-2 text-xs text-gray-400">
+            <p className="-mt-2 text-xs text-text-tertiary">
               {isAdmin ? "Completed meetings across everyone." : "Meetings you attended that are marked complete."}
             </p>
 
             {historyLoading ? (
               <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
               </div>
             ) : history.length === 0 ? (
-              <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-                  <History className="h-5 w-5 text-gray-400" />
-                </div>
-                <p className="text-sm font-semibold text-gray-600">No completed meetings yet</p>
-                <p className="mt-1 text-xs text-gray-400">Meetings marked as completed will show up here.</p>
-              </div>
+              <EmptyState size="compact" illustration="no-data" title="No completed meetings yet" description="Meetings marked as completed will show up here" className="rounded-2xl border border-separator-border bg-background-primary-default" />
             ) : (
               <div className="flex flex-col gap-2.5">
                 {history.map((ev) => (
-                  <div key={ev.id} className="rounded-xl border border-gray-100 p-3.5">
+                  <div key={ev.id} className="rounded-xl border border-separator-border p-3.5">
                     <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-50">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success-surface">
+                        <CheckCircle2 className="h-4 w-4 text-success-text" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-gray-900">{ev.title}</p>
-                        <p className="mt-0.5 text-xs font-medium text-gray-500">
+                        <p className="truncate text-body-semibold text-text-primary">{ev.title}</p>
+                        <p className="mt-0.5 text-caption-1-medium text-text-secondary">
                           {formatWhen(ev.startsAt)}{ev.location ? ` · ${ev.location}` : ""}
                         </p>
                       </div>
                     </div>
-                    {ev.description && <p className="mt-2 pl-[42px] text-xs text-gray-500">{ev.description}</p>}
-                    <p className="mt-2 flex items-center gap-1 pl-[42px] text-[11px] text-gray-400">
+                    {ev.description && <p className="mt-2 pl-[42px] text-xs text-text-secondary">{ev.description}</p>}
+                    <p className="mt-2 flex items-center gap-1 pl-[42px] text-[11px] text-text-tertiary">
                       <Users className="h-3 w-3" /> {ev.participantNames.join(", ")}
                     </p>
-                    <p className="mt-1 pl-[42px] text-[11px] text-green-700">
+                    <p className="mt-1 pl-[42px] text-[11px] text-success-text">
                       Completed{ev.completedByName ? ` by ${ev.completedByName}` : ""}
                       {ev.completedAt ? ` · ${formatWhen(ev.completedAt)}` : ""}
                     </p>
@@ -500,9 +495,9 @@ export function EventsButton() {
                 <button
                   type="button"
                   onClick={() => setView("create")}
-                  className="group flex flex-1 items-center justify-center gap-1.5 rounded-full border border-orange-200 bg-gradient-to-br from-orange-50 to-white py-2.5 text-sm font-semibold text-orange-700 shadow-[0_2px_10px_-3px_rgba(194,101,30,0.15)] transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-300 hover:from-orange-100 hover:shadow-[0_8px_24px_-6px_rgba(194,101,30,0.3)]"
+                  className="group flex flex-1 items-center justify-center gap-1.5 rounded-full border border-orange-border bg-orange-surface py-2.5 text-body-semibold text-orange-text shadow-md transition duration-300 hover:border-orange-border-strong shadow-md"
                 >
-                  <Plus className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
+                  <Plus className="h-4 w-4 transition-transform duration-300" />
                   New Meeting
                 </button>
               )}
@@ -510,7 +505,7 @@ export function EventsButton() {
                 type="button"
                 onClick={() => setView("history")}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 rounded-full border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50",
+                  "flex items-center justify-center gap-1.5 rounded-full border border-separator-border py-2.5 text-body-semibold text-text-secondary transition-colors hover:bg-fill-2",
                   isAdmin ? "px-4" : "flex-1"
                 )}
               >
@@ -521,33 +516,25 @@ export function EventsButton() {
 
             {loading ? (
               <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
               </div>
             ) : events.length === 0 ? (
-              <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-orange-50">
-                  <CalendarClock className="h-5 w-5 text-orange-400" />
-                </div>
-                <p className="text-sm font-semibold text-gray-600">No upcoming meetings</p>
-                <p className="mt-1 text-xs text-gray-400">
-                  {isAdmin ? "Scheduled meetings will appear here." : "You'll see meetings you're invited to here."}
-                </p>
-              </div>
+              <EmptyState size="compact" illustration="no-data" title="No upcoming meetings" description={isAdmin ? "Scheduled meetings will appear here" : "You'll see meetings you're invited to here"} className="rounded-2xl border border-separator-border bg-background-primary-default" />
             ) : (
               <div className="flex flex-col gap-2.5">
                 {events.map((ev) => (
                   <div
                     key={ev.id}
-                    className="group rounded-xl border border-gray-100 p-3.5 transition-colors hover:border-orange-100 hover:bg-orange-50/30"
+                    className="group rounded-xl border border-separator-border p-3.5 transition-colors hover:border-orange-border hover:bg-orange-surface-strong/30"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex min-w-0 items-start gap-2.5">
-                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50">
-                          <CalendarClock className="h-4 w-4 text-orange-500" />
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-surface">
+                          <CalendarClock className="h-4 w-4 text-orange-text" />
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-gray-900">{ev.title}</p>
-                          <p className="mt-0.5 text-xs font-medium text-orange-600">
+                          <p className="truncate text-body-semibold text-text-primary">{ev.title}</p>
+                          <p className="mt-0.5 text-caption-1-medium text-orange-text">
                             {formatWhen(ev.startsAt)}{ev.location ? ` · ${ev.location}` : ""}
                           </p>
                         </div>
@@ -557,21 +544,21 @@ export function EventsButton() {
                           type="button"
                           onClick={() => handleCancel(ev)}
                           aria-label="Cancel meeting"
-                          className="shrink-0 rounded-lg p-1.5 text-gray-300 opacity-0 transition-colors group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
+                          className="shrink-0 rounded-lg p-1.5 text-text-tertiary opacity-0 transition-colors group-hover:opacity-100 hover:bg-danger-surface-strong hover:text-danger-text"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
-                    {ev.description && <p className="mt-2 pl-[42px] text-xs text-gray-500">{ev.description}</p>}
-                    <p className="mt-2 flex items-center gap-1 pl-[42px] text-[11px] text-gray-400">
+                    {ev.description && <p className="mt-2 pl-[42px] text-xs text-text-secondary">{ev.description}</p>}
+                    <p className="mt-2 flex items-center gap-1 pl-[42px] text-[11px] text-text-tertiary">
                       <Users className="h-3 w-3" /> {ev.participantNames.join(", ")}
                     </p>
                     <button
                       type="button"
                       onClick={() => handleComplete(ev)}
                       disabled={completingId === ev.id}
-                      className="mt-2.5 ml-[42px] flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="mt-2.5 ml-[42px] flex items-center gap-1.5 rounded-full border border-success-border bg-success-surface px-3 py-1 text-caption-1-semibold text-success-text transition-colors hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {completingId === ev.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -7,7 +7,7 @@ import { MaintenanceRecordFormDialog } from "@/components/maintenance/Maintenanc
 import { MaintenanceRecordHistoryDialog } from "@/components/maintenance/MaintenanceRecordHistoryDialog";
 import { TruckStatusDialog } from "@/components/maintenance/TruckStatusDialog";
 import { trucksApi, maintenanceApi, maintenanceRequestsApi, type MaintenanceRecordEditEventRow } from "@/lib/api";
-import { Wrench, History, Plus, Pencil, Trash2 } from "lucide-react";
+import { RiToolsLine as Wrench, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -19,8 +19,9 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<MaintenanceRecordEditEventRow["event"], typeof Plus> = {
   "Record Created": Plus,
   "Record Edited": Pencil,
@@ -28,9 +29,9 @@ const EDIT_EVENT_ICON: Record<MaintenanceRecordEditEventRow["event"], typeof Plu
 };
 
 const EDIT_EVENT_COLOR: Record<MaintenanceRecordEditEventRow["event"], string> = {
-  "Record Created": "bg-blue-100 text-blue-700",
-  "Record Edited": "bg-amber-100 text-amber-700",
-  "Record Deleted": "bg-red-100 text-red-700",
+  "Record Created": "bg-accent-surface-strong text-accent-text",
+  "Record Edited": "bg-warning-surface-strong text-warning-text",
+  "Record Deleted": "bg-danger-surface-strong text-danger-text",
 };
 
 export default function TruckMaintenancePage() {
@@ -151,19 +152,19 @@ export default function TruckMaintenancePage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white text-orange-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-border bg-orange-surface text-orange-text shadow-sm">
             <Wrench className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Maintenance</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Track the reliability of every truck in the fleet</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Truck Maintenance</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Track the reliability of every truck in the fleet</p>
           </div>
         </div>
         {isAdmin && (
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -236,7 +237,7 @@ export default function TruckMaintenancePage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by registration, truck ID, type, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -246,41 +247,39 @@ export default function TruckMaintenancePage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No maintenance record edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No maintenance record edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Truck</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Record</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Truck</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Record</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.registrationNumber}</p>
-                            <p className="text-[11px] text-gray-400">{ev.truckIdStr}</p>
+                            <p className="font-semibold text-text-primary">{ev.registrationNumber}</p>
+                            <p className="text-[11px] text-text-tertiary">{ev.truckIdStr}</p>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">{ev.maintenanceType}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.maintenanceType}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

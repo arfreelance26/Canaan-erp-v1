@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { RiCheckLine as Check, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -14,65 +14,65 @@ type LeaveApprovalTableProps = {
 const columns = ["Applicant", "Category", "From", "To", "Reason", "Applied On", "Status", "Actions"];
 
 const statusStyles: Record<string, string> = {
-  Pending: "bg-amber-50 text-amber-700",
-  Approved: "bg-emerald-50 text-emerald-700",
-  Rejected: "bg-red-50 text-red-700",
+  Pending: "bg-warning-surface text-warning-text",
+  Approved: "bg-success-surface text-success-text",
+  Rejected: "bg-danger-surface text-danger-text",
 };
 const statusDots: Record<string, string> = {
-  Pending: "bg-amber-400",
-  Approved: "bg-emerald-500",
-  Rejected: "bg-red-500",
+  Pending: "bg-warning-solid",
+  Approved: "bg-success-solid",
+  Rejected: "bg-danger-solid",
 };
 
 
 export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveApprovalTableProps) {
   if (requests.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+      <div className="rounded-xl border border-separator-border bg-background-primary-default p-6 text-center text-sm text-text-secondary">
         No leave requests.
       </div>
     );
   }
 
   return (
-    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="overflow-auto max-h-[75vh] rounded-xl border border-separator-border bg-background-primary-default shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[900px] text-left text-sm whitespace-nowrap">
         <thead className="sticky top-0 z-10">
-          <tr className="border-b border-gray-200 bg-gray-50">
+          <tr className="border-b border-separator-border bg-fill-1">
             {columns.filter(c => c !== "Actions" || (onApprove && onReject)).map((column) => (
               <th
                 key={column}
-                className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase"
+                className="px-4 py-3 text-caption-1-semibold text-text-secondary"
               >
                 {column}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-separator-border">
           {requests.map((request) => (
-            <tr key={request.id} className="hover:bg-gray-50">
+            <tr key={request.id} className="hover:bg-fill-2">
               <td className="px-4 py-3">
-                <div className="font-medium text-gray-900">{request.applicantName}</div>
-                <div className="text-xs text-gray-500">{request.applicantCode}</div>
+                <div className="font-medium text-text-primary">{request.applicantName}</div>
+                <div className="text-xs text-text-secondary">{request.applicantCode}</div>
               </td>
-              <td className="px-4 py-3 text-gray-600">{request.category}</td>
-              <td className="px-4 py-3 text-gray-600">{formatDate(request.fromDate)}</td>
-              <td className="px-4 py-3 text-gray-600">{formatDate(request.toDate)}</td>
-              <td className="px-4 py-3 text-gray-600">{request.reason}</td>
-              <td className="px-4 py-3 text-gray-600">{formatDateTime(request.appliedAt)}</td>
+              <td className="px-4 py-3 text-text-secondary">{request.category}</td>
+              <td className="px-4 py-3 text-text-secondary">{formatDate(request.fromDate)}</td>
+              <td className="px-4 py-3 text-text-secondary">{formatDate(request.toDate)}</td>
+              <td className="px-4 py-3 text-text-secondary">{request.reason}</td>
+              <td className="px-4 py-3 text-text-secondary">{formatDateTime(request.appliedAt)}</td>
               <td className="px-4 py-3">
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                    statusStyles[request.status] ?? "bg-gray-100 text-gray-600"
+                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption-1-medium",
+                    statusStyles[request.status] ?? "bg-fill-2 text-text-secondary"
                   )}
                 >
-                  <i className={cn("h-1.5 w-1.5 rounded-full", statusDots[request.status] ?? "bg-gray-400")} />
+                  <i className={cn("h-1.5 w-1.5 rounded-full", statusDots[request.status] ?? "bg-fill-4")} />
                   {request.status}
                 </span>
                 {request.status !== "Pending" && request.decidedAt && (
-                  <p className="mt-1 text-[11px] text-gray-400">
+                  <p className="mt-1 text-[11px] text-text-tertiary">
                     {request.status === "Approved" ? "Approved" : "Rejected"}
                     {request.decidedByName ? ` by ${request.decidedByName}` : ""} · {formatDate(request.decidedAt)}
                   </p>
@@ -85,7 +85,7 @@ export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveAppro
                       <button
                         type="button"
                         onClick={() => onApprove(request.id)}
-                        className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
+                        className="flex items-center gap-1.5 rounded-lg border border-success-border bg-success-surface px-3 py-1.5 text-caption-1-medium text-success-text hover:bg-success-surface-strong"
                       >
                         <Check className="h-3.5 w-3.5" />
                         Approve
@@ -93,14 +93,14 @@ export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveAppro
                       <button
                         type="button"
                         onClick={() => onReject(request.id)}
-                        className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
+                        className="flex items-center gap-1.5 rounded-lg border border-danger-border bg-danger-surface px-3 py-1.5 text-caption-1-medium text-danger-text hover:bg-danger-surface-strong"
                       >
                         <X className="h-3.5 w-3.5" />
                         Reject
                       </button>
                     </div>
                   ) : (
-                    <span className="text-gray-400">—</span>
+                    <span className="text-text-tertiary">—</span>
                   )}
                 </td>
               )}

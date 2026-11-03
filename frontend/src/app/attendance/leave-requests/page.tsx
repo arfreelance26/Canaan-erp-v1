@@ -1,12 +1,12 @@
 "use client";
 
 import { inDateRange } from "@/lib/format-date";
-import { Plus, CalendarClock } from "lucide-react";
+import { RiAddLine as Plus, RiCalendarScheduleLine as CalendarClock } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { LeaveApprovalTable } from "@/components/attendance/LeaveApprovalTable";
 import { LeaveRequestFormDialog } from "@/components/attendance/LeaveRequestFormDialog";
 import { attendanceApi } from "@/lib/api";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -71,19 +71,19 @@ export default function LeaveRequestsPage() {
     <div className="flex flex-col gap-6 animate-pulse p-2">
       <div className="flex justify-between">
         <div className="space-y-3">
-          <div className="h-8 w-48 rounded-lg bg-slate-200"></div>
-          <div className="h-4 w-72 rounded bg-slate-100"></div>
+          <div className="h-8 w-48 rounded-lg bg-fill-3"></div>
+          <div className="h-4 w-72 rounded bg-fill-2"></div>
         </div>
-        <div className="h-10 w-40 rounded-lg bg-slate-200"></div>
+        <div className="h-10 w-40 rounded-lg bg-fill-3"></div>
       </div>
-      <div className="rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm h-[400px]">
-        <div className="h-12 border-b border-white/50 bg-slate-50/50"></div>
+      <div className="rounded-xl border border-separator-border bg-background-primary-default shadow-sm h-[400px]">
+        <div className="h-12 border-b border-separator-border bg-fill-1"></div>
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex gap-4 p-4 border-b border-slate-100/50">
-            <div className="h-5 w-32 rounded bg-slate-200/60"></div>
-            <div className="h-5 w-24 rounded bg-slate-100"></div>
-            <div className="h-5 w-24 rounded bg-slate-100"></div>
-            <div className="h-5 w-48 rounded bg-slate-100"></div>
+          <div key={i} className="flex gap-4 p-4 border-b border-separator-border">
+            <div className="h-5 w-32 rounded bg-fill-3"></div>
+            <div className="h-5 w-24 rounded bg-fill-2"></div>
+            <div className="h-5 w-24 rounded bg-fill-2"></div>
+            <div className="h-5 w-48 rounded bg-fill-2"></div>
           </div>
         ))}
       </div>
@@ -112,12 +112,12 @@ export default function LeaveRequestsPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white text-sky-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-border bg-teal-surface text-teal-text shadow-sm">
             <CalendarClock className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Leave Requests</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Leave Requests</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Submit your leave requests and track whether they have been approved
             </p>
           </div>
@@ -125,7 +125,7 @@ export default function LeaveRequestsPage() {
         <button
           type="button"
           onClick={() => setIsFormOpen(true)}
-          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
         >
           <Plus className="h-4 w-4" />
           Submit Leave Request

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Download, Loader2 } from "lucide-react";
+import { RiCloseLine as X, RiDownloadLine as Download, RiLoader4Line as Loader2 } from "@remixicon/react";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
@@ -75,15 +75,15 @@ export function CABDialog({ open, trip, truck, customer, invoiceNo, onClose }: P
   });
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-scrim/50 p-4">
+      <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-background-primary-default shadow-2xl">
 
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-separator-border px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">
+            <h2 className="text-title-3-semibold text-text-primary">
               Customer Advance Bill — {trip.tripId}
             </h2>
-            <p className="mt-0.5 text-xs text-gray-400">
+            <p className="mt-0.5 text-xs text-text-tertiary">
               Customer Cash Advance: ₹{amtFormatted}
             </p>
           </div>
@@ -92,7 +92,7 @@ export function CABDialog({ open, trip, truck, customer, invoiceNo, onClose }: P
               type="button"
               onClick={handleDownload}
               disabled={downloading}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-accent-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-50"
             >
               {downloading
                 ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -102,23 +102,23 @@ export function CABDialog({ open, trip, truck, customer, invoiceNo, onClose }: P
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+              className="rounded-lg border border-separator-border p-2 text-text-tertiary hover:bg-fill-2 hover:text-text-secondary"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden bg-gray-100 p-4">
+        <div className="flex-1 overflow-hidden bg-fill-2 p-4">
           {previewUrl ? (
             <iframe
               src={previewUrl}
-              className="h-full w-full rounded-lg border border-gray-200 bg-white"
+              className="h-full w-full rounded-lg border border-separator-border bg-background-primary-default"
               title="CAB Preview"
             />
           ) : (
             <div className="flex h-full items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              <Loader2 className="h-8 w-8 animate-spin text-text-tertiary" />
             </div>
           )}
         </div>

@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  BadgeCheck, Briefcase, Building2, CalendarDays, Cake, Download, Eye, EyeOff, FileText,
-  IdCard, Image as ImageIcon, Laptop, Loader2, Lock, LockOpen, Mail, MapPin, Phone, Smartphone, X, ZoomIn,
-} from "lucide-react";
+import { RiVerifiedBadgeLine as BadgeCheck, RiBriefcaseLine as Briefcase, RiBuilding2Line as Building2, RiCalendar2Line as CalendarDays, RiCake2Line as Cake, RiDownloadLine as Download, RiEyeLine as Eye, RiEyeOffLine as EyeOff, RiFileTextLine as FileText, RiProfileLine as IdCard, RiImageLine as ImageIcon, RiMacbookLine as Laptop, RiLoader4Line as Loader2, RiLockLine as Lock, RiLockUnlockLine as LockOpen, RiMailLine as Mail, RiMapPin2Line as MapPin, RiPhoneLine as Phone, RiSmartphoneLine as Smartphone, RiCloseLine as X, RiZoomInLine as ZoomIn } from "@remixicon/react";
 import { fileUrl, staffApi, type StaffFreezeEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import { FileViewer } from "@/components/ui/FileViewer";
@@ -53,9 +50,9 @@ function initialsOf(name: string) {
 
 function SectionCard({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-      <p className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
-        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-blue-600">{icon}</span>
+    <section className="rounded-2xl border border-separator-border bg-background-primary-default p-4 shadow-sm">
+      <p className="mb-3 flex items-center gap-2 text-caption-2-semibold text-text-secondary">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-accent-surface text-accent-text">{icon}</span>
         {title}
       </p>
       {children}
@@ -66,10 +63,10 @@ function SectionCard({ title, icon, children }: { title: string; icon: ReactNode
 function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
     <div className="flex items-start gap-3 py-2">
-      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-400">{icon}</span>
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-fill-1 text-text-tertiary">{icon}</span>
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium text-gray-400">{label}</p>
-        <div className="text-sm font-medium text-gray-800 break-words">{children}</div>
+        <p className="text-caption-2-medium text-text-tertiary">{label}</p>
+        <div className="text-body-medium text-text-primary break-words">{children}</div>
       </div>
     </div>
   );
@@ -122,17 +119,17 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
   return (
     <>
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-gray-50 shadow-2xl">
+        <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-fill-1 shadow-2xl">
           {/* Profile header */}
-          <div className="relative shrink-0 bg-gradient-to-br from-[#1b2b5e] via-[#22356f] to-[#2d4590] px-6 pb-5 pt-6 text-white">
+          <div className="relative shrink-0 bg-accent-solid px-6 pb-5 pt-6 text-on-solid">
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-on-solid/15 text-on-solid transition hover:bg-on-solid/25"
             >
               <X className="h-4 w-4" />
             </button>
@@ -145,28 +142,28 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
                   className="group relative shrink-0 cursor-zoom-in rounded-full"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo} alt={m.name} className="h-20 w-20 rounded-full border-4 border-white/90 object-cover shadow-lg transition group-hover:brightness-90" />
-                  <span className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100">
+                  <img src={photo} alt={m.name} className="h-20 w-20 rounded-full border-4 border-background-primary-default object-cover shadow-lg transition group-hover:brightness-90" />
+                  <span className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-full bg-scrim/0 opacity-0 transition group-hover:bg-scrim/25 group-hover:opacity-100">
                     <ZoomIn className="h-5 w-5" />
                   </span>
                 </button>
               ) : (
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 border-white/90 bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-bold shadow-lg">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 border-background-primary-default bg-accent-solid text-title-1-semibold shadow-lg">
                   {initialsOf(m.name)}
                 </div>
               )}
               <div className="min-w-0 flex-1 pr-8">
-                <h2 className="truncate text-xl font-bold">{m.name || "—"}</h2>
-                <p className="mt-0.5 truncate text-sm text-blue-100">{m.designation || "—"}</p>
+                <h2 className="truncate text-title-2-semibold">{m.name || "—"}</h2>
+                <p className="mt-0.5 truncate text-sm text-on-solid/80">{m.designation || "—"}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full bg-white/15 px-2.5 py-0.5 font-mono font-semibold">{m.staffId}</span>
+                  <span className="rounded-full bg-on-solid/15 px-2.5 py-0.5 font-mono font-semibold">{m.staffId}</span>
                   {m.softwareDesignation && (
-                    <span className="flex items-center gap-1 rounded-full bg-amber-400/90 px-2.5 py-0.5 font-semibold text-[#1b2b5e]">
+                    <span className="flex items-center gap-1 rounded-full bg-warning-solid/90 px-2.5 py-0.5 font-semibold text-accent-text-strong">
                       <BadgeCheck className="h-3 w-3" /> {m.softwareDesignation}
                     </span>
                   )}
                   {m.department && (
-                    <span className="flex items-center gap-1 text-blue-100"><Building2 className="h-3 w-3" /> {m.department}</span>
+                    <span className="flex items-center gap-1 text-on-solid/80"><Building2 className="h-3 w-3" /> {m.department}</span>
                   )}
                 </div>
               </div>
@@ -174,12 +171,12 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
             {/* Quick contact */}
             <div className="mt-4 flex flex-wrap gap-2">
               {m.contactNumber && (
-                <a href={`tel:${m.contactNumber}`} className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20">
+                <a href={`tel:${m.contactNumber}`} className="flex items-center gap-1.5 rounded-full bg-on-solid/10 px-3 py-1.5 text-caption-1-medium transition hover:bg-on-solid/20">
                   <Phone className="h-3.5 w-3.5" /> {m.contactNumber}
                 </a>
               )}
               {m.email && (
-                <a href={`mailto:${m.email}`} className="flex min-w-0 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20">
+                <a href={`mailto:${m.email}`} className="flex min-w-0 items-center gap-1.5 rounded-full bg-on-solid/10 px-3 py-1.5 text-caption-1-medium transition hover:bg-on-solid/20">
                   <Mail className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{m.email}</span>
                 </a>
               )}
@@ -190,19 +187,19 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
           <div className="flex-1 overflow-y-auto p-5">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <SectionCard title="Work" icon={<Briefcase className="h-3.5 w-3.5" />}>
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-separator-border">
                   <InfoRow icon={<Building2 className="h-3.5 w-3.5" />} label="Department">{m.department || "—"}</InfoRow>
                   <InfoRow icon={<Briefcase className="h-3.5 w-3.5" />} label="Designation">{m.designation || "—"}</InfoRow>
                   <InfoRow icon={<BadgeCheck className="h-3.5 w-3.5" />} label="Software Designation">{m.softwareDesignation || "—"}</InfoRow>
                   <InfoRow icon={<CalendarDays className="h-3.5 w-3.5" />} label="Date of Joining">
                     {fmtD(m.dateOfJoining)}
-                    {since && <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{since}</span>}
+                    {since && <span className="ml-2 rounded-full bg-accent-surface px-2 py-0.5 text-caption-2-semibold text-accent-text">{since}</span>}
                   </InfoRow>
                 </div>
               </SectionCard>
 
               <SectionCard title="Personal" icon={<IdCard className="h-3.5 w-3.5" />}>
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-separator-border">
                   <InfoRow icon={<Cake className="h-3.5 w-3.5" />} label="Date of Birth">{fmtD(m.dateOfBirth)}</InfoRow>
                   <InfoRow icon={<Phone className="h-3.5 w-3.5" />} label="Contact Number">{m.contactNumber || "—"}</InfoRow>
                   <InfoRow icon={<Mail className="h-3.5 w-3.5" />} label="Email">{m.email || "—"}</InfoRow>
@@ -214,12 +211,12 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
                 <InfoRow icon={<IdCard className="h-3.5 w-3.5" />} label="Aadhaar Number">
                   {aadhaar ? (
                     <span className="flex items-center gap-2">
-                      <span className="font-mono tracking-wide">{showAadhaar ? prettyAadhaar : maskedAadhaar}</span>
+                      <span className="font-mono">{showAadhaar ? prettyAadhaar : maskedAadhaar}</span>
                       <button
                         type="button"
                         onClick={() => setShowAadhaar((v) => !v)}
                         title={showAadhaar ? "Hide" : "Show full number"}
-                        className="rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                        className="rounded-md p-1 text-text-tertiary transition hover:bg-fill-3 hover:text-text-secondary"
                       >
                         {showAadhaar ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
@@ -230,27 +227,27 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
 
               <SectionCard title="Registered Devices" icon={<Smartphone className="h-3.5 w-3.5" />}>
                 {devices.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-center text-xs text-gray-400">
+                  <p className="rounded-xl border border-dashed border-separator-border bg-fill-1 px-3 py-3 text-center text-xs text-text-tertiary">
                     No devices bound. The next login will bind a device.
                   </p>
                 ) : (
                   <div className="flex flex-col gap-2">
                     {devices.map((d) => (
-                      <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5">
+                      <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-separator-border bg-fill-1 px-3 py-2.5">
                         <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-surface text-accent-text">
                             {d.kind === "mobile" ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}
                           </span>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-gray-800">{d.label || "Device"}</p>
-                            <p className="text-xs text-gray-400">{d.boundAt ? `Bound ${fmtDateTime(d.boundAt)}` : "Bound earlier"}</p>
+                            <p className="truncate text-body-medium text-text-primary">{d.label || "Device"}</p>
+                            <p className="text-xs text-text-tertiary">{d.boundAt ? `Bound ${fmtDateTime(d.boundAt)}` : "Bound earlier"}</p>
                           </div>
                         </div>
                         {isAdmin && (
                           <button
                             type="button"
                             onClick={() => onResetDevice(m.id, d.id, d.label || "this device")}
-                            className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                            className="shrink-0 rounded-lg border border-warning-border bg-warning-surface px-2.5 py-1.5 text-caption-1-medium text-warning-text transition hover:bg-warning-surface-strong"
                           >
                             Reset
                           </button>
@@ -268,18 +265,18 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
                 <SectionCard title="Account Access & Freeze History" icon={<Lock className="h-3.5 w-3.5" />}>
                   <div className={cn(
                     "flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2.5",
-                    m.frozenAt ? "border-red-200 bg-red-50" : "border-emerald-100 bg-emerald-50/60",
+                    m.frozenAt ? "border-danger-border bg-danger-surface" : "border-success-border bg-success-surface/60",
                   )}>
                     <div className="min-w-0 text-sm">
                       {m.frozenAt ? (
                         <>
-                          <p className="flex items-center gap-1.5 font-semibold text-red-700"><Lock className="h-4 w-4" /> Frozen — can&apos;t log in</p>
-                          <p className="mt-0.5 text-xs text-red-600">
+                          <p className="flex items-center gap-1.5 font-semibold text-danger-text"><Lock className="h-4 w-4" /> Frozen — can&apos;t log in</p>
+                          <p className="mt-0.5 text-xs text-danger-text">
                             By {m.frozenByName ?? "—"} on {fmtDateTime(m.frozenAt)}{m.frozenReason ? ` · ${m.frozenReason}` : ""}
                           </p>
                         </>
                       ) : (
-                        <p className="flex items-center gap-1.5 font-semibold text-emerald-700"><LockOpen className="h-4 w-4" /> Active — can log in</p>
+                        <p className="flex items-center gap-1.5 font-semibold text-success-text"><LockOpen className="h-4 w-4" /> Active — can log in</p>
                       )}
                     </div>
                     {onFreeze && (
@@ -287,8 +284,8 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
                         type="button"
                         onClick={() => onFreeze(m)}
                         className={cn(
-                          "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition",
-                          m.frozenAt ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700",
+                          "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-caption-1-semibold text-on-solid transition",
+                          m.frozenAt ? "bg-success-solid hover:bg-success-solid-hover" : "bg-danger-solid hover:bg-danger-solid-hover",
                         )}
                       >
                         {m.frozenAt ? <LockOpen className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
@@ -298,27 +295,27 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
                   </div>
                   <div className="mt-3">
                     {freezeEvents === null ? (
-                      <p className="py-2 text-center text-xs text-gray-400">Loading history…</p>
+                      <p className="py-2 text-center text-xs text-text-tertiary">Loading history…</p>
                     ) : freezeEvents.length === 0 ? (
-                      <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-center text-xs text-gray-400">
+                      <p className="rounded-xl border border-dashed border-separator-border bg-fill-1 px-3 py-3 text-center text-xs text-text-tertiary">
                         This account has never been frozen.
                       </p>
                     ) : (
                       <ol className="flex flex-col gap-2">
                         {freezeEvents.map((ev) => (
-                          <li key={ev.id} className="flex items-start gap-2.5 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                          <li key={ev.id} className="flex items-start gap-2.5 rounded-xl border border-separator-border bg-fill-1 px-3 py-2">
                             <span className={cn(
                               "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
-                              ev.event === "Frozen" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600",
+                              ev.event === "Frozen" ? "bg-danger-surface-strong text-danger-text" : "bg-success-surface-strong text-success-text",
                             )}>
                               {ev.event === "Frozen" ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
                             </span>
                             <div className="min-w-0 flex-1 text-sm">
-                              <p className="font-semibold text-gray-800">
-                                {ev.event} <span className="font-normal text-gray-500">by {ev.actorName}{ev.actorRole ? ` (${ev.actorRole})` : ""}</span>
+                              <p className="font-semibold text-text-primary">
+                                {ev.event} <span className="font-normal text-text-secondary">by {ev.actorName}{ev.actorRole ? ` (${ev.actorRole})` : ""}</span>
                               </p>
-                              <p className="whitespace-pre-wrap break-words text-gray-700">{ev.reason}</p>
-                              <p className="text-xs text-gray-400">{fmtDateTime(ev.createdAt)}</p>
+                              <p className="whitespace-pre-wrap break-words text-text-primary">{ev.reason}</p>
+                              <p className="text-xs text-text-tertiary">{fmtDateTime(ev.createdAt)}</p>
                             </div>
                           </li>
                         ))}
@@ -333,7 +330,7 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
             <div className="mt-4">
               <SectionCard title="Uploaded Documents" icon={<FileText className="h-3.5 w-3.5" />}>
                 {docs.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-center text-xs text-gray-400">No documents uploaded.</p>
+                  <p className="rounded-xl border border-dashed border-separator-border bg-fill-1 px-3 py-3 text-center text-xs text-text-tertiary">No documents uploaded.</p>
                 ) : (
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {docs.map((d) => (
@@ -341,22 +338,22 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
                         key={d.key}
                         type="button"
                         onClick={() => setViewing(d)}
-                        className="group flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                        className="group flex flex-col overflow-hidden rounded-xl border border-separator-border bg-background-primary-default text-left shadow-sm transition hover:border-accent-border-strong hover:shadow-md"
                       >
-                        <div className="relative flex h-28 items-center justify-center overflow-hidden bg-gray-100">
+                        <div className="relative flex h-28 items-center justify-center overflow-hidden bg-fill-2">
                           {d.kind === "image" ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={fileUrl("staff", m.id, d.field)} alt={d.label} className="h-full w-full object-cover transition group-hover:scale-105" />
+                            <img src={fileUrl("staff", m.id, d.field)} alt={d.label} className="h-full w-full object-cover transition" />
                           ) : (
-                            <FileText className="h-10 w-10 text-red-400" />
+                            <FileText className="h-10 w-10 text-danger-text" />
                           )}
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                          <span className="absolute inset-0 flex items-center justify-center bg-scrim/0 text-on-solid opacity-0 transition group-hover:bg-scrim/30 group-hover:opacity-100">
                             <ZoomIn className="h-6 w-6" />
                           </span>
                         </div>
                         <div className="flex items-center gap-2 px-3 py-2">
-                          {d.kind === "image" ? <ImageIcon className="h-3.5 w-3.5 text-blue-500" /> : <FileText className="h-3.5 w-3.5 text-red-500" />}
-                          <span className="truncate text-xs font-semibold text-gray-700">{d.label}</span>
+                          {d.kind === "image" ? <ImageIcon className="h-3.5 w-3.5 text-accent-text" /> : <FileText className="h-3.5 w-3.5 text-danger-text" />}
+                          <span className="truncate text-caption-1-semibold text-text-primary">{d.label}</span>
                         </div>
                       </button>
                     ))}
@@ -367,11 +364,11 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
           </div>
 
           {/* Footer */}
-          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 bg-white px-5 py-3">
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-separator-border bg-background-primary-default px-5 py-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="rounded-full border border-border-button-default bg-background-primary-default px-4 py-2 text-body-medium text-text-primary transition hover:bg-fill-2"
             >
               Close
             </button>
@@ -380,7 +377,7 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
               onClick={() => onDownloadPdf(m)}
               disabled={downloading}
               className={cn(
-                "flex items-center gap-2 rounded-full bg-[#1b2b5e] px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#22356f]",
+                "flex items-center gap-2 rounded-full bg-accent-solid px-5 py-2 text-body-medium text-on-solid shadow-sm transition hover:bg-accent-solid",
                 "disabled:cursor-not-allowed disabled:opacity-60",
               )}
             >

@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Eye, Loader2 } from "lucide-react";
+import { RiBookOpenLine as BookOpen, RiEyeLine as Eye, RiLoader4Line as Loader2, RiErrorWarningLine as WarnIcon } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
 import { financeApi, type BattaRow } from "@/lib/api";
 import { containerLabel } from "@/lib/halt-pay";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import type { CompensationPerson } from "./CompensationTable";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 export type BattaKind = "cleaner" | "workshop" | "workshopAdvance";
 
 /** What differs between the daily records. */
@@ -80,10 +81,10 @@ function thisMonthRange(): { from: string; to: string } {
 }
 
 const STATUS_STYLE: Record<string, string> = {
-  Present: "bg-emerald-100 text-emerald-700",
-  "On Trip": "bg-blue-100 text-blue-700",
-  "On Halt": "bg-amber-100 text-amber-700",
-  "On Workshop": "bg-violet-100 text-violet-700",
+  Present: "bg-success-surface-strong text-success-text",
+  "On Trip": "bg-accent-surface-strong text-accent-text",
+  "On Halt": "bg-warning-surface-strong text-warning-text",
+  "On Workshop": "bg-purple-surface-strong text-purple-text",
 };
 
 /**
@@ -177,10 +178,10 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
 
   const pill = (active: boolean) =>
     cn(
-      "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-      active ? "bg-brand-navy text-white shadow-sm" : "border border-gray-300 bg-white text-gray-600 hover:bg-gray-50",
+      "rounded-full px-3 py-1 text-caption-1-semibold transition-colors",
+      active ? "bg-accent-solid text-on-solid shadow-sm" : "border border-border-button-default bg-background-primary-default text-text-secondary hover:bg-fill-2",
     );
-  const thClass = "px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 whitespace-nowrap text-left";
+  const thClass = "px-3 py-2.5 text-caption-2-semibold text-text-secondary whitespace-nowrap text-left";
   const thRClass = `${thClass} text-right`;
 
   return (
@@ -194,7 +195,7 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
           <button
             type="button"
             onClick={onShowGuide}
-            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+            className="flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary transition-colors hover:border-border-button-default hover:bg-fill-2 hover:text-text-primary"
           >
             <BookOpen className="h-3.5 w-3.5" />
             Full guide
@@ -210,7 +211,7 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
             {filterMode === "custom" && (
               <div className="flex items-center gap-2 text-sm">
                 <DatePickerInput value={customFrom} onChange={setCustomFrom} />
-                <span className="text-gray-400">→</span>
+                <span className="text-text-tertiary">→</span>
                 <DatePickerInput value={customTo} onChange={setCustomTo} />
               </div>
             )}
@@ -221,7 +222,7 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
               type="button"
               onClick={openPreview}
               disabled={visible.length === 0 || preparing}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             >
               {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
               {preparing ? "Preparing…" : "View"}
@@ -230,11 +231,11 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
         </div>
 
         {cfg.showFee && statuses.length > 0 && (
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-text-secondary">
             Counts attendance days marked{" "}
             {statuses.map((s, i) => (
               <span key={s}>
-                <span className="font-semibold text-slate-700">{s}</span>
+                <span className="font-semibold text-text-primary">{s}</span>
                 {i < statuses.length - 2 ? ", " : i === statuses.length - 2 ? " or " : ""}
               </span>
             ))}
@@ -243,17 +244,17 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
         )}
 
         {loading ? (
-          <div className="py-10 text-center text-sm text-gray-500">Loading attendance…</div>
+          <div className="py-10 text-center text-sm text-text-secondary">Loading attendance…</div>
         ) : rows.length === 0 ? (
-          <div className="py-10 text-center text-sm text-gray-500">{cfg.empty}</div>
+          <div className="py-10 text-center text-sm text-text-secondary">{cfg.empty}</div>
         ) : visible.length === 0 ? (
-          <div className="py-10 text-center text-sm text-gray-500">No days match the selected filters.</div>
+          <EmptyState size="compact" illustration="not-found" title="No days match the selected filters" />
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="max-h-[calc(90vh-320px)] overflow-auto rounded-lg border border-gray-200">
+            <div className="max-h-[calc(90vh-320px)] overflow-auto rounded-lg border border-separator-border">
               <table className="w-full border-collapse whitespace-nowrap text-left text-xs">
                 <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-gray-200 bg-gray-50">
+                  <tr className="border-b border-separator-border bg-fill-1">
                     <th className={thClass}>Date</th>
                     <th className={thClass}>Attendance</th>
                     {cfg.showVehicleType && <th className={thClass}>Vehicle Type</th>}
@@ -263,32 +264,32 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
                     <th className={thRClass}>{cfg.amountLabel}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-separator-border">
                   {visible.map((r) => (
-                    <tr key={r.date} className={cn("hover:bg-gray-50", r.note && "bg-amber-50/40")}>
-                      <td className="px-3 py-2.5 tabular-nums text-gray-700">{fmtDate(r.date)}</td>
+                    <tr key={r.date} className={cn("hover:bg-fill-2", r.note && "bg-warning-surface/40")}>
+                      <td className="px-3 py-2.5 tabular-nums text-text-primary">{fmtDate(r.date)}</td>
                       <td className="px-3 py-2.5">
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", STATUS_STYLE[r.status] ?? "bg-gray-100 text-gray-600")}>
+                        <span className={cn("rounded-full px-2 py-0.5 text-caption-2-semibold", STATUS_STYLE[r.status] ?? "bg-fill-2 text-text-secondary")}>
                           {r.status}
                         </span>
                       </td>
                       {cfg.showVehicleType && (
-                        <td className="px-3 py-2.5 font-medium text-gray-700">{containerLabel(r.container_specification) ?? "—"}</td>
+                        <td className="px-3 py-2.5 font-medium text-text-primary">{containerLabel(r.container_specification) ?? "—"}</td>
                       )}
                       <td className="px-3 py-2.5">
                         {r.truck_registration ? (
                           <>
-                            <span className="font-mono text-gray-700">{r.truck_registration}</span>
-                            <span className="ml-1.5 text-[10px] text-gray-400">{r.truck_source}</span>
+                            <span className="font-mono text-text-primary">{r.truck_registration}</span>
+                            <span className="ml-1.5 text-[10px] text-text-tertiary">{r.truck_source}</span>
                           </>
-                        ) : <span className="text-gray-400">—</span>}
+                        ) : <span className="text-text-tertiary">—</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-gray-600">
+                      <td className="px-3 py-2.5 text-text-secondary">
                         {r.branch ?? "—"}
-                        {r.note && <span className="ml-1.5 text-[10px] font-medium text-amber-600">⚠ {r.note}</span>}
+                        {r.note && <span className="ml-1.5 text-caption-2-medium inline-flex items-center gap-1 text-warning-text"><WarnIcon className="size-3.5" />{r.note}</span>}
                       </td>
-                      {cfg.showFee && <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{fmtCur(r.rate)}</td>}
-                      <td className="px-3 py-2.5 text-right font-bold tabular-nums text-brand-navy">{fmtCur(r.amount)}</td>
+                      {cfg.showFee && <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(r.rate)}</td>}
+                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-accent-text-strong">{fmtCur(r.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -297,21 +298,21 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
 
             {/* Summary */}
             <div className={cn("grid grid-cols-1 gap-3", cfg.showFee ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Days counted</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-slate-800">{visible.length}</p>
+              <div className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
+                <p className="text-caption-2-semibold text-text-tertiary">Days counted</p>
+                <p className="mt-1 text-title-3-semibold tabular-nums text-text-primary">{visible.length}</p>
               </div>
               {cfg.showFee && (
-                <div className={cn("rounded-xl border px-4 py-3", missing > 0 ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-white")}>
-                  <p className={cn("text-[10px] font-semibold uppercase tracking-widest", missing > 0 ? "text-amber-600" : "text-slate-400")}>
+                <div className={cn("rounded-xl border px-4 py-3", missing > 0 ? "border-warning-border bg-warning-surface/60" : "border-separator-border bg-background-primary-default")}>
+                  <p className={cn("text-caption-2-semibold", missing > 0 ? "text-warning-text" : "text-text-tertiary")}>
                     Days without a fee
                   </p>
-                  <p className={cn("mt-1 text-lg font-bold tabular-nums", missing > 0 ? "text-amber-700" : "text-slate-800")}>{missing}</p>
+                  <p className={cn("mt-1 text-title-3-semibold tabular-nums", missing > 0 ? "text-warning-text" : "text-text-primary")}>{missing}</p>
                 </div>
               )}
-              <div className="rounded-xl bg-brand-navy px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">{cfg.totalCardLabel}</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-white">{fmtCur(total)}</p>
+              <div className="rounded-xl bg-accent-solid px-4 py-3">
+                <p className="text-caption-2-semibold text-on-solid/60">{cfg.totalCardLabel}</p>
+                <p className="mt-1 text-title-3-semibold tabular-nums text-on-solid">{fmtCur(total)}</p>
               </div>
             </div>
 
@@ -319,7 +320,7 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                className="rounded-lg border border-border-button-default px-4 py-2 text-body-semibold text-text-primary hover:bg-fill-2"
               >
                 Close
               </button>

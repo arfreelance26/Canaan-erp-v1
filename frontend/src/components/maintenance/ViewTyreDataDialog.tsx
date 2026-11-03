@@ -7,6 +7,7 @@ import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import type { Truck } from "@/types/truck";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type ViewTyreDataDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -50,35 +51,33 @@ export function ViewTyreDataDialog({ open, onClose, truck, rangeConfigMap }: Vie
   return (
     <Dialog open={open} onClose={onClose} title="Installed Tyre Data" className="max-w-4xl">
       <div className="mb-4">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-text-secondary">
           {truck.registrationNumber} • {truck.modelName} • {truck.manufacturer}
         </p>
       </div>
 
-      <div className="mb-4 flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-5 py-3">
-        <span className="text-sm font-semibold text-blue-700">Total Tyre Cost Per KM (Advanced)</span>
-        <span className="text-lg font-bold tabular-nums text-blue-900">
+      <div className="mb-4 flex items-center justify-between rounded-xl border border-accent-border bg-accent-surface px-5 py-3">
+        <span className="text-body-semibold text-accent-text">Total Tyre Cost Per KM (Advanced)</span>
+        <span className="text-title-3-semibold tabular-nums text-accent-text-strong">
           {total > 0 ? `₹${total.toFixed(4)}` : "—"}
         </span>
       </div>
 
-      <div className="overflow-auto rounded-xl border border-gray-200">
+      <div className="overflow-auto rounded-xl border border-separator-border">
         <table className="w-full min-w-max text-left text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+            <tr className="border-b border-separator-border bg-fill-1">
               {COLS.map((col) => (
-                <th key={col} className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+                <th key={col} className="px-4 py-3 text-caption-2-semibold text-text-secondary">
                   {col}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-separator-border">
             {installedTyres.length === 0 ? (
               <tr>
-                <td colSpan={COLS.length} className="px-4 py-8 text-center text-gray-500">
-                  No tyres currently installed on this truck.
-                </td>
+                <td colSpan={COLS.length} className="p-0"><EmptyState size="compact" illustration="logistics" title="No tyres currently installed on this truck" /></td>
               </tr>
             ) : (
               installedTyres.map((tyre) => {
@@ -86,24 +85,24 @@ export function ViewTyreDataDialog({ open, onClose, truck, rangeConfigMap }: Vie
                 const expectedRange = lookupRange(tyre.tyreType);
                 const costPerKm = getCostPerKm(tyre);
                 return (
-                  <tr key={tyre.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{tyre.brand}</td>
-                    <td className="px-4 py-3 text-gray-600">{tyre.tyreType || "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{tyre.tyreNumber}</td>
-                    <td className="px-4 py-3 tabular-nums text-gray-900">
+                  <tr key={tyre.id} className="hover:bg-fill-2">
+                    <td className="px-4 py-3 font-medium text-text-primary">{tyre.brand}</td>
+                    <td className="px-4 py-3 text-text-secondary">{tyre.tyreType || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-text-secondary">{tyre.tyreNumber}</td>
+                    <td className="px-4 py-3 tabular-nums text-text-primary">
                       {tyreCost > 0
                         ? `₹${tyreCost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : "—"}
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-gray-600">
+                    <td className="px-4 py-3 tabular-nums text-text-secondary">
                       {expectedRange != null
                         ? `${Number(expectedRange).toLocaleString("en-IN")} km`
-                        : <span className="italic text-gray-400">Not configured</span>}
+                        : <span className="italic text-text-tertiary">Not configured</span>}
                     </td>
-                    <td className="px-4 py-3 font-semibold tabular-nums text-blue-700">
+                    <td className="px-4 py-3 font-semibold tabular-nums text-accent-text">
                       {costPerKm != null
                         ? `₹${costPerKm.toFixed(4)}`
-                        : <span className="font-normal italic text-gray-400">—</span>}
+                        : <span className="font-normal italic text-text-tertiary">—</span>}
                     </td>
                   </tr>
                 );
@@ -114,13 +113,13 @@ export function ViewTyreDataDialog({ open, onClose, truck, rangeConfigMap }: Vie
       </div>
 
       {/* How the total is worked out */}
-      <div className="mt-3 flex flex-col gap-1 rounded-xl bg-slate-50 px-3.5 py-2.5">
-        <p className="text-[11px] leading-relaxed text-slate-400">
-          <span className="font-semibold text-slate-500">Cost Per KM (Advanced)</span> = Tyre Cost ÷ Expected Range
+      <div className="mt-3 flex flex-col gap-1 rounded-xl bg-fill-1 px-3.5 py-2.5">
+        <p className="text-[11px] leading-relaxed text-text-tertiary">
+          <span className="font-semibold text-text-secondary">Cost Per KM (Advanced)</span> = Tyre Cost ÷ Expected Range
           (the range set for that tyre type in Tyre Cost Configuration)
         </p>
-        <p className="text-[11px] leading-relaxed text-slate-400">
-          <span className="font-semibold text-slate-500">Total Tyre Cost Per KM (Advanced)</span> = sum of Cost Per KM
+        <p className="text-[11px] leading-relaxed text-text-tertiary">
+          <span className="font-semibold text-text-secondary">Total Tyre Cost Per KM (Advanced)</span> = sum of Cost Per KM
           for every tyre currently installed on this truck
           {skippedCount > 0 &&
             ` — ${skippedCount} tyre${skippedCount === 1 ? "" : "s"} with no cost or no Expected Range ${skippedCount === 1 ? "is" : "are"} left out`}

@@ -150,18 +150,18 @@ export function InvoicePreviewDialog({
     );
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#111827]/80 backdrop-blur-sm dark:bg-black/80">
+    <div className="fixed inset-0 z-50 flex flex-col bg-inverse/80">
 
       {/* Toolbar */}
-      <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shadow-sm">
+      <div className="flex shrink-0 items-center justify-between border-b border-separator-border bg-background-primary-default px-6 py-3 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="rounded-md bg-indigo-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-indigo-700">
+          <span className="rounded-md bg-purple-surface-strong px-2.5 py-1 text-caption-1-semibold text-purple-text">
             {invoiceType}
           </span>
-          <span className="text-sm text-gray-500">
-            Trip <span className="font-semibold text-gray-800">{trip.tripId}</span>
+          <span className="text-sm text-text-secondary">
+            Trip <span className="font-semibold text-text-primary">{trip.tripId}</span>
             &nbsp;·&nbsp;
-            Booking <span className="font-semibold text-gray-800">{trip.bookingReferenceNo}</span>
+            Booking <span className="font-semibold text-text-primary">{trip.bookingReferenceNo}</span>
           </span>
         </div>
 
@@ -170,7 +170,7 @@ export function InvoicePreviewDialog({
             type="button"
             onClick={handleDownload}
             disabled={downloading}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-lg bg-accent-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-60"
           >
             {downloading ? (
               <>
@@ -194,7 +194,7 @@ export function InvoicePreviewDialog({
             type="button"
             onClick={onClose}
             disabled={downloading}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-border-button-default bg-background-primary-default px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2 disabled:opacity-50"
           >
             Close
           </button>

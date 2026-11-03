@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { chatApi } from "@/lib/api";
-import { showToast } from "@/lib/swal";
+import { showToast } from "@/lib/feedback";
 
 // A burst of messages arriving together (e.g. someone sending several lines
 // in a row) should read as one summary popup, not one stacking on top of

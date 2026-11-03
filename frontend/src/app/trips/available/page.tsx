@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { TripTable } from "@/components/trips/TripTable";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
-import { Navigation } from "lucide-react";
+import { RiNavigationLine as Navigation } from "@remixicon/react";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { TRIP_PROGRESS_STATUSES, TRIP_STATUS_OPTIONS } from "@/lib/trip-data";
 import type { Trip } from "@/types/trip";
@@ -14,7 +14,7 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 const FILTERS: Array<Trip["status"] | "All"> = ["All", ...TRIP_PROGRESS_STATUSES];
@@ -64,12 +64,12 @@ export default function AvailableTripsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
           <Navigation className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Available Trips</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Available Trips</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">
             View all trips and filter by the progress status updated by the driver
           </p>
         </div>
@@ -95,10 +95,10 @@ export default function AvailableTripsPage() {
             type="button"
             onClick={() => setFilter(status)}
             className={cn(
-              "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+              "rounded-full px-3.5 py-1.5 text-body-medium transition-colors",
               filter === status
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-accent-solid text-on-solid"
+                : "bg-fill-2 text-text-secondary hover:bg-fill-3"
             )}
           >
             {status}

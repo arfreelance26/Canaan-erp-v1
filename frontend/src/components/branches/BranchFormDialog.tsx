@@ -80,22 +80,22 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
           {/* Halt fees — per day, for every container type a trip can have. */}
           <div className="sm:col-span-2 flex flex-col gap-2">
             <div>
-              <p className="text-sm font-medium text-gray-700">Halt Fees (₹ / day) <span className="text-red-500">*</span></p>
-              <p className="mt-0.5 text-xs text-gray-500">
-                Paid to the driver per halt day. <span className="font-semibold text-gray-700">Company</span> = days the company caused;{" "}
-                <span className="font-semibold text-gray-700">Customer</span> = days the customer caused (billed to them at the same amount).
+              <p className="text-body-medium text-text-primary">Halt Fees (₹ / day) <span className="text-danger-text">*</span></p>
+              <p className="mt-0.5 text-xs text-text-secondary">
+                Paid to the driver per halt day. <span className="font-semibold text-text-primary">Company</span> = days the company caused;{" "}
+                <span className="font-semibold text-text-primary">Customer</span> = days the customer caused (billed to them at the same amount).
               </p>
             </div>
-            <div className="overflow-hidden rounded-xl border border-gray-200">
-              <div className="grid grid-cols-[1fr_1fr_1fr] gap-px bg-gray-200 text-xs">
+            <div className="overflow-hidden rounded-xl border border-separator-border">
+              <div className="grid grid-cols-[1fr_1fr_1fr] gap-px bg-fill-3 text-xs">
                 {["Container Type", "Company Halt Fee", "Customer Halt Fee"].map((h) => (
-                  <div key={h} className="bg-gray-50 px-3 py-2 font-semibold uppercase tracking-wider text-gray-500">{h}</div>
+                  <div key={h} className="bg-fill-1 px-3 py-2 font-semibold text-text-secondary">{h}</div>
                 ))}
                 {HALT_CONTAINER_TYPES.map((t) => (
                   <div key={t.spec} className="contents">
-                    <div className="flex items-center bg-white px-3 py-2 text-sm font-semibold text-gray-800">{t.label}</div>
+                    <div className="flex items-center bg-background-primary-default px-3 py-2 text-body-semibold text-text-primary">{t.label}</div>
                     {([t.company, t.party] as const).map((key) => (
-                      <div key={key} className="bg-white p-1.5">
+                      <div key={key} className="bg-background-primary-default p-1.5">
                         <DecimalInput type="number"
                           required
                           min="0"
@@ -143,16 +143,16 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
 
           {/* Cleaner Batta — one fee for every container type a trip can have. */}
           <div className="sm:col-span-2 flex flex-col gap-2">
-            <p className="text-sm font-medium text-gray-700">Cleaner Batta Fee (₹)</p>
-            <div className="overflow-hidden rounded-xl border border-gray-200">
-              <div className="grid grid-cols-[1fr_2fr] gap-px bg-gray-200 text-xs">
+            <p className="text-body-medium text-text-primary">Cleaner Batta Fee (₹)</p>
+            <div className="overflow-hidden rounded-xl border border-separator-border">
+              <div className="grid grid-cols-[1fr_2fr] gap-px bg-fill-3 text-xs">
                 {["Container Type", "Cleaner Batta Fee"].map((h) => (
-                  <div key={h} className="bg-gray-50 px-3 py-2 font-semibold uppercase tracking-wider text-gray-500">{h}</div>
+                  <div key={h} className="bg-fill-1 px-3 py-2 font-semibold text-text-secondary">{h}</div>
                 ))}
                 {HALT_CONTAINER_TYPES.map((t) => (
                   <div key={t.spec} className="contents">
-                    <div className="flex items-center bg-white px-3 py-2 text-sm font-semibold text-gray-800">{t.label}</div>
-                    <div className="bg-white p-1.5">
+                    <div className="flex items-center bg-background-primary-default px-3 py-2 text-body-semibold text-text-primary">{t.label}</div>
+                    <div className="bg-background-primary-default p-1.5">
                       <DecimalInput type="number"
                         min="0"
                         step="0.01"
@@ -175,13 +175,13 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid hover:bg-accent-solid-hover"
           >
             {initialData ? "Save Changes" : "Add Branch"}
           </button>

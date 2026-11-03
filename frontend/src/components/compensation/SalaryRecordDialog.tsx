@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Info, X, Download, BookOpen } from "lucide-react";
+import { RiInformationLine as Info, RiCloseLine as X, RiDownloadLine as Download, RiBookOpenLine as BookOpen } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tripsApi } from "@/lib/api";
@@ -10,6 +10,7 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { Truck } from "@/types/truck";
 import type { CompensationPerson } from "./CompensationTable";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -371,34 +372,34 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
     <button
       type="button"
       onClick={() => setFilterMode(mode)}
-      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+      className={`rounded-full px-3 py-1 text-caption-1-semibold transition-colors ${
         filterMode === mode
-          ? "bg-indigo-600 text-white shadow-sm"
-          : "border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+          ? "bg-purple-solid text-on-solid shadow-sm"
+          : "border border-border-button-default bg-background-primary-default text-text-secondary hover:bg-fill-2"
       }`}
     >
       {label}
     </button>
   );
 
-  const thClass = "px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 whitespace-nowrap text-left";
+  const thClass = "px-3 py-2.5 text-caption-2-semibold text-text-secondary whitespace-nowrap text-left";
   const thRClass = `${thClass} text-right`;
 
   function OutstandingCell({ v }: { v: number }) {
-    if (!v && v !== 0) return <span className="text-gray-400">—</span>;
+    if (!v && v !== 0) return <span className="text-text-tertiary">—</span>;
     if (v > 0)
-      return <span className="font-semibold text-amber-600">{fmtCur(v)}</span>;
+      return <span className="font-semibold text-warning-text">{fmtCur(v)}</span>;
     if (v < 0)
-      return <span className="font-semibold text-red-600">{fmtCur(v)}</span>;
-    return <span className="text-gray-400">₹0.00</span>;
+      return <span className="font-semibold text-danger-text">{fmtCur(v)}</span>;
+    return <span className="text-text-tertiary">₹0.00</span>;
   }
 
   function NetPayableCell({ v }: { v: number }) {
     if (v > 0)
-      return <span className="font-bold text-emerald-700">{fmtCur(v)}</span>;
+      return <span className="font-semibold text-success-text">{fmtCur(v)}</span>;
     if (v < 0)
-      return <span className="font-bold text-red-600">{fmtCur(v)}</span>;
-    return <span className="font-semibold text-gray-500">₹0.00</span>;
+      return <span className="font-semibold text-danger-text">{fmtCur(v)}</span>;
+    return <span className="font-semibold text-text-secondary">₹0.00</span>;
   }
 
   return (
@@ -411,7 +412,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
         <button
           type="button"
           onClick={onShowGuide}
-          className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+          className="flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-secondary transition-colors hover:border-border-button-default hover:bg-fill-2 hover:text-text-primary"
         >
           <BookOpen className="h-3.5 w-3.5" />
           Full guide
@@ -429,13 +430,13 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
               <DatePickerInput
                 value={customFrom}
                 onChange={(v) => setCustomFrom(v)}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
+                className="rounded-lg border border-border-button-default px-3 py-1.5 text-sm text-text-primary focus:border-purple-border-strong focus:outline-none"
               />
-              <span className="text-gray-400">→</span>
+              <span className="text-text-tertiary">→</span>
               <DatePickerInput
                 value={customTo}
                 onChange={(v) => setCustomTo(v)}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
+                className="rounded-lg border border-border-button-default px-3 py-1.5 text-sm text-text-primary focus:border-purple-border-strong focus:outline-none"
               />
             </div>
           )}
@@ -445,7 +446,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
             type="button"
             disabled={rows.length === 0}
             onClick={downloadPdf}
-            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-full border border-success-border-strong bg-success-surface px-3.5 py-1.5 text-caption-1-semibold text-success-text shadow-sm transition hover:bg-success-surface-strong disabled:opacity-40"
           >
             <Download className="h-3 w-3" />
             Download PDF
@@ -454,7 +455,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
             type="button"
             disabled={rows.length === 0}
             onClick={downloadExcel}
-            className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3.5 py-1.5 text-xs font-semibold text-green-700 shadow-sm transition-all hover:bg-green-100 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-full border border-success-border-strong bg-success-surface px-3.5 py-1.5 text-caption-1-semibold text-success-text shadow-sm transition hover:bg-success-surface-strong disabled:opacity-40"
           >
             <Download className="h-3 w-3" />
             Download Excel
@@ -462,10 +463,10 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
           <button
             type="button"
             onClick={() => setShowFormulas((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-all ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-caption-1-semibold shadow-sm transition ${
               showFormulas
-                ? "border-indigo-300 bg-indigo-600 text-white shadow-indigo-200"
-                : "border-gray-200 bg-white text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
+                ? "border-purple-border-strong bg-purple-solid text-on-solid "
+                : "border-separator-border bg-background-primary-default text-text-secondary hover:border-purple-border-strong hover:text-purple-text"
             }`}
           >
             {showFormulas ? <X className="h-3 w-3" /> : <Info className="h-3 w-3" />}
@@ -476,16 +477,16 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
 
       {/* Formula reference panel */}
       {showFormulas && (
-        <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="mb-4 overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
 
           {/* Panel header */}
-          <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-indigo-50/30 px-5 py-3.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-100">
-              <Info className="h-4 w-4 text-indigo-600" />
+          <div className="flex items-center gap-3 border-b border-separator-border bg-fill-1 px-5 py-3.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-purple-surface-strong">
+              <Info className="h-4 w-4 text-purple-text" />
             </span>
             <div>
-              <p className="text-sm font-bold text-slate-800">Column Calculation Reference</p>
-              <p className="text-[11px] text-slate-400">How every value in the table is sourced or computed</p>
+              <p className="text-body-semibold text-text-primary">Column Calculation Reference</p>
+              <p className="text-[11px] text-text-tertiary">How every value in the table is sourced or computed</p>
             </div>
           </div>
 
@@ -493,9 +494,9 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
             <div className="min-w-[560px]">
 
               {/* ── Section 1: Auto-fetched ── */}
-              <div className="flex items-center gap-2 border-b border-slate-100 bg-sky-50/60 px-5 py-2">
-                <span className="h-2 w-2 rounded-full bg-sky-400" />
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-sky-500">Auto-fetched from trip data</p>
+              <div className="flex items-center gap-2 border-b border-separator-border bg-teal-surface/60 px-5 py-2">
+                <span className="h-2 w-2 rounded-full bg-teal-solid" />
+                <p className="text-caption-2-semibold text-teal-text">Auto-fetched from trip data</p>
               </div>
               {(
                 [
@@ -512,16 +513,16 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
                   ["Destination",     "Drop-off / unloading location"],
                 ] as [string, string][]
               ).map(([col, note]) => (
-                <div key={col} className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-slate-50 px-5 py-2.5 hover:bg-slate-50/70">
-                  <span className="text-xs font-semibold text-slate-700">{col}</span>
-                  <span className="text-xs leading-relaxed text-slate-500">{note}</span>
+                <div key={col} className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-separator-border px-5 py-2.5 hover:bg-fill-2">
+                  <span className="text-caption-1-semibold text-text-primary">{col}</span>
+                  <span className="text-xs leading-relaxed text-text-secondary">{note}</span>
                 </div>
               ))}
 
               {/* ── Section 2: From trip sheet ── */}
-              <div className="flex items-center gap-2 border-b border-slate-100 bg-violet-50/60 px-5 py-2">
-                <span className="h-2 w-2 rounded-full bg-violet-400" />
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-violet-500">Fetched from trip sheet</p>
+              <div className="flex items-center gap-2 border-b border-separator-border bg-purple-surface/60 px-5 py-2">
+                <span className="h-2 w-2 rounded-full bg-purple-solid" />
+                <p className="text-caption-2-semibold text-purple-text">Fetched from trip sheet</p>
               </div>
               {(
                 [
@@ -531,109 +532,109 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
                   ["Hire Amount",    "Trip sheet → Hire Amount",                         "Agreed freight / transport hire for this trip"],
                 ] as [string, string, string][]
               ).map(([col, src, note]) => (
-                <div key={col} className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-slate-50 px-5 py-2.5 hover:bg-slate-50/70">
-                  <span className="text-xs font-semibold text-slate-700">{col}</span>
+                <div key={col} className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-separator-border px-5 py-2.5 hover:bg-fill-2">
+                  <span className="text-caption-1-semibold text-text-primary">{col}</span>
                   <div className="flex flex-col gap-1">
-                    <span className="inline-flex w-fit items-center rounded-md bg-violet-100 px-2 py-0.5 font-mono text-[11px] font-medium text-violet-700">{src}</span>
-                    <span className="text-xs leading-relaxed text-slate-500">{note}</span>
+                    <span className="inline-flex w-fit items-center rounded-md bg-purple-surface-strong px-2 py-0.5 font-mono text-caption-2-medium text-purple-text">{src}</span>
+                    <span className="text-xs leading-relaxed text-text-secondary">{note}</span>
                   </div>
                 </div>
               ))}
 
               {/* ── Section 3: Calculated ── */}
-              <div className="flex items-center gap-2 border-b border-slate-100 bg-emerald-50/60 px-5 py-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600">Calculated fields</p>
+              <div className="flex items-center gap-2 border-b border-separator-border bg-success-surface/60 px-5 py-2">
+                <span className="h-2 w-2 rounded-full bg-success-solid" />
+                <p className="text-caption-2-semibold text-success-text">Calculated fields</p>
               </div>
 
               {/* Outstanding Advance */}
-              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-slate-50 px-5 py-3 hover:bg-slate-50/70">
-                <span className="text-xs font-semibold text-slate-700">Outstanding Advance</span>
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-separator-border px-5 py-3 hover:bg-fill-2">
+                <span className="text-caption-1-semibold text-text-primary">Outstanding Advance</span>
                 <div className="flex flex-col gap-2">
-                  <span className="inline-flex w-fit items-center rounded-md bg-amber-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-amber-700">
+                  <span className="inline-flex w-fit items-center rounded-md bg-warning-surface-strong px-2 py-0.5 font-mono text-caption-2-semibold text-warning-text">
                     Total Advance − Total Expenses
                   </span>
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-amber-100 px-1.5 py-px text-[10px] font-bold text-amber-600">&gt; 0</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">Advance balance still in driver&apos;s hand — driver has company money left over</p>
+                      <span className="mt-0.5 shrink-0 rounded bg-warning-surface-strong px-1.5 py-px text-caption-2-semibold text-warning-text">&gt; 0</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">Advance balance still in driver&apos;s hand — driver has company money left over</p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-red-100 px-1.5 py-px text-[10px] font-bold text-red-500">&lt; 0</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">Driver spent own money — company owes the driver reimbursement</p>
+                      <span className="mt-0.5 shrink-0 rounded bg-danger-surface-strong px-1.5 py-px text-caption-2-semibold text-danger-text">&lt; 0</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">Driver spent own money — company owes the driver reimbursement</p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-gray-100 px-1.5 py-px text-[10px] font-bold text-gray-400">= 0</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">Fully settled — no balance either way</p>
+                      <span className="mt-0.5 shrink-0 rounded bg-fill-2 px-1.5 py-px text-caption-2-semibold text-text-tertiary">= 0</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">Fully settled — no balance either way</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Regular Pay */}
-              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-slate-50 px-5 py-3 hover:bg-slate-50/70">
-                <span className="text-xs font-semibold text-slate-700">Regular Pay</span>
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-separator-border px-5 py-3 hover:bg-fill-2">
+                <span className="text-caption-1-semibold text-text-primary">Regular Pay</span>
                 <div className="flex flex-col gap-1.5">
-                  <span className="inline-flex w-fit items-center rounded-md bg-blue-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-blue-700">
+                  <span className="inline-flex w-fit items-center rounded-md bg-accent-surface-strong px-2 py-0.5 font-mono text-caption-2-semibold text-accent-text">
                     Driver Batta Amount (from the trip)
                   </span>
-                  <p className="text-[11px] leading-relaxed text-slate-500">
-                    Pulled directly from the <span className="font-semibold text-slate-700">Driver Batta Amount</span> field set when the trip
+                  <p className="text-[11px] leading-relaxed text-text-secondary">
+                    Pulled directly from the <span className="font-semibold text-text-primary">Driver Batta Amount</span> field set when the trip
                     was assigned — not recalculated here. That field already applies whichever compensation type was chosen at assignment time:
                   </p>
                   <div className="flex flex-col gap-1">
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-emerald-100 px-1.5 py-px text-[10px] font-bold text-emerald-700">Normal</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">
+                      <span className="mt-0.5 shrink-0 rounded bg-success-surface-strong px-1.5 py-px text-caption-2-semibold text-success-text">Normal</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">
                         Truck&apos;s branch Driver Compensation % × Hire Amount, e.g. Tuticorin (12%) · Hire ₹10,000 → ₹1,200
                       </p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-blue-100 px-1.5 py-px text-[10px] font-bold text-blue-600">Default</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">
-                        Looked up from <span className="font-semibold text-slate-700">Admin → Default Batta Management</span> by the truck&apos;s
+                      <span className="mt-0.5 shrink-0 rounded bg-accent-surface-strong px-1.5 py-px text-caption-2-semibold text-accent-text">Default</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">
+                        Looked up from <span className="font-semibold text-text-primary">Admin → Default Batta Management</span> by the truck&apos;s
                         branch, trip category, and container type.
                       </p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">Custom</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">
+                      <span className="mt-0.5 shrink-0 rounded bg-purple-surface-strong px-1.5 py-px text-caption-2-semibold text-purple-text">Custom</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">
                         A manually entered amount, typed in on the trip assignment form.
                       </p>
                     </div>
                   </div>
-                  <p className="text-[11px] leading-relaxed text-slate-500">
+                  <p className="text-[11px] leading-relaxed text-text-secondary">
                     Falls back to the amount on the trip&apos;s Trip Sheet only if the trip itself has no Driver Batta Amount recorded.
                   </p>
                 </div>
               </div>
 
               {/* Net Payable */}
-              <div className="grid grid-cols-[160px_1fr] items-start gap-4 px-5 py-3 hover:bg-slate-50/70">
-                <span className="text-xs font-semibold text-slate-700">Net Payable</span>
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4 px-5 py-3 hover:bg-fill-2">
+                <span className="text-caption-1-semibold text-text-primary">Net Payable</span>
                 <div className="flex flex-col gap-2">
-                  <span className="inline-flex w-fit items-center rounded-md bg-emerald-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-700">
+                  <span className="inline-flex w-fit items-center rounded-md bg-success-surface-strong px-2 py-0.5 font-mono text-caption-2-semibold text-success-text">
                     Regular Pay − Outstanding Advance
                   </span>
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-amber-100 px-1.5 py-px text-[10px] font-bold text-amber-600">Outstanding &gt; 0</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">Deducts the leftover advance — company pays less since driver already holds cash</p>
+                      <span className="mt-0.5 shrink-0 rounded bg-warning-surface-strong px-1.5 py-px text-caption-2-semibold text-warning-text">Outstanding &gt; 0</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">Deducts the leftover advance — company pays less since driver already holds cash</p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-red-100 px-1.5 py-px text-[10px] font-bold text-red-500">Outstanding &lt; 0</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">Adds reimbursement — subtracting a negative increases the payout (company owes extra)</p>
+                      <span className="mt-0.5 shrink-0 rounded bg-danger-surface-strong px-1.5 py-px text-caption-2-semibold text-danger-text">Outstanding &lt; 0</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">Adds reimbursement — subtracting a negative increases the payout (company owes extra)</p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-gray-100 px-1.5 py-px text-[10px] font-bold text-gray-400">Outstanding = 0</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">No adjustment — Net Payable equals Regular Pay exactly</p>
+                      <span className="mt-0.5 shrink-0 rounded bg-fill-2 px-1.5 py-px text-caption-2-semibold text-text-tertiary">Outstanding = 0</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">No adjustment — Net Payable equals Regular Pay exactly</p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">RETURN TRIP</span>
-                      <p className="text-[11px] leading-relaxed text-slate-500">
-                        Exception: by default its <span className="font-semibold text-slate-700">batta isn&apos;t paid</span> (marked with an asterisk *) —
+                      <span className="mt-0.5 shrink-0 rounded bg-purple-surface-strong px-1.5 py-px text-caption-2-semibold text-purple-text">RETURN TRIP</span>
+                      <p className="text-[11px] leading-relaxed text-text-secondary">
+                        Exception: by default its <span className="font-semibold text-text-primary">batta isn&apos;t paid</span> (marked with an asterisk *) —
                         a return trip&apos;s batta is normally paid beforehand and rides along with the outbound trip&apos;s pay — but any advance left with the
-                        driver is still deducted. If <span className="font-semibold text-slate-700">Is Batta Applicable</span> was set to Yes on
+                        driver is still deducted. If <span className="font-semibold text-text-primary">Is Batta Applicable</span> was set to Yes on
                         that trip (batta still owed), the batta is included too.
                       </p>
                     </div>
@@ -647,21 +648,17 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
       )}
 
       {loading ? (
-        <div className="py-10 text-center text-sm text-gray-500">Loading trip data…</div>
+        <div className="py-10 text-center text-sm text-text-secondary">Loading trip data…</div>
       ) : allRows.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-500">
-          No completed trips with sheets found for this driver.
-        </div>
+        <EmptyState size="compact" illustration="logistics" title="No completed trips with sheets found for this driver" />
       ) : rows.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-500">
-          No trips match the selected date filter.
-        </div>
+        <EmptyState size="compact" illustration="not-found" title="No trips match the selected date filter" />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="overflow-auto max-h-[calc(90vh-340px)] rounded-lg border border-gray-200">
+          <div className="overflow-auto max-h-[calc(90vh-340px)] rounded-lg border border-separator-border">
             <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
+                <tr className="border-b border-separator-border bg-fill-1">
                   <th className={thClass}>Trip ID</th>
                   <th className={thClass}>Driver</th>
                   <th className={thClass}>Truck Reg</th>
@@ -682,24 +679,24 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
                   <th className={thRClass}>Net Payable</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-separator-border">
                 {rows.map((row, i) => {
                   const isReturnTrip = row.tripCategory === "RETURN TRIP";
                   return (
-                  <tr key={`${row.tripId}-${i}`} className={`hover:bg-gray-50 ${row.excludedFromTotal ? "bg-purple-50/40" : ""}`}>
-                    <td className="px-3 py-2.5 font-medium text-indigo-700">{row.tripId}</td>
-                    <td className="px-3 py-2.5 text-gray-700">{row.driverName}</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-700">{row.truckReg}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{row.truckBranch}</td>
-                    <td className="px-3 py-2.5 text-gray-600 max-w-[140px] truncate">{row.containerSpec}</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-700">{row.containerNo}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{fmtDate(row.bookingDate)}</td>
-                    <td className="px-3 py-2.5 text-gray-600">
+                  <tr key={`${row.tripId}-${i}`} className={`hover:bg-fill-2 ${row.excludedFromTotal ? "bg-purple-surface/40" : ""}`}>
+                    <td className="px-3 py-2.5 font-medium text-purple-text">{row.tripId}</td>
+                    <td className="px-3 py-2.5 text-text-primary">{row.driverName}</td>
+                    <td className="px-3 py-2.5 font-mono text-text-primary">{row.truckReg}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{row.truckBranch}</td>
+                    <td className="px-3 py-2.5 text-text-secondary max-w-[140px] truncate">{row.containerSpec}</td>
+                    <td className="px-3 py-2.5 font-mono text-text-primary">{row.containerNo}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">{fmtDate(row.bookingDate)}</td>
+                    <td className="px-3 py-2.5 text-text-secondary">
                       {row.tripCategory}
                       {row.excludedFromTotal && (
                         <span
                           title="Return trip — batta paid beforehand with the outbound trip's pay; only leftover advance is deducted"
-                          className="ml-1.5 inline-block rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-600"
+                          className="ml-1.5 inline-block rounded-full bg-purple-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-purple-text"
                         >
                           Batta Excluded
                         </span>
@@ -707,36 +704,36 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
                       {isReturnTrip && !row.excludedFromTotal && (
                         <span
                           title="Batta marked applicable on this trip — still owed, included in Net Payable"
-                          className="ml-1.5 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-600"
+                          className="ml-1.5 inline-block rounded-full bg-success-surface-strong px-1.5 py-0.5 text-[9px] font-semibold text-success-text"
                         >
                           Batta Applicable
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-gray-600">{row.cargoClassification}</td>
-                    <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.origin}</td>
-                    <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.destination}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-600">
-                      {row.hasSheet ? fmtCur(row.liftOnOff) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-text-secondary">{row.cargoClassification}</td>
+                    <td className="px-3 py-2.5 text-text-primary max-w-[130px] truncate">{row.origin}</td>
+                    <td className="px-3 py-2.5 text-text-primary max-w-[130px] truncate">{row.destination}</td>
+                    <td className="px-3 py-2.5 text-right text-text-secondary">
+                      {row.hasSheet ? fmtCur(row.liftOnOff) : <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-gray-700 font-medium">
-                      {row.hasSheet ? fmtCur(row.totalExpenses) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-right text-text-primary font-medium">
+                      {row.hasSheet ? fmtCur(row.totalExpenses) : <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-gray-700 font-medium">
-                      {row.hasSheet ? fmtCur(row.totalAdvance) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-right text-text-primary font-medium">
+                      {row.hasSheet ? fmtCur(row.totalAdvance) : <span className="text-text-tertiary">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      {row.hasSheet ? <OutstandingCell v={row.outstandingAdvance} /> : <span className="text-gray-400">—</span>}
+                      {row.hasSheet ? <OutstandingCell v={row.outstandingAdvance} /> : <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-gray-700">
-                      {row.hasSheet ? fmtCur(row.hireAmount) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-right text-text-primary">
+                      {row.hasSheet ? fmtCur(row.hireAmount) : <span className="text-text-tertiary">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-blue-700 font-semibold">
+                    <td className="px-3 py-2.5 text-right text-accent-text font-semibold">
                       {row.hasSheet ? (
                         <span title={`Driver Batta Amount from the trip (${row.driverCompensationType} compensation)`}>
                           {fmtCur(row.regularPay)}
                         </span>
-                      ) : <span className="text-gray-400">—</span>}
+                      ) : <span className="text-text-tertiary">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       {row.hasSheet ? (
@@ -745,13 +742,13 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
                           {row.excludedFromTotal && (
                             <span
                               title="Batta not paid on this return trip — this is only the leftover advance being deducted"
-                              className="text-gray-400"
+                              className="text-text-tertiary"
                             >
                               *
                             </span>
                           )}
                         </span>
-                      ) : <span className="text-gray-400">—</span>}
+                      ) : <span className="text-text-tertiary">—</span>}
                     </td>
                   </tr>
                   );
@@ -761,41 +758,41 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap gap-4 text-[11px] text-gray-500">
+          <div className="flex flex-wrap gap-4 text-[11px] text-text-secondary">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-warning-solid" />
               Outstanding &gt; 0: advance balance still in driver&apos;s hand
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-danger-solid" />
               Outstanding &lt; 0: driver spent own money — company owes reimbursement
             </span>
             {rows.some((r) => r.excludedFromTotal) && (
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-purple-400" />
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-purple-solid" />
                 Net Payable marked * (RETURN TRIP, batta not applicable): batta not paid — only leftover advance is deducted
               </span>
             )}
           </div>
 
           {/* Net payable summary */}
-          <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <span className="text-sm font-semibold text-gray-700">
+          <div className="flex items-center justify-between rounded-lg border border-success-border bg-success-surface px-4 py-3">
+            <span className="text-body-semibold text-text-primary">
               Total Net Payable
               {filterMode !== "all" && (
-                <span className="ml-2 text-xs font-normal text-gray-500">
+                <span className="ml-2 text-caption-1-regular text-text-secondary">
                   ({rows.length} trip{rows.length !== 1 ? "s" : ""})
                 </span>
               )}
             </span>
-            <span className="text-lg font-bold text-emerald-700">{fmtCur(totalNetPayable)}</span>
+            <span className="text-title-3-semibold text-success-text">{fmtCur(totalNetPayable)}</span>
           </div>
 
           <div className="flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-border-button-default px-4 py-2 text-body-semibold text-text-primary hover:bg-fill-2"
             >
               Close
             </button>

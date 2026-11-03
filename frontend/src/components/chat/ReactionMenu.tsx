@@ -8,7 +8,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus } from "lucide-react";
+import { RiAddLine as Plus } from "@remixicon/react";
 
 import { cn } from "@/lib/utils";
 import { EmojiPicker } from "./EmojiPicker";
@@ -90,7 +90,7 @@ export function ReactionMenu({
         <div
           role="menu"
           aria-label="React to message"
-          className="flex items-center gap-0.5 rounded-full border border-gray-200 bg-white p-1 shadow-xl"
+          className="flex items-center gap-0.5 rounded-full border border-separator-border bg-background-primary-default p-1 shadow-xl"
         >
           {QUICK_REACTIONS.map((emoji) => (
             <button
@@ -101,8 +101,8 @@ export function ReactionMenu({
               aria-checked={current === emoji}
               onClick={() => onPick(emoji)}
               className={cn(
-                "flex size-9 items-center justify-center rounded-full text-xl transition-transform hover:scale-125 hover:bg-gray-100 active:scale-95",
-                current === emoji && "bg-brand-navy/10",
+                "flex size-9 items-center justify-center rounded-full text-xl transition-transform hover:bg-fill-3",
+                current === emoji && "bg-accent-solid/10",
               )}
             >
               {emoji}
@@ -113,7 +113,7 @@ export function ReactionMenu({
             role="menuitem"
             aria-label="More emojis"
             onClick={() => setStage("full")}
-            className="flex size-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-navy"
+            className="flex size-9 items-center justify-center rounded-full text-text-secondary hover:bg-fill-3 hover:text-accent-text-strong"
           >
             <Plus className="size-5" />
           </button>

@@ -2,6 +2,31 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+/**
+ * Token-only zones: code here must style with BoardUI semantic tokens, so it
+ * renders correctly in light AND dark mode without per-component overrides.
+ * When a module is migrated to the new design, add its folders here — the
+ * rule then stops raw colors from creeping back in.
+ *
+ * Vendor folders (src/components/base, src/components/shadcn) are generated
+ * by the BoardUI / shadcn CLIs and reviewed at install time instead.
+ */
+// Everything we own is token-only. shadcn files are vendored (kept as the
+// registry ships them) and map onto BoardUI tokens through src/styles/shadcn.css.
+const TOKEN_ONLY_ZONES = ["src/**/*.{ts,tsx}"];
+const TOKEN_ONLY_IGNORES = ["src/components/shadcn/**"];
+
+const RAW_PALETTE =
+  "(^|[\\s:!])(bg|text|border|ring|from|to|via|divide|fill|stroke|outline|shadow|decoration|placeholder|caret)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|brand-navy|brand-gold)(-[0-9]{2,3})?(\\/[0-9]+)?(\\s|$)|(^|[\\s:!])(bg|text|border)-(white|black)(\\/[0-9]+)?(\\s|$)";
+// `dark:hidden` / `dark:block` (logo swaps) are fine; colour overrides are not.
+const DARK_VARIANT = "(^|\\s)dark:(bg|text|border|ring|from|to|via|divide|fill|stroke|outline|shadow|decoration|placeholder|caret)-";
+const ARBITRARY_COLOR = "-\\[(#|rgb|hsl|oklch)";
+
+const tokenRule = (pattern, message) => [
+  { selector: `Literal[value=/${pattern}/]`, message },
+  { selector: `TemplateElement[value.raw=/${pattern}/]`, message },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -13,6 +38,22 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: TOKEN_ONLY_ZONES,
+    ignores: TOKEN_ONLY_IGNORES,
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...tokenRule(RAW_PALETTE, "Raw palette color. Use a BoardUI semantic token (text-text-*, bg-background-*, border-separator-border …) so dark mode works."),
+        ...tokenRule(DARK_VARIANT, "No `dark:` overrides. Pick a semantic token that already flips in dark mode."),
+        ...tokenRule(ARBITRARY_COLOR, "No arbitrary color values. Use a semantic token, or add one in src/styles/brand.css."),
+      ],
+      "no-restricted-imports": [
+        "error",
+        { paths: [{ name: "lucide-react", message: "Use @remixicon/react." }, { name: "sweetalert2", message: "Use @/lib/feedback." }] },
+      ],
+    },
+  },
   {
     rules: {
       "react-hooks/set-state-in-effect": "off",

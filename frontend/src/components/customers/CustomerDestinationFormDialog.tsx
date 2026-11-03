@@ -170,13 +170,13 @@ export function CustomerDestinationFormDialog({
               autoComplete="off"
               className={[
                 inputClass,
-                customerError ? "border-red-400 focus:border-red-500" : "",
+                customerError ? "border-danger-border-strong focus:border-danger-solid" : "",
               ].join(" ")}
             />
             {dropdownOpen && (
-              <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-white/10">
+              <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-separator-border bg-background-primary-default shadow-lg">
                 {filtered.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-gray-400">No customers found</div>
+                  <div className="px-3 py-2 text-sm text-text-tertiary">No customers found</div>
                 ) : (
                   filtered.map((customer) => (
                     <button
@@ -187,8 +187,8 @@ export function CustomerDestinationFormDialog({
                       className={[
                         "w-full px-3 py-2 text-left text-sm transition-colors",
                         form.customerId === customer.id
-                          ? "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
-                          : "text-gray-700 hover:bg-gray-50",
+                          ? "bg-accent-surface font-semibold text-accent-text"
+                          : "text-text-primary hover:bg-fill-2",
                       ].join(" ")}
                     >
                       {customer.name}
@@ -199,14 +199,14 @@ export function CustomerDestinationFormDialog({
             )}
           </div>
           {customerError && (
-            <p className="mt-1 text-xs text-red-500">Please select a customer from the list.</p>
+            <p className="mt-1 text-xs text-danger-text">Please select a customer from the list.</p>
           )}
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Origin section */}
           <div className="sm:col-span-2">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg dark:text-blue-300 dark:bg-blue-500/10">
+            <p className="mb-2 text-caption-1-semibold text-accent-text bg-accent-surface px-3 py-1.5 rounded-lg">
               Origin
             </p>
           </div>
@@ -218,7 +218,7 @@ export function CustomerDestinationFormDialog({
               options={STATE_OPTIONS.map((s) => ({ value: s, label: s }))}
               placeholder="Type or select origin state"
             />
-            <span className="mt-1 text-xs text-gray-400">
+            <span className="mt-1 text-xs text-text-tertiary">
               State the truck departs from — shown in Origin Location dropdown when assigning trips
             </span>
           </Field>
@@ -235,7 +235,7 @@ export function CustomerDestinationFormDialog({
 
           {/* Destination section */}
           <div className="sm:col-span-2">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg dark:text-gray-300 dark:bg-white/5">
+            <p className="mb-2 text-caption-1-semibold text-text-secondary bg-fill-1 px-3 py-1.5 rounded-lg">
               Destination
             </p>
           </div>
@@ -272,14 +272,14 @@ export function CustomerDestinationFormDialog({
               className={inputClass}
               placeholder="e.g. 120"
             />
-            <span className="mt-1 text-xs text-gray-400">
+            <span className="mt-1 text-xs text-text-tertiary">
               Used to auto-fill distance when this destination is assigned to a trip
             </span>
           </Field>
 
           {/* Cargo & container — determines which pricing/rate applies to this destination */}
           <div className="sm:col-span-2">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg dark:text-emerald-300 dark:bg-emerald-500/10">
+            <p className="mb-2 text-caption-1-semibold text-success-text bg-success-surface px-3 py-1.5 rounded-lg">
               Cargo &amp; Container
             </p>
           </div>
@@ -334,8 +334,8 @@ export function CustomerDestinationFormDialog({
 
         {/* Route Preview — live diagram of origin -> destination, updates as the form is filled */}
         {(form.originAddress ?? "").trim() && (form.destinationAddress ?? "").trim() && (
-        <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-slate-50 to-blue-50/50 p-4 dark:border-white/10 dark:from-[#0f1424] dark:to-[#141b32]">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+        <div className="rounded-2xl border border-separator-border bg-fill-1 p-4">
+          <p className="mb-3 text-caption-1-semibold text-text-secondary">
             Route Preview
           </p>
           <RouteDiagram
@@ -349,7 +349,7 @@ export function CustomerDestinationFormDialog({
         )}
 
         {routeError && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          <p className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-xs text-danger-text">
             This exact route (same Origin State, Origin Address, Destination State, Destination
             Address, Cargo Classification, Container Type &amp; Cargo Weight) already exists for
             this customer.
@@ -360,13 +360,13 @@ export function CustomerDestinationFormDialog({
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover"
           >
             {initialData ? "Save Changes" : "Add Destination"}
           </button>

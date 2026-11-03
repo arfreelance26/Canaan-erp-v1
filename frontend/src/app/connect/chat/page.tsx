@@ -1,42 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import {
-  Search,
-  Send,
-  MessageSquare,
-  Smile,
-  Paperclip,
-  Mic,
-  MoreVertical,
-  CheckCheck,
-  Users,
-  Plus,
-  X,
-  Loader2,
-  Image as ImageIcon,
-  Link2,
-  FileText,
-  Calendar,
-  Crown,
-  Pencil,
-  Check,
-  UserPlus,
-  UserMinus,
-  LogOut,
-  Trash2,
-  Reply,
-  Play,
-  Pause,
-  Download,
-  File as FileIcon,
-  IndianRupee,
-  Camera,
-  KeyRound,
-  ArrowLeft,
-  ExternalLink,
-  SmilePlus,
-} from "lucide-react";
+import { RiSearchLine as Search, RiSendPlaneLine as Send, RiMessage3Line as MessageSquare, RiEmotionLine as Smile, RiAttachment2 as Paperclip, RiMicLine as Mic, RiMore2Line as MoreVertical, RiCheckDoubleLine as CheckCheck, RiGroupLine as Users, RiAddLine as Plus, RiCloseLine as X, RiLoader4Line as Loader2, RiImageLine as ImageIcon, RiLink as Link2, RiFileTextLine as FileText, RiCalendarLine as Calendar, RiVipCrownLine as Crown, RiPencilLine as Pencil, RiCheckLine as Check, RiUserAddLine as UserPlus, RiUserUnfollowLine as UserMinus, RiLogoutBoxRLine as LogOut, RiDeleteBinLine as Trash2, RiReplyLine as Reply, RiPlayLine as Play, RiPauseLine as Pause, RiDownloadLine as Download, RiFileLine as FileIcon, RiMoneyRupeeCircleLine as IndianRupee, RiCameraLine as Camera, RiKey2Line as KeyRound, RiArrowLeftLine as ArrowLeft, RiExternalLinkLine as ExternalLink, RiEmotionHappyLine as SmilePlus } from "@remixicon/react";
 import { chatApi, chatOwnerApi, toChatMessage } from "@/lib/api";
 import { OwnerViewDialog, type OwnerViewToken } from "@/components/chat/OwnerViewDialog";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
@@ -47,8 +12,17 @@ import type { ChatConversation, ChatConversationDetail, ChatMember, ChatMessage 
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showError, confirmAction } from "@/lib/swal";
+import { showError, confirmAction } from "@/lib/feedback";
 
+
+type MediaIcon = typeof Mic;
+/** Line icon shown before a media message's one-line preview (instead of emoji). */
+const MEDIA_ICON: Partial<Record<string, MediaIcon>> = { voice: Mic, image: Camera, file: Paperclip, payment: IndianRupee };
+
+function PreviewIcon({ m }: { m: ChatMessage }) {
+  const Icon = m.deleted ? undefined : MEDIA_ICON[m.contentType];
+  return Icon ? <Icon className="mr-1 inline size-3.5 -translate-y-px" /> : null;
+}
 /** Tallest the message box grows (about 6 lines) before it scrolls. */
 const COMPOSER_MAX_PX = 140;
 
@@ -172,7 +146,7 @@ function InlineAudioPlayer({
         type="button"
         onClick={handleToggle}
         disabled={loadingUrl}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-navy text-white transition-colors hover:bg-brand-navy/90 disabled:opacity-60"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-solid text-on-solid transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-60"
       >
         {loadingUrl ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -184,10 +158,10 @@ function InlineAudioPlayer({
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-          <div className="h-full rounded-full bg-brand-navy transition-[width]" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-fill-3">
+          <div className="h-full rounded-full bg-accent-solid transition-[width]" style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-[10px] text-brand-navy dark:text-gray-700">
+        <span className="text-[10px] text-accent-text-strong">
           {formatDuration(playing || currentTime > 0 ? currentTime : duration)}
         </span>
       </div>
@@ -263,7 +237,7 @@ function VideoPreview({ fetchUrl }: { fetchUrl: () => Promise<string> }) {
         controls
         preload="metadata"
         autoPlay
-        className="max-h-72 w-full max-w-64 rounded-lg bg-black object-contain"
+        className="max-h-72 w-full max-w-64 rounded-lg bg-inverse object-contain"
       />
     );
   }
@@ -273,16 +247,16 @@ function VideoPreview({ fetchUrl }: { fetchUrl: () => Promise<string> }) {
       type="button"
       onClick={handleLoad}
       disabled={loading}
-      className="flex h-40 w-64 flex-col items-center justify-center gap-1.5 rounded-lg bg-[#1f2937] text-white transition-colors hover:bg-[#374151] disabled:opacity-70 dark:bg-[#0b0e18] dark:hover:bg-[#1a2140]"
+      className="flex h-40 w-64 flex-col items-center justify-center gap-1.5 rounded-lg bg-accent-solid text-on-solid transition-colors hover:bg-accent-solid disabled:opacity-70"
     >
       {loading ? (
         <Loader2 className="h-7 w-7 animate-spin" />
       ) : failed ? (
-        <span className="text-xs text-gray-300">Couldn&apos;t load video</span>
+        <span className="text-xs text-text-tertiary">Couldn&apos;t load video</span>
       ) : (
         <>
           <Play className="h-8 w-8" />
-          <span className="text-xs text-gray-300">Tap to play video</span>
+          <span className="text-xs text-text-tertiary">Tap to play video</span>
         </>
       )}
     </button>
@@ -354,7 +328,7 @@ function ImageBubble({ message, onOpen }: { message: ChatMessage; onOpen: (url: 
 
   if (failed) {
     return (
-      <div className="flex h-40 w-56 flex-col items-center justify-center gap-1.5 rounded-lg bg-gray-100 text-gray-400">
+      <div className="flex h-40 w-56 flex-col items-center justify-center gap-1.5 rounded-lg bg-fill-2 text-text-tertiary">
         <ImageIcon className="h-6 w-6" />
         <span className="text-xs">Couldn&apos;t load image</span>
       </div>
@@ -362,8 +336,8 @@ function ImageBubble({ message, onOpen }: { message: ChatMessage; onOpen: (url: 
   }
   if (!url) {
     return (
-      <div className="flex h-40 w-56 items-center justify-center rounded-lg bg-gray-100">
-        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+      <div className="flex h-40 w-56 items-center justify-center rounded-lg bg-fill-2">
+        <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
       </div>
     );
   }
@@ -389,7 +363,7 @@ function FileBubble({ message }: { message: ChatMessage }) {
   if (mime.startsWith("audio/")) {
     return (
       <div className="w-56">
-        <p className="mb-1 truncate text-xs font-medium text-gray-600 dark:text-gray-500">
+        <p className="mb-1 truncate text-caption-1-medium text-text-secondary">
           {message.mediaFilename ?? "Audio"}
         </p>
         <InlineAudioPlayer fetchUrl={() => chatApi.getAttachmentBlobUrl(message.id)} />
@@ -461,33 +435,33 @@ function DocumentBubble({ message }: { message: ChatMessage }) {
         type="button"
         onClick={handleDownload}
         disabled={downloading}
-        className="flex w-64 flex-col overflow-hidden rounded-lg bg-white text-left shadow-sm ring-1 ring-black/5 transition-opacity hover:opacity-95 disabled:opacity-70"
+        className="flex w-64 flex-col overflow-hidden rounded-lg bg-background-primary-default text-left shadow-sm ring-1 ring-border-button-hover transition-opacity hover:opacity-95 disabled:opacity-70"
       >
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element -- a decrypted blob, not an optimizable static asset
-          <img src={thumb} alt="" className="w-full border-b border-black/5 object-cover" />
+          <img src={thumb} alt="" className="w-full border-b border-border-button-hover object-cover" />
         ) : !thumbFailed ? (
-          <div className="flex h-40 w-full items-center justify-center border-b border-black/5 bg-gray-50">
-            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+          <div className="flex h-40 w-full items-center justify-center border-b border-border-button-hover bg-fill-1">
+            <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
           </div>
         ) : null}
         <div className="flex items-center gap-3 px-3 py-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-red-500">
-            <FileText className="h-5 w-5 text-white" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-danger-solid">
+            <FileText className="h-5 w-5 text-on-solid" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-gray-800">
+            <p className="truncate text-body-medium text-text-primary">
               {message.mediaFilename ?? "Document.pdf"}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-text-secondary">
               {pageCount != null ? `${pageCount} page${pageCount === 1 ? "" : "s"} · ` : ""}
               PDF{message.mediaSize ? ` · ${formatFileSize(message.mediaSize)}` : ""}
             </p>
           </div>
           {downloading ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-text-tertiary" />
           ) : (
-            <Download className="h-4 w-4 shrink-0 text-gray-400" />
+            <Download className="h-4 w-4 shrink-0 text-text-tertiary" />
           )}
         </div>
       </button>
@@ -499,19 +473,19 @@ function DocumentBubble({ message }: { message: ChatMessage }) {
       type="button"
       onClick={handleDownload}
       disabled={downloading}
-      className="flex w-56 items-center gap-3 rounded-lg bg-black/[0.03] px-3 py-2.5 text-left transition-colors hover:bg-black/[0.06] disabled:opacity-70"
+      className="flex w-56 items-center gap-3 rounded-lg bg-scrim/[0.03] px-3 py-2.5 text-left transition-colors hover:bg-scrim/[0.06] disabled:opacity-70"
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-navy/10">
-        <FileIcon className="h-5 w-5 text-brand-navy" />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-solid/10">
+        <FileIcon className="h-5 w-5 text-accent-text-strong" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-gray-800">{message.mediaFilename ?? "Attachment"}</p>
-        <p className="text-xs text-gray-500">{formatFileSize(message.mediaSize)}</p>
+        <p className="truncate text-body-medium text-text-primary">{message.mediaFilename ?? "Attachment"}</p>
+        <p className="text-xs text-text-secondary">{formatFileSize(message.mediaSize)}</p>
       </div>
       {downloading ? (
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-text-tertiary" />
       ) : (
-        <Download className="h-4 w-4 shrink-0 text-gray-400" />
+        <Download className="h-4 w-4 shrink-0 text-text-tertiary" />
       )}
     </button>
   );
@@ -566,10 +540,10 @@ function PaymentBubble({
 
   const statusTint =
     message.paymentStatus === "approved"
-      ? "border-emerald-100 bg-emerald-50/60"
+      ? "border-success-border bg-success-surface/60"
       : message.paymentStatus === "rejected"
-        ? "border-red-100 bg-red-50/60"
-        : "border-gray-100 bg-gray-50/60";
+        ? "border-danger-border bg-danger-surface/60"
+        : "border-separator-border bg-fill-1";
 
   const cardAnim =
     justDecided === "approved" ? "animate-payment-approved" : justDecided === "rejected" ? "animate-payment-rejected" : "";
@@ -577,17 +551,17 @@ function PaymentBubble({
   return (
     <div className={`w-56 -mx-3 -mt-1.5 overflow-hidden rounded-2xl border p-3.5 transition-colors duration-500 ${statusTint} ${cardAnim}`}>
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-navy shadow-sm">
-          <IndianRupee className="h-[18px] w-[18px] text-brand-gold" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-solid shadow-sm">
+          <IndianRupee className="h-[18px] w-[18px] text-gold-text" />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Payment</p>
-          <p className="text-2xl font-bold leading-tight text-gray-900 dark:text-gray-800 tabular-nums">₹{formatRupees(amount)}</p>
+          <p className="text-caption-2-semibold text-text-tertiary">Payment</p>
+          <p className="text-title-1-semibold leading-tight text-text-primary tabular-nums">₹{formatRupees(amount)}</p>
         </div>
       </div>
 
       {note && (
-        <p className="mt-2.5 truncate rounded-lg bg-white/70 dark:bg-black/20 px-2.5 py-1.5 text-xs text-gray-600 dark:text-gray-700 italic" title={note}>
+        <p className="mt-2.5 truncate rounded-lg bg-background-primary-default px-2.5 py-1.5 text-xs text-text-secondary" title={note}>
           &ldquo;{note}&rdquo;
         </p>
       )}
@@ -598,7 +572,7 @@ function PaymentBubble({
             type="button"
             onClick={() => decide("rejected")}
             disabled={deciding !== null}
-            className="flex-1 rounded-lg border border-gray-200 dark:border-gray-400 bg-white dark:bg-gray-300 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-800 transition-colors hover:bg-gray-50 dark:hover:bg-gray-400 disabled:opacity-60"
+            className="flex-1 rounded-lg border border-separator-border bg-background-primary-default py-1.5 text-caption-1-semibold text-text-secondary transition-colors hover:bg-fill-2 disabled:opacity-60"
           >
             {deciding === "rejected" ? "…" : "Reject"}
           </button>
@@ -606,35 +580,35 @@ function PaymentBubble({
             type="button"
             onClick={() => decide("approved")}
             disabled={deciding !== null}
-            className="flex-1 rounded-lg bg-brand-navy py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-navy/90 disabled:opacity-60"
+            className="flex-1 rounded-lg bg-accent-solid py-1.5 text-caption-1-semibold text-on-solid shadow-sm transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-60"
           >
             {deciding === "approved" ? "…" : "Approve"}
           </button>
         </div>
       ) : message.paymentStatus === "approved" ? (
         <div
-          className={`relative mt-3 flex items-center gap-1.5 rounded-lg bg-emerald-100/80 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ${justDecided === "approved" ? "animate-payment-status-pop" : ""}`}
+          className={`relative mt-3 flex items-center gap-1.5 rounded-lg bg-success-surface-strong/80 px-2.5 py-1.5 text-caption-1-semibold text-success-text ${justDecided === "approved" ? "animate-payment-status-pop" : ""}`}
         >
-          <span className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600">
+          <span className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-solid">
             {justDecided === "approved" && (
-              <span className="absolute inset-0 rounded-full bg-emerald-500 animate-payment-ring" />
+              <span className="absolute inset-0 rounded-full bg-success-solid animate-payment-ring" />
             )}
-            <Check className="relative h-2.5 w-2.5 text-white" strokeWidth={3} />
+            <Check className="relative h-2.5 w-2.5 text-on-solid" strokeWidth={3} />
           </span>
           Approved{message.paymentDecidedByName ? ` by ${message.paymentDecidedByName.split(" ")[0]}` : ""}
         </div>
       ) : message.paymentStatus === "rejected" ? (
         <div
-          className={`mt-3 flex items-center gap-1.5 rounded-lg bg-red-100/80 px-2.5 py-1.5 text-xs font-semibold text-red-600 ${justDecided === "rejected" ? "animate-payment-status-pop" : ""}`}
+          className={`mt-3 flex items-center gap-1.5 rounded-lg bg-danger-surface-strong/80 px-2.5 py-1.5 text-caption-1-semibold text-danger-text ${justDecided === "rejected" ? "animate-payment-status-pop" : ""}`}
         >
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500">
-            <X className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-danger-solid">
+            <X className="h-2.5 w-2.5 text-on-solid" strokeWidth={3} />
           </span>
           Rejected{message.paymentDecidedByName ? ` by ${message.paymentDecidedByName.split(" ")[0]}` : ""}
         </div>
       ) : (
-        <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs font-medium text-gray-400">
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-gray-400" />
+        <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-background-primary-default px-2.5 py-1.5 text-caption-1-medium text-text-tertiary">
+          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-fill-4" />
           Waiting for response…
         </div>
       )}
@@ -681,15 +655,15 @@ function MediaThumbnail({ message, onOpen }: { message: ChatMessage; onOpen: (ur
 
   if (failed) {
     return (
-      <div className="flex aspect-square items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+      <div className="flex aspect-square items-center justify-center rounded-lg bg-fill-2 text-text-tertiary">
         <ImageIcon className="h-4 w-4" />
       </div>
     );
   }
   if (!url) {
     return (
-      <div className="flex aspect-square items-center justify-center rounded-lg bg-gray-100">
-        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+      <div className="flex aspect-square items-center justify-center rounded-lg bg-fill-2">
+        <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
       </div>
     );
   }
@@ -726,21 +700,21 @@ function MediaDocRow({ message }: { message: ChatMessage }) {
       type="button"
       onClick={handleDownload}
       disabled={downloading}
-      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-gray-50 disabled:opacity-70"
+      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-fill-2 disabled:opacity-70"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-navy/10">
-        <FileIcon className="h-4 w-4 text-brand-navy" />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-solid/10">
+        <FileIcon className="h-4 w-4 text-accent-text-strong" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-gray-800">{message.mediaFilename ?? "Attachment"}</p>
-        <p className="text-xs text-gray-500">
+        <p className="truncate text-body-medium text-text-primary">{message.mediaFilename ?? "Attachment"}</p>
+        <p className="text-xs text-text-secondary">
           {message.senderName ?? "Unknown"} · {formatFileSize(message.mediaSize)}
         </p>
       </div>
       {downloading ? (
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-text-tertiary" />
       ) : (
-        <Download className="h-4 w-4 shrink-0 text-gray-400" />
+        <Download className="h-4 w-4 shrink-0 text-text-tertiary" />
       )}
     </button>
   );
@@ -754,16 +728,16 @@ function MediaLinkRow({ message }: { message: ChatMessage }) {
       href={url ?? undefined}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-gray-50"
+      className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-fill-2"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-navy/10">
-        <Link2 className="h-4 w-4 text-brand-navy" />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-solid/10">
+        <Link2 className="h-4 w-4 text-accent-text-strong" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-blue-600 underline-offset-2 hover:underline">{url ?? message.text}</p>
-        <p className="truncate text-xs text-gray-500">{message.senderName ?? "Unknown"} · {dayLabel(message.createdAt)}</p>
+        <p className="truncate text-body-medium text-accent-text underline-offset-2 hover:underline">{url ?? message.text}</p>
+        <p className="truncate text-xs text-text-secondary">{message.senderName ?? "Unknown"} · {dayLabel(message.createdAt)}</p>
       </div>
-      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-gray-300" />
+      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
     </a>
   );
 }
@@ -790,7 +764,7 @@ function MediaListView({
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-brand-navy" />
+        <Loader2 className="h-6 w-6 animate-spin text-accent-text-strong" />
       </div>
     );
   }
@@ -800,8 +774,8 @@ function MediaListView({
     const label = kind === "image" ? "photos or videos" : kind === "file" ? "documents" : "links";
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-        <Icon className="h-7 w-7 text-gray-300" />
-        <p className="text-xs text-gray-400">No {label} shared in this conversation yet.</p>
+        <Icon className="h-7 w-7 text-text-tertiary" />
+        <p className="text-xs text-text-tertiary">No {label} shared in this conversation yet.</p>
       </div>
     );
   }
@@ -833,7 +807,7 @@ function MediaListView({
           type="button"
           onClick={onLoadMore}
           disabled={loadingMore}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold text-brand-navy transition-colors hover:bg-gray-50 disabled:opacity-60"
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-caption-1-semibold text-accent-text-strong transition-colors hover:bg-fill-2 disabled:opacity-60"
         >
           {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           {loadingMore ? "Loading…" : "Load more"}
@@ -1315,15 +1289,15 @@ export default function CanaanChatPage() {
     const lastText = c.lastMessage?.deleted
       ? "This message was deleted"
       : c.lastMessage?.contentType === "voice"
-        ? "🎤 Voice message"
+        ? "Voice message"
         : c.lastMessage?.contentType === "image"
-          ? "📷 Photo"
+          ? "Photo"
           : c.lastMessage?.contentType === "file"
-            ? `📎 ${c.lastMessage.mediaFilename ?? "Document"}`
+            ? (c.lastMessage.mediaFilename ?? "Document")
             : c.lastMessage?.contentType === "payment"
               ? (() => {
                   const p = parsePayment(c.lastMessage!.text);
-                  return p ? `💰 ₹${formatRupees(p.amount)}` : "💰 Payment";
+                  return p ? `₹${formatRupees(p.amount)}` : "Payment";
                 })()
               : c.lastMessage?.text;
     const preview = c.lastMessage
@@ -1339,6 +1313,7 @@ export default function CanaanChatPage() {
       photoUrl: isGroup ? (c.hasPhoto ? chatApi.groupPhotoUrl(c.id) : null) : (c.peer?.photoUrl ?? null),
       name: c.title ?? (isGroup ? "Group" : c.peer?.name ?? "Unknown"),
       subtitle: preview,
+      subtitleIcon: c.lastMessage && !c.lastMessage.deleted ? MEDIA_ICON[c.lastMessage.contentType] : undefined,
       time: formatTime(c.lastMessageAt),
       unread: c.unreadCount,
       startWith: undefined as string | undefined,
@@ -1355,6 +1330,7 @@ export default function CanaanChatPage() {
       photoUrl: m.photoUrl,
       name: m.name,
       subtitle: m.designation || m.department || m.softwareDesignation || "",
+      subtitleIcon: undefined as MediaIcon | undefined,
       time: "",
       unread: 0,
       startWith: m.staffId,
@@ -1559,10 +1535,10 @@ export default function CanaanChatPage() {
   function messagePreview(m: ChatMessage): string {
     if (m.deleted) return "Deleted message";
     switch (m.contentType) {
-      case "image": return "📷 Photo";
-      case "voice": return "🎤 Voice message";
-      case "file": return "📎 File";
-      case "payment": return "💰 Payment request";
+      case "image": return "Photo";
+      case "voice": return "Voice message";
+      case "file": return "File";
+      case "payment": return "Payment request";
       default: return m.text ?? "";
     }
   }
@@ -2078,16 +2054,16 @@ export default function CanaanChatPage() {
 
   return (
     <div className="animate-stagger flex h-[calc(100vh-6rem)] flex-col">
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-separator-border shadow-sm">
         {/* Left panel — tabs, search, people/groups */}
-        <div className="flex w-full max-w-[340px] shrink-0 flex-col bg-white dark:bg-gray-100">
+        <div className="flex w-full max-w-[340px] shrink-0 flex-col bg-background-primary-default">
           {/* Navy header bar */}
-          <div className="flex shrink-0 items-center justify-between bg-brand-navy px-4 py-3">
+          <div className="flex shrink-0 items-center justify-between bg-accent-solid px-4 py-3">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                <MessageSquare className="h-4 w-4 text-brand-gold" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-on-solid/15">
+                <MessageSquare className="h-4 w-4 text-gold-text" />
               </div>
-              <span className="text-base font-semibold text-white">Canaan Chat</span>
+              <span className="text-headline-semibold text-on-solid">Canaan Chat</span>
             </div>
             <div className="flex items-center gap-2">
               {isAdmin && (
@@ -2095,7 +2071,7 @@ export default function CanaanChatPage() {
                   type="button"
                   onClick={() => setOwnerViewOpen(true)}
                   title="Owner view"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-brand-gold transition-colors hover:bg-white/25"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-on-solid/15 text-gold-text transition-colors hover:bg-on-solid/25"
                 >
                   <KeyRound className="h-4 w-4" />
                 </button>
@@ -2105,7 +2081,7 @@ export default function CanaanChatPage() {
                   type="button"
                   onClick={() => setShowNewGroup(true)}
                   title="New group"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-brand-gold transition-colors hover:bg-white/25"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-on-solid/15 text-gold-text transition-colors hover:bg-on-solid/25"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -2115,7 +2091,7 @@ export default function CanaanChatPage() {
           </div>
 
           {/* Chats / Groups tabs */}
-          <div className="flex shrink-0 gap-2 bg-white dark:bg-gray-100 px-3 pt-2.5">
+          <div className="flex shrink-0 gap-2 bg-background-primary-default px-3 pt-2.5">
             {(["chats", "groups"] as const).map((tab) => {
               const count =
                 tab === "chats"
@@ -2126,48 +2102,48 @@ export default function CanaanChatPage() {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`relative flex-1 pb-2.5 text-sm font-medium capitalize transition-colors ${
-                    activeTab === tab ? "text-brand-navy dark:text-brand-gold" : "text-gray-500 hover:text-gray-700"
+                  className={`relative flex-1 pb-2.5 text-body-medium capitalize transition-colors ${
+                    activeTab === tab ? "text-accent-text-strong " : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   {tab}
                   {count > 0 && (
-                    <span className="ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-brand-gold px-1.5 py-0.5 text-[10px] font-bold text-brand-navy">
+                    <span className="ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-gold-solid px-1.5 py-0.5 text-caption-2-semibold text-accent-text-strong">
                       {count > 99 ? "99+" : count}
                     </span>
                   )}
                   {activeTab === tab && (
-                    <span className="absolute inset-x-0 -bottom-px h-[3px] rounded-full bg-brand-gold" />
+                    <span className="absolute inset-x-0 -bottom-px h-[3px] rounded-full bg-gold-solid" />
                   )}
                 </button>
               );
             })}
           </div>
-          <div className="h-px shrink-0 bg-gray-200" />
+          <div className="h-px shrink-0 bg-fill-3" />
 
           {/* Search */}
-          <div className="shrink-0 bg-white dark:bg-gray-100 px-3 py-2">
+          <div className="shrink-0 bg-background-primary-default px-3 py-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
               <input
                 type="text"
                 placeholder={activeTab === "chats" ? "Search chats..." : "Search groups..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-no-transform w-full rounded-lg border-none bg-gray-100 py-2 pl-9 pr-4 text-sm text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:bg-white focus:ring-2 focus:ring-brand-gold/30"
+                className="input-no-transform w-full rounded-lg border-none bg-fill-2 py-2 pl-9 pr-4 text-sm text-text-primary outline-none transition placeholder:text-text-placeholder focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/30"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-100">
+          <div className="flex-1 overflow-y-auto bg-background-primary-default">
             {rows.length === 0 ? (
               activeTab === "groups" ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-navy/10">
-                    <Users className="h-6 w-6 text-brand-navy" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-solid/10">
+                    <Users className="h-6 w-6 text-accent-text-strong" />
                   </div>
-                  <p className="text-sm font-medium text-gray-700">No groups yet</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-body-medium text-text-primary">No groups yet</p>
+                  <p className="text-xs text-text-secondary">
                     {isAdmin
                       ? "Create a group to start chatting with your team together."
                       : "An Admin can create a group and add you to it."}
@@ -2176,15 +2152,15 @@ export default function CanaanChatPage() {
                     <button
                       type="button"
                       onClick={() => setShowNewGroup(true)}
-                      className="mt-1 flex items-center gap-1.5 rounded-full bg-brand-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-navy/90"
+                      className="mt-1 flex items-center gap-1.5 rounded-full bg-accent-solid px-4 py-2 text-caption-1-semibold text-on-solid transition-colors hover:bg-accent-solid-hover/90"
                     >
-                      <Plus className="h-3.5 w-3.5 text-brand-gold" />
+                      <Plus className="h-3.5 w-3.5 text-gold-text" />
                       New Group
                     </button>
                   )}
                 </div>
               ) : (
-                <p className="p-4 text-center text-sm text-gray-400">No people found</p>
+                <p className="p-4 text-center text-sm text-text-tertiary">No people found</p>
               )
             ) : (
               rows.map((row) => {
@@ -2197,8 +2173,8 @@ export default function CanaanChatPage() {
                       if (row.conversation) openConversation(row.conversation.id);
                       else if (row.startWith) startDirect(row.startWith);
                     }}
-                    className={`flex w-full items-center gap-3 border-b border-gray-100 px-3 py-3 text-left transition-colors ${
-                      isActive ? "bg-brand-navy/5 dark:bg-brand-gold/10" : "hover:bg-gray-50"
+                    className={`flex w-full items-center gap-3 border-b border-separator-border px-3 py-3 text-left transition-colors ${
+                      isActive ? "bg-accent-solid/5 " : "hover:bg-fill-2"
                     }`}
                   >
                     <div className="relative shrink-0">
@@ -2209,16 +2185,16 @@ export default function CanaanChatPage() {
                         group={row.isGroup}
                       />
                       {row.peerId != null && onlineUsers.has(row.peerId) && (
-                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-100 bg-emerald-500" />
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background-primary-default bg-success-solid" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[15px] font-medium text-gray-900">{row.name}</span>
+                        <span className="truncate text-[15px] font-medium text-text-primary">{row.name}</span>
                         {row.time && (
                           <span
-                            className={`shrink-0 text-[11px] ${
-                              row.unread > 0 ? "font-semibold text-brand-navy dark:text-brand-gold" : "text-gray-400"
+                            className={`shrink-0 text-caption-2-semibold ${
+                              row.unread > 0 ? " text-accent-text-strong " : "text-text-tertiary"
                             }`}
                           >
                             {row.time}
@@ -2227,14 +2203,15 @@ export default function CanaanChatPage() {
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <p
-                          className={`truncate text-[13px] ${
-                            row.unread > 0 ? "font-medium text-gray-700" : "text-gray-500"
+                          className={`truncate text-body-2-medium ${
+                            row.unread > 0 ? " text-text-primary" : "text-text-secondary"
                           }`}
                         >
+                          {row.subtitleIcon && <row.subtitleIcon className="mr-1 inline size-3.5 -translate-y-px text-foreground-icon-tertiary" />}
                           {row.subtitle}
                         </p>
                         {row.unread > 0 && (
-                          <span className="flex min-w-[20px] shrink-0 items-center justify-center rounded-full bg-brand-gold px-1.5 py-0.5 text-[10px] font-bold text-brand-navy">
+                          <span className="flex min-w-[20px] shrink-0 items-center justify-center rounded-full bg-gold-solid px-1.5 py-0.5 text-caption-2-semibold text-accent-text-strong">
                             {row.unread > 99 ? "99+" : row.unread}
                           </span>
                         )}
@@ -2251,7 +2228,7 @@ export default function CanaanChatPage() {
         <div className="flex min-w-0 flex-1 flex-col">
           {selected ? (
             <>
-              <div className="flex shrink-0 items-center justify-between gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
+              <div className="flex shrink-0 items-center justify-between gap-3 bg-fill-2 px-4 py-2.5">
                 <div
                   className={`flex min-w-0 items-center gap-3 ${
                     selected.kind === "group" ? "cursor-pointer" : ""
@@ -2269,32 +2246,32 @@ export default function CanaanChatPage() {
                     {selected.kind === "direct" &&
                       selected.peer &&
                       onlineUsers.has(Number(selected.peer.staffId)) && (
-                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-gray-100 dark:border-gray-200 bg-emerald-500" />
+                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-separator-border bg-success-solid" />
                       )}
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[15px] font-medium text-gray-900 dark:text-gray-950">
+                    <p className="truncate text-[15px] font-medium text-text-primary">
                       {selected.title ?? "Conversation"}
                     </p>
                     {(() => {
                       const typing = typingByConv[selected.id];
                       if (typing) {
                         return (
-                          <p className="truncate text-xs font-medium text-emerald-600">
+                          <p className="truncate text-caption-1-medium text-success-text">
                             {selected.kind === "group" ? `${typing.name.split(" ")[0]} is typing…` : "typing…"}
                           </p>
                         );
                       }
                       if (selected.kind === "group") {
                         return (
-                          <p className="truncate text-xs text-gray-500">
+                          <p className="truncate text-xs text-text-secondary">
                             {`${selected.memberCount} member${selected.memberCount === 1 ? "" : "s"}`}
                           </p>
                         );
                       }
                       const pid = selected.peer ? Number(selected.peer.staffId) : null;
                       if (pid != null && onlineUsers.has(pid)) {
-                        return <p className="truncate text-xs font-medium text-emerald-600">online</p>;
+                        return <p className="truncate text-caption-1-medium text-success-text">online</p>;
                       }
                       const status =
                         (pid != null ? formatLastSeen(lastSeen[pid]) : "") ||
@@ -2302,12 +2279,12 @@ export default function CanaanChatPage() {
                         selected.peer?.department ||
                         selected.peer?.softwareDesignation ||
                         "";
-                      return <p className="truncate text-xs text-gray-500">{status}</p>;
+                      return <p className="truncate text-xs text-text-secondary">{status}</p>;
                     })()}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-4 text-gray-500">
-                  <MoreVertical className="h-[18px] w-[18px] cursor-pointer hover:text-gray-700" />
+                <div className="flex shrink-0 items-center gap-4 text-text-secondary">
+                  <MoreVertical className="h-[18px] w-[18px] cursor-pointer hover:text-text-primary" />
                 </div>
               </div>
 
@@ -2317,14 +2294,14 @@ export default function CanaanChatPage() {
               >
                 {loadingThread ? (
                   <div className="flex h-full items-center justify-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-brand-navy" />
+                    <Loader2 className="h-6 w-6 animate-spin text-accent-text-strong" />
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/70">
-                      <MessageSquare className="h-5 w-5 text-brand-navy" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background-primary-default">
+                      <MessageSquare className="h-5 w-5 text-accent-text-strong" />
                     </div>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-text-secondary">
                       No messages yet. Say hello to {(selected.title ?? "them").split(" ")[0]}.
                     </p>
                   </div>
@@ -2339,7 +2316,7 @@ export default function CanaanChatPage() {
                           type="button"
                           onClick={loadOlder}
                           disabled={loadingOlder}
-                          className="rounded-full bg-white/80 dark:bg-gray-300/80 px-4 py-1.5 text-xs font-medium text-brand-navy dark:text-gray-800 shadow-sm transition-colors hover:bg-white dark:hover:bg-gray-300 disabled:opacity-60"
+                          className="rounded-full bg-background-primary-default px-4 py-1.5 text-caption-1-medium text-accent-text-strong shadow-sm transition-colors hover:bg-fill-2 disabled:opacity-60"
                         >
                           {loadingOlder ? "Loading..." : "Load earlier messages"}
                         </button>
@@ -2350,8 +2327,8 @@ export default function CanaanChatPage() {
                       // Blue double-tick once the other side has read up to here.
                       const tickClass =
                         fromMe && m.id <= (peerReadByConv[selected.id] ?? 0)
-                          ? "text-sky-500"
-                          : "text-gray-400";
+                          ? "text-teal-text"
+                          : "text-text-tertiary";
                       const prev = messages[i - 1];
                       const showDay =
                         !prev || dayLabel(prev.createdAt) !== dayLabel(m.createdAt);
@@ -2395,8 +2372,8 @@ export default function CanaanChatPage() {
                           onClick={(e) => openReactionMenu(m, e.currentTarget, fromMe ? "end" : "start")}
                           title="React"
                           aria-label="React to message"
-                          className={`flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300 ${
-                            reactionMenu?.messageId === m.id ? "text-brand-navy" : "text-gray-400"
+                          className={`flex h-7 w-7 items-center justify-center rounded-full hover:bg-fill-3 hover:text-accent-text-strong ${
+                            reactionMenu?.messageId === m.id ? "text-accent-text-strong" : "text-text-tertiary"
                           }`}
                         >
                           <SmilePlus className="h-4 w-4" />
@@ -2407,12 +2384,12 @@ export default function CanaanChatPage() {
                           key={m.id}
                           id={`chat-msg-${m.id}`}
                           className={`${grouped ? "mt-0.5" : "mt-2.5"} rounded-lg transition-colors duration-500 ${
-                            highlightedMsgId === m.id ? "bg-brand-gold/20" : ""
+                            highlightedMsgId === m.id ? "bg-gold-solid/20" : ""
                           }`}
                         >
                           {showDay && (
                             <div className="animate-chat-day mb-3 mt-1 flex justify-center">
-                              <span className="rounded-full bg-white/90 dark:bg-gray-300/80 px-3 py-1 text-[11px] font-medium text-gray-500 dark:text-gray-700 shadow-sm">
+                              <span className="rounded-full bg-background-primary-default px-3 py-1 text-caption-2-medium text-text-secondary shadow-sm">
                                 {dayLabel(m.createdAt)}
                               </span>
                             </div>
@@ -2422,7 +2399,7 @@ export default function CanaanChatPage() {
                             // Approved") — centered like the day pill, not a bubble from
                             // either side, since it isn't a reply from either participant.
                             <div className={`${entranceAnim} my-1 flex justify-center`}>
-                              <span className="rounded-full bg-white/90 dark:bg-gray-300/90 px-3 py-1.5 text-center text-[11px] font-medium text-brand-navy dark:text-gray-800 shadow-sm">
+                              <span className="rounded-full bg-background-primary-default px-3 py-1.5 text-center text-caption-2-medium text-accent-text-strong shadow-sm">
                                 {m.text}
                               </span>
                             </div>
@@ -2437,7 +2414,7 @@ export default function CanaanChatPage() {
                                   type="button"
                                   onClick={() => startReply(m)}
                                   title="Reply"
-                                  className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300"
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-accent-text-strong"
                                 >
                                   <Reply className="h-4 w-4" />
                                 </button>
@@ -2446,7 +2423,7 @@ export default function CanaanChatPage() {
                                     type="button"
                                     onClick={() => startEdit(m)}
                                     title="Edit"
-                                    className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-accent-text-strong"
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </button>
@@ -2455,7 +2432,7 @@ export default function CanaanChatPage() {
                                   type="button"
                                   onClick={() => handleDeleteMessage(m)}
                                   title="Delete message"
-                                  className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500"
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-text-tertiary hover:bg-danger-surface-strong hover:text-danger-text"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
@@ -2473,7 +2450,7 @@ export default function CanaanChatPage() {
                                   />
                                 ) : (
                                 <div
-                                  className={`mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${senderColor(m.senderId).bg}`}
+                                  className={`mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption-2-semibold text-on-solid ${senderColor(m.senderId).bg}`}
                                   title={m.senderName ?? "Unknown"}
                                 >
                                   {getInitials(m.senderName || "?")}
@@ -2486,7 +2463,7 @@ export default function CanaanChatPage() {
                             <Bubble
                               align={fromMe ? "end" : "start"}
                               variant={fromMe ? "mine" : "theirs"}
-                              className={`${entranceAnim} max-w-[70%] text-[14px] shadow-[0_1px_2px_rgba(16,24,40,0.08)] ${
+                              className={`${entranceAnim} max-w-[70%] text-[14px] shadow-md ${
                                 m.contentType === "image" && !m.deleted ? "p-1" : "px-3 py-1.5"
                               } ${
                                 fromMe
@@ -2496,7 +2473,7 @@ export default function CanaanChatPage() {
                             >
                               <BubbleContent>
                               {showSender && (
-                                <p className={`mb-0.5 text-[11px] font-semibold ${senderColor(m.senderId).text}`}>
+                                <p className={`mb-0.5 text-caption-2-semibold ${senderColor(m.senderId).text}`}>
                                   {m.senderName ?? "Unknown"}
                                 </p>
                               )}
@@ -2506,7 +2483,7 @@ export default function CanaanChatPage() {
                                   onClick={() => scrollToMessage(m.replyToId)}
                                   disabled={!replyParent}
                                   title={replyParent ? "Go to message" : "Original message not loaded"}
-                                  className="mb-1 block w-full rounded-md border-l-2 border-brand-gold bg-black/5 px-2 py-1 text-left transition-colors hover:bg-black/10 disabled:cursor-default disabled:hover:bg-black/5 dark:bg-white/10 dark:hover:bg-white/20 dark:disabled:hover:bg-white/10"
+                                  className="mb-1 block w-full rounded-md border-l-2 border-gold-solid bg-scrim/5 px-2 py-1 text-left transition-colors hover:bg-scrim/10 disabled:cursor-default disabled:hover:bg-scrim/5"
                                 >
                                   <p className="text-[10.5px] font-semibold opacity-80">
                                     {replyParent
@@ -2514,21 +2491,22 @@ export default function CanaanChatPage() {
                                       : "Message"}
                                   </p>
                                   <p className="truncate text-[12px] opacity-70">
+                                    {replyParent && <PreviewIcon m={replyParent} />}
                                     {replyParent ? messagePreview(replyParent) : "Original message"}
                                   </p>
                                 </button>
                               )}
                               {m.deleted ? (
-                                <p className="flex items-center gap-2 py-0.5 italic text-gray-400">
+                                <p className="flex items-center gap-2 py-0.5 text-text-tertiary">
                                   This message was deleted
-                                  <span className="text-[10px] not-italic text-gray-400">
+                                  <span className="text-[10px] not-italic text-text-tertiary">
                                     {formatTime(m.createdAt)}
                                   </span>
                                 </p>
                               ) : m.contentType === "voice" ? (
                                 <>
                                   <VoiceBubble message={m} />
-                                  <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
+                                  <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-text-tertiary">
                                     {formatTime(m.createdAt)}
                                     {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
                                   </span>
@@ -2539,15 +2517,15 @@ export default function CanaanChatPage() {
                                     message={m}
                                     onOpen={(url, name) => setLightbox({ url, name })}
                                   />
-                                  <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/40 px-1.5 py-0.5 text-[10px] text-white">
+                                  <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-scrim/40 px-1.5 py-0.5 text-[10px] text-on-solid">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className={`h-3 w-3 ${tickClass === "text-sky-500" ? "text-sky-300" : ""}`} />}
+                                    {fromMe && <CheckCheck className={`h-3 w-3 ${tickClass === "text-teal-text" ? "text-on-solid/80" : ""}`} />}
                                   </span>
                                 </div>
                               ) : m.contentType === "file" ? (
                                 <>
                                   <FileBubble message={m} />
-                                  <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
+                                  <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-text-tertiary">
                                     {formatTime(m.createdAt)}
                                     {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
                                   </span>
@@ -2561,7 +2539,7 @@ export default function CanaanChatPage() {
                                     fromMe={fromMe}
                                     onDecide={handlePaymentDecision}
                                   />
-                                  <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-gray-400">
+                                  <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-text-tertiary">
                                     {formatTime(m.createdAt)}
                                     {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
                                   </span>
@@ -2573,7 +2551,7 @@ export default function CanaanChatPage() {
                                 // instead of always reserving a full separate row underneath.
                                 <p className="whitespace-pre-wrap break-words pr-1 leading-snug after:clear-both after:table after:content-['']">
                                   {m.text}
-                                  <span className="float-right ml-2 mt-1 flex translate-y-0.5 items-center gap-1 whitespace-nowrap text-[10px] text-gray-400">
+                                  <span className="float-right ml-2 mt-1 flex translate-y-0.5 items-center gap-1 whitespace-nowrap text-[10px] text-text-tertiary">
                                     {m.editedAt && <span className="italic">edited</span>}
                                     {formatTime(m.createdAt)}
                                     {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
@@ -2593,13 +2571,13 @@ export default function CanaanChatPage() {
                                       aria-pressed={g.mine}
                                       className={`flex h-6 items-center gap-0.5 rounded-full px-1.5 text-[13px] leading-none transition-colors ${
                                         g.mine
-                                          ? "bg-brand-navy/10 ring-1 ring-brand-navy/30 dark:bg-brand-gold/20 dark:ring-brand-gold/40"
-                                          : "hover:bg-gray-100"
+                                          ? "bg-accent-solid/10 ring-1 ring-accent-solid/30 "
+                                          : "hover:bg-fill-3"
                                       }`}
                                     >
                                       <span>{g.emoji}</span>
                                       {g.names.length > 1 && (
-                                        <span className="text-[11px] font-semibold text-gray-600">{g.names.length}</span>
+                                        <span className="text-caption-2-semibold text-text-secondary">{g.names.length}</span>
                                       )}
                                     </button>
                                   ))}
@@ -2614,7 +2592,7 @@ export default function CanaanChatPage() {
                                   type="button"
                                   onClick={() => startReply(m)}
                                   title="Reply"
-                                  className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300"
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-accent-text-strong"
                                 >
                                   <Reply className="h-4 w-4" />
                                 </button>
@@ -2647,10 +2625,10 @@ export default function CanaanChatPage() {
                     )}
                     {typingByConv[selected.id] && (
                       <div className="mt-2 flex justify-start">
-                        <div className="flex items-center gap-1 rounded-r-2xl rounded-bl-md rounded-tl-2xl bg-white dark:bg-gray-300 px-3 py-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.08)]">
-                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
-                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
-                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
+                        <div className="flex items-center gap-1 rounded-r-2xl rounded-bl-md rounded-tl-2xl bg-background-primary-default px-3 py-2.5 shadow-md">
+                          <span className="h-1.5 w-1.5 rounded-full bg-fill-4 [animation-delay:-0.3s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-fill-4 [animation-delay:-0.15s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-fill-4" />
                         </div>
                       </div>
                     )}
@@ -2659,14 +2637,15 @@ export default function CanaanChatPage() {
               </div>
 
               {(replyingTo || editingMessage) && !recording && (
-                <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-gray-100 px-4 pt-2 dark:border-gray-300 dark:bg-gray-200">
-                  <div className={`flex-1 rounded-lg border-l-4 px-3 py-1.5 ${editingMessage ? "border-brand-gold bg-brand-gold/10" : "border-brand-navy bg-brand-navy/5 dark:bg-white/5"}`}>
-                    <p className="text-[11px] font-semibold text-brand-navy dark:text-brand-gold">
+                <div className="flex shrink-0 items-center gap-2 border-t border-separator-border bg-fill-2 px-4 pt-2">
+                  <div className={`flex-1 rounded-lg border-l-4 px-3 py-1.5 ${editingMessage ? "border-gold-solid bg-gold-solid/10" : "border-accent-solid bg-accent-solid/5 "}`}>
+                    <p className="text-caption-2-semibold text-accent-text-strong">
                       {editingMessage
                         ? "Editing message"
                         : `Replying to ${replyingTo && myId != null && replyingTo.senderId === Number(myId) ? "yourself" : (replyingTo?.senderName ?? "message")}`}
                     </p>
-                    <p className="truncate text-xs text-gray-500 dark:text-gray-700">
+                    <p className="truncate text-xs text-text-secondary">
+                      <PreviewIcon m={(editingMessage ?? replyingTo)!} />
                       {messagePreview(editingMessage ?? replyingTo!)}
                     </p>
                   </div>
@@ -2674,7 +2653,7 @@ export default function CanaanChatPage() {
                     type="button"
                     onClick={cancelComposerContext}
                     title="Cancel"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-300"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-tertiary hover:bg-fill-3 hover:text-text-primary"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -2682,40 +2661,40 @@ export default function CanaanChatPage() {
               )}
 
               {recording ? (
-                <div className="flex shrink-0 items-center gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
+                <div className="flex shrink-0 items-center gap-3 bg-fill-2 px-4 py-2.5">
                   <button
                     type="button"
                     onClick={cancelRecording}
                     title="Cancel recording"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-danger-surface-strong hover:text-danger-text"
                   >
                     <Trash2 className="h-[18px] w-[18px]" />
                   </button>
-                  <div className="flex flex-1 items-center gap-2 rounded-lg bg-white dark:bg-gray-100 px-4 py-2.5">
-                    <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-500" />
-                    <span className="text-sm font-medium tabular-nums text-gray-700">
+                  <div className="flex flex-1 items-center gap-2 rounded-lg bg-background-primary-default px-4 py-2.5">
+                    <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-danger-solid" />
+                    <span className="text-body-medium tabular-nums text-text-primary">
                       {formatDuration(recordingSeconds)}
                     </span>
-                    <span className="text-xs text-gray-400">Recording voice message…</span>
+                    <span className="text-xs text-text-tertiary">Recording voice message…</span>
                   </div>
                   <button
                     type="button"
                     onClick={sendRecording}
                     title="Send"
-                    className="btn-interactive flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-navy text-white transition-all duration-200 hover:bg-brand-navy/90 active:scale-90"
+                    className="btn-interactive flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-solid text-on-solid transition duration-200 hover:bg-accent-solid-hover/90"
                   >
                     <Send className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
-                <div className="relative flex shrink-0 items-end gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
+                <div className="relative flex shrink-0 items-end gap-3 bg-fill-2 px-4 py-2.5">
                   <button
                     type="button"
                     data-emoji-toggle
                     onClick={() => setShowEmojiPicker((v) => !v)}
                     title="Emoji"
                     className={`mb-1.5 shrink-0 rounded-lg p-0.5 transition-colors ${
-                      showEmojiPicker ? "text-brand-navy dark:text-brand-gold" : "text-gray-500 hover:text-gray-700"
+                      showEmojiPicker ? "text-accent-text-strong " : "text-text-secondary hover:text-text-primary"
                     }`}
                   >
                     <Smile className="h-6 w-6" />
@@ -2734,10 +2713,10 @@ export default function CanaanChatPage() {
                     onClick={() => attachmentInputRef.current?.click()}
                     disabled={sendingAttachment}
                     title="Attach a file"
-                    className="mb-2.5 shrink-0 text-gray-500 transition-colors hover:text-gray-700 disabled:opacity-60"
+                    className="mb-2.5 shrink-0 text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60"
                   >
                     {sendingAttachment ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-brand-navy" />
+                      <Loader2 className="h-5 w-5 animate-spin text-accent-text-strong" />
                     ) : (
                       <Paperclip className="h-5 w-5" />
                     )}
@@ -2760,13 +2739,13 @@ export default function CanaanChatPage() {
                       if (e.key === "Escape") cancelComposerContext();
                     }}
                     placeholder="Type a message"
-                    className="input-no-transform block max-h-[140px] min-h-[40px] flex-1 resize-none overflow-y-hidden rounded-lg border-none bg-white dark:bg-gray-100 dark:text-gray-900 px-4 py-2.5 text-sm leading-5 text-gray-700 outline-none transition-[box-shadow] placeholder:text-gray-500 focus:ring-2 focus:ring-brand-gold/30"
+                    className="input-no-transform block max-h-[140px] min-h-[40px] flex-1 resize-none overflow-y-hidden rounded-lg border-none bg-background-primary-default px-4 py-2.5 text-sm leading-5 text-text-primary outline-none transition-[box-shadow] placeholder:text-text-placeholder focus:ring-2 focus:ring-gold-solid/30"
                   />
                   <button
                     type="button"
                     onClick={openPaymentDialog}
                     title="Send a payment note"
-                    className="btn-interactive mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-gold/15 dark:bg-brand-gold/30 text-brand-navy dark:text-brand-gold transition-all duration-200 hover:bg-brand-gold/25 dark:hover:bg-brand-gold/45 active:scale-90"
+                    className="btn-interactive mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-solid/15 text-accent-text-strong transition duration-200 hover:bg-gold-solid/25"
                   >
                     <IndianRupee className="h-4 w-4" />
                   </button>
@@ -2775,7 +2754,7 @@ export default function CanaanChatPage() {
                     onClick={draft.trim() ? handleSend : startRecording}
                     disabled={sending || sendingVoice}
                     title={draft.trim() ? "Send" : "Record a voice message"}
-                    className="btn-interactive mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-navy text-white transition-all duration-200 hover:bg-brand-navy/90 active:scale-90 disabled:opacity-60 disabled:active:scale-100"
+                    className="btn-interactive mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-solid text-on-solid transition duration-200 hover:bg-accent-solid-hover/90 disabled:opacity-60"
                   >
                     {sending || sendingVoice ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2789,12 +2768,12 @@ export default function CanaanChatPage() {
               )}
             </>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 bg-gray-50 dark:bg-gray-50 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-navy/10">
-                <MessageSquare className="h-7 w-7 text-brand-navy" />
+            <div className="flex h-full flex-col items-center justify-center gap-3 bg-fill-1 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-solid/10">
+                <MessageSquare className="h-7 w-7 text-accent-text-strong" />
               </div>
-              <p className="text-base font-medium text-gray-700">Canaan Chat</p>
-              <p className="max-w-sm text-sm text-gray-500">
+              <p className="text-headline-medium text-text-primary">Canaan Chat</p>
+              <p className="max-w-sm text-sm text-text-secondary">
                 Pick a person from the list on the left to open the conversation.
               </p>
             </div>
@@ -2803,23 +2782,23 @@ export default function CanaanChatPage() {
 
         {/* Group info panel — rightmost column, WhatsApp-style */}
         {showGroupInfo && selected && selected.kind === "group" && (
-          <div className="flex w-full max-w-[320px] shrink-0 flex-col border-l border-gray-200 dark:border-gray-300 bg-white dark:bg-gray-100">
-            <div className="flex shrink-0 items-center gap-3 bg-brand-navy px-4 py-3">
+          <div className="flex w-full max-w-[320px] shrink-0 flex-col border-l border-separator-border bg-background-primary-default">
+            <div className="flex shrink-0 items-center gap-3 bg-accent-solid px-4 py-3">
               <button
                 type="button"
                 onClick={mediaTab ? closeMediaTab : closeGroupInfo}
-                className="rounded-lg p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded-lg p-1 text-on-solid/70 transition-colors hover:bg-on-solid/10 hover:text-on-solid"
               >
                 {mediaTab ? <ArrowLeft className="h-4 w-4" /> : <X className="h-4 w-4" />}
               </button>
-              <h2 className="text-sm font-bold text-white">
+              <h2 className="text-body-semibold text-on-solid">
                 {mediaTab === "image" ? "Media" : mediaTab === "file" ? "Docs" : mediaTab === "link" ? "Links" : "Group Info"}
               </h2>
             </div>
 
             {loadingGroupDetail || !groupDetail ? (
               <div className="flex flex-1 items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-brand-navy" />
+                <Loader2 className="h-6 w-6 animate-spin text-accent-text-strong" />
               </div>
             ) : mediaTab ? (
               <MediaListView
@@ -2834,7 +2813,7 @@ export default function CanaanChatPage() {
             ) : (
               <div className="flex-1 overflow-y-auto">
                 {/* Identity */}
-                <div className="flex flex-col items-center gap-2 border-b border-gray-100 dark:border-gray-200 px-5 py-6 text-center">
+                <div className="flex flex-col items-center gap-2 border-b border-separator-border px-5 py-6 text-center">
                   <div className="relative">
                     <Avatar
                       name={groupDetail.title ?? "Group"}
@@ -2856,7 +2835,7 @@ export default function CanaanChatPage() {
                           title="Change group photo"
                           onClick={() => groupPhotoInputRef.current?.click()}
                           disabled={savingPhoto}
-                          className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-navy text-white shadow-sm transition-colors hover:bg-brand-navy/90 disabled:opacity-60"
+                          className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background-primary-default bg-accent-solid text-on-solid shadow-sm transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-60"
                         >
                           {savingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
                         </button>
@@ -2868,7 +2847,7 @@ export default function CanaanChatPage() {
                       type="button"
                       onClick={handleRemoveGroupPhoto}
                       disabled={savingPhoto}
-                      className="text-[11px] font-medium text-red-500 transition-colors hover:text-red-600 disabled:opacity-60"
+                      className="text-caption-2-medium text-danger-text transition-colors hover:text-danger-text disabled:opacity-60"
                     >
                       Remove photo
                     </button>
@@ -2885,20 +2864,20 @@ export default function CanaanChatPage() {
                           if (e.key === "Enter") handleSaveTitle();
                           if (e.key === "Escape") setEditingTitle(false);
                         }}
-                        className="input-no-transform flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm outline-none focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+                        className="input-no-transform flex-1 rounded-lg border border-separator-border bg-fill-1 px-3 py-1.5 text-sm outline-none focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
                       />
                       <button
                         type="button"
                         onClick={handleSaveTitle}
                         disabled={savingTitle}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-navy text-white transition-colors hover:bg-brand-navy/90 disabled:opacity-60"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-solid text-on-solid transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-60"
                       >
                         {savingTitle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                       </button>
                     </div>
                   ) : (
                     <div className="mt-2 flex items-center gap-1.5">
-                      <p className="text-lg font-semibold text-gray-900 dark:text-gray-950">{groupDetail.title}</p>
+                      <p className="text-title-3-semibold text-text-primary">{groupDetail.title}</p>
                       {groupDetail.myRole === "admin" && (
                         <button
                           type="button"
@@ -2907,28 +2886,28 @@ export default function CanaanChatPage() {
                             setEditingTitle(true);
                           }}
                           title="Rename group"
-                          className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-200 hover:text-brand-navy"
+                          className="rounded-lg p-1 text-text-tertiary transition-colors hover:bg-fill-3 hover:text-accent-text-strong"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-text-secondary">
                     Group · {groupDetail.memberCount} participant{groupDetail.memberCount === 1 ? "" : "s"}
                   </p>
                 </div>
 
                 {/* Created date */}
-                <div className="flex items-center gap-3 border-b border-gray-100 dark:border-gray-200 px-5 py-3.5">
-                  <Calendar className="h-4 w-4 shrink-0 text-brand-navy dark:text-blue-400" />
-                  <p className="text-xs text-gray-600 dark:text-gray-800">
+                <div className="flex items-center gap-3 border-b border-separator-border px-5 py-3.5">
+                  <Calendar className="h-4 w-4 shrink-0 text-accent-text-strong" />
+                  <p className="text-xs text-text-secondary">
                     {groupDetail.createdAt ? `Created on ${formatFullDate(groupDetail.createdAt)}` : "Creation date unavailable"}
                   </p>
                 </div>
 
                 {/* Media, links, docs — a filtered view of this thread's own history. */}
-                <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-200 border-b border-gray-100 dark:border-gray-200">
+                <div className="grid grid-cols-3 divide-x divide-separator-border border-b border-separator-border">
                   {([
                     { icon: ImageIcon, label: "Media", kind: "image" },
                     { icon: Link2, label: "Links", kind: "link" },
@@ -2938,10 +2917,10 @@ export default function CanaanChatPage() {
                       key={label}
                       type="button"
                       onClick={() => openMediaTab(kind)}
-                      className="flex flex-col items-center gap-1 px-2 py-3.5 transition-colors hover:bg-gray-50"
+                      className="flex flex-col items-center gap-1 px-2 py-3.5 transition-colors hover:bg-fill-2"
                     >
-                      <Icon className="h-4 w-4 text-gray-400" />
-                      <span className="text-[11px] font-medium text-gray-500">{label}</span>
+                      <Icon className="h-4 w-4 text-text-tertiary" />
+                      <span className="text-caption-2-medium text-text-secondary">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -2949,14 +2928,14 @@ export default function CanaanChatPage() {
                 {/* Members */}
                 <div className="px-5 py-3.5">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <p className="text-caption-1-semibold text-text-secondary">
                       {groupDetail.memberCount} Participant{groupDetail.memberCount === 1 ? "" : "s"}
                     </p>
                     {groupDetail.myRole === "admin" && (
                       <button
                         type="button"
                         onClick={() => setShowAddMembers((v) => !v)}
-                        className="flex items-center gap-1 text-xs font-semibold text-brand-navy dark:text-blue-400 hover:underline"
+                        className="flex items-center gap-1 text-caption-1-semibold text-accent-text-strong hover:underline"
                       >
                         <UserPlus className="h-3.5 w-3.5" />
                         Add
@@ -2965,11 +2944,11 @@ export default function CanaanChatPage() {
                   </div>
 
                   {showAddMembers && (
-                    <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-300 dark:bg-gray-200">
+                    <div className="mb-3 rounded-lg border border-separator-border">
                       <div className="max-h-40 overflow-y-auto">
                         {contacts.filter((c) => !groupDetail.members.some((m) => m.staffId === c.staffId))
                           .length === 0 ? (
-                          <p className="p-3 text-center text-xs text-gray-400">
+                          <p className="p-3 text-center text-xs text-text-tertiary">
                             Everyone is already in this group.
                           </p>
                         ) : (
@@ -2980,7 +2959,7 @@ export default function CanaanChatPage() {
                               return (
                                 <label
                                   key={c.staffId}
-                                  className="flex cursor-pointer items-center gap-2 border-b border-gray-100 dark:border-gray-300 px-2.5 py-1.5 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-300"
+                                  className="flex cursor-pointer items-center gap-2 border-b border-separator-border px-2.5 py-1.5 last:border-b-0 hover:bg-fill-2"
                                 >
                                   <input
                                     type="checkbox"
@@ -2992,22 +2971,22 @@ export default function CanaanChatPage() {
                                           : prev.filter((x) => x !== Number(c.staffId))
                                       )
                                     }
-                                    className="h-3.5 w-3.5 accent-[#1b2b5e]"
+                                    className="h-3.5 w-3.5 accent-accent-solid"
                                   />
                                   <Avatar name={c.name} photoUrl={c.photoUrl} size={24} />
-                                  <span className="truncate text-xs text-gray-800">{c.name}</span>
+                                  <span className="truncate text-xs text-text-primary">{c.name}</span>
                                 </label>
                               );
                             })
                         )}
                       </div>
                       {addMemberIds.length > 0 && (
-                        <div className="flex justify-end border-t border-gray-100 p-2">
+                        <div className="flex justify-end border-t border-separator-border p-2">
                           <button
                             type="button"
                             onClick={handleAddMembers}
                             disabled={addingMembers}
-                            className="rounded-lg bg-brand-navy px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-navy/90 disabled:opacity-60"
+                            className="rounded-lg bg-accent-solid px-3 py-1.5 text-caption-1-semibold text-on-solid transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-60"
                           >
                             {addingMembers ? "Adding..." : `Add ${addMemberIds.length}`}
                           </button>
@@ -3022,22 +3001,22 @@ export default function CanaanChatPage() {
                       return (
                         <div
                           key={m.staffId}
-                          className="group flex items-center gap-3 rounded-lg px-1.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-200"
+                          className="group flex items-center gap-3 rounded-lg px-1.5 py-2 hover:bg-fill-2"
                         >
                           <Avatar name={m.name} photoUrl={m.photoUrl} size={36} />
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm text-gray-900 dark:text-gray-950">
+                            <p className="truncate text-sm text-text-primary">
                               {m.name}
-                              {isSelf && <span className="text-gray-400 dark:text-gray-600"> (You)</span>}
+                              {isSelf && <span className="text-text-tertiary"> (You)</span>}
                             </p>
-                            <p className="truncate text-[11px] text-gray-500 dark:text-gray-700">
+                            <p className="truncate text-[11px] text-text-secondary">
                               {m.designation || m.department || m.softwareDesignation || ""}
                             </p>
                           </div>
                           {m.role === "admin" && (
                             <span
                               title="Group admin"
-                              className="flex shrink-0 items-center gap-1 rounded-full bg-brand-gold/15 dark:bg-brand-gold/25 px-2 py-0.5 text-[10px] font-semibold text-brand-navy dark:text-brand-gold"
+                              className="flex shrink-0 items-center gap-1 rounded-full bg-gold-solid/15 px-2 py-0.5 text-caption-2-semibold text-accent-text-strong"
                             >
                               <Crown className="h-3 w-3" />
                               Admin
@@ -3049,7 +3028,7 @@ export default function CanaanChatPage() {
                               onClick={() => handleRemoveMember(m.staffId, m.name)}
                               disabled={removingMemberId === m.staffId}
                               title={`Remove ${m.name}`}
-                              className="shrink-0 rounded-lg p-1 text-gray-300 opacity-0 transition-colors group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 disabled:opacity-60"
+                              className="shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-colors group-hover:opacity-100 hover:bg-danger-surface-strong hover:text-danger-text disabled:opacity-60"
                             >
                               {removingMemberId === m.staffId ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3065,12 +3044,12 @@ export default function CanaanChatPage() {
                 </div>
 
                 {/* Exit group */}
-                <div className="border-t border-gray-100 dark:border-gray-200 px-5 py-3.5">
+                <div className="border-t border-separator-border px-5 py-3.5">
                   <button
                     type="button"
                     onClick={handleLeaveGroup}
                     disabled={leavingGroup}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60"
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-body-medium text-danger-text transition-colors hover:bg-danger-surface-strong disabled:opacity-60"
                   >
                     <LogOut className="h-4 w-4" />
                     {leavingGroup ? "Leaving..." : "Exit Group"}
@@ -3085,13 +3064,13 @@ export default function CanaanChatPage() {
       {/* Image lightbox — full-size view of a tapped photo attachment */}
       {lightbox && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/80 p-6"
           onClick={() => setLightbox(null)}
         >
           <button
             type="button"
             onClick={() => setLightbox(null)}
-            className="absolute right-5 top-5 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+            className="absolute right-5 top-5 rounded-full bg-on-solid/10 p-2 text-on-solid transition-colors hover:bg-on-solid/20"
           >
             <X className="h-5 w-5" />
           </button>
@@ -3107,33 +3086,33 @@ export default function CanaanChatPage() {
       {/* Payment note dialog — cosmetic, WhatsApp-Pay-style. No real money moves;
           this just posts a formatted "₹amount, note" card into the chat. */}
       {showPaymentDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between bg-brand-navy px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-4">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-background-primary-default shadow-2xl">
+            <div className="flex items-center justify-between bg-accent-solid px-5 py-4">
               <div className="flex items-center gap-2">
-                <IndianRupee className="h-4 w-4 text-brand-gold" />
-                <h2 className="text-sm font-bold text-white">Send Payment Note</h2>
+                <IndianRupee className="h-4 w-4 text-gold-text" />
+                <h2 className="text-body-semibold text-on-solid">Send Payment Note</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPaymentDialog(false)}
-                className="rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded-lg p-1.5 text-on-solid/70 transition-colors hover:bg-on-solid/10 hover:text-on-solid"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="flex flex-col gap-4 px-5 py-5">
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-text-secondary">
                 Posts a formatted note in the chat — this doesn&apos;t move any real money.
               </p>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">
-                  Amount <span className="text-red-500">*</span>
+                <label className="mb-1.5 block text-caption-1-semibold text-text-primary">
+                  Amount <span className="text-danger-text">*</span>
                 </label>
                 <div className="relative">
-                  <IndianRupee className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <IndianRupee className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
                   <input
                     ref={paymentAmountInputRef}
                     type="number"
@@ -3147,13 +3126,13 @@ export default function CanaanChatPage() {
                       if (e.key === "Enter") handleSendPayment();
                     }}
                     placeholder="0.00"
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+                    className="w-full rounded-lg border border-separator-border bg-fill-1 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Note (optional)</label>
+                <label className="mb-1.5 block text-caption-1-semibold text-text-primary">Note (optional)</label>
                 <input
                   type="text"
                   value={paymentNote}
@@ -3162,7 +3141,7 @@ export default function CanaanChatPage() {
                     if (e.key === "Enter") handleSendPayment();
                   }}
                   placeholder="e.g. Fuel reimbursement"
-                  className="input-no-transform w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+                  className="input-no-transform w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2.5 text-sm outline-none transition focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
                 />
               </div>
 
@@ -3170,7 +3149,7 @@ export default function CanaanChatPage() {
                 <button
                   type="button"
                   onClick={() => setShowPaymentDialog(false)}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                  className="rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary transition-colors hover:bg-fill-2"
                 >
                   Cancel
                 </button>
@@ -3178,7 +3157,7 @@ export default function CanaanChatPage() {
                   type="button"
                   onClick={handleSendPayment}
                   disabled={sendingPayment}
-                  className="rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-navy/90 disabled:opacity-50"
+                  className="rounded-lg bg-accent-solid px-5 py-2 text-body-semibold text-on-solid transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-50"
                 >
                   {sendingPayment ? "Sending..." : "Send"}
                 </button>
@@ -3197,17 +3176,17 @@ export default function CanaanChatPage() {
 
       {/* New group dialog */}
       {showNewGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between bg-brand-navy px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-4">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-background-primary-default shadow-2xl">
+            <div className="flex items-center justify-between bg-accent-solid px-5 py-4">
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-brand-gold" />
-                <h2 className="text-sm font-bold text-white">New Group</h2>
+                <Users className="h-4 w-4 text-gold-text" />
+                <h2 className="text-body-semibold text-on-solid">New Group</h2>
               </div>
               <button
                 type="button"
                 onClick={() => { setShowNewGroup(false); setNewGroupMemberSearch(""); }}
-                className="rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded-lg p-1.5 text-on-solid/70 transition-colors hover:bg-on-solid/10 hover:text-on-solid"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -3215,8 +3194,8 @@ export default function CanaanChatPage() {
 
             <div className="flex flex-col gap-4 px-5 py-5">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">
-                  Group name <span className="text-red-500">*</span>
+                <label className="mb-1.5 block text-caption-1-semibold text-text-primary">
+                  Group name <span className="text-danger-text">*</span>
                 </label>
                 <input
                   ref={groupTitleInputRef}
@@ -3224,25 +3203,25 @@ export default function CanaanChatPage() {
                   value={groupTitle}
                   onChange={(e) => setGroupTitle(e.target.value)}
                   placeholder="e.g. Fleet Operations"
-                  className="input-no-transform w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+                  className="input-no-transform w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2.5 text-sm outline-none transition focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">
+                <label className="mb-1.5 block text-caption-1-semibold text-text-primary">
                   Members ({groupMembers.length} selected)
                 </label>
                 <div className="mb-2 relative">
-                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
                   <input
                     type="text"
                     placeholder="Search members..."
                     value={newGroupMemberSearch}
                     onChange={(e) => setNewGroupMemberSearch(e.target.value)}
-                    className="input-no-transform w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-8 pr-3 text-sm outline-none transition focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+                    className="input-no-transform w-full rounded-lg border border-separator-border bg-fill-1 py-2 pl-8 pr-3 text-sm outline-none transition focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
                   />
                 </div>
-                <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200">
+                <div className="max-h-48 overflow-y-auto rounded-lg border border-separator-border">
                   {contacts.filter((m) =>
                     m.name.toLowerCase().includes(newGroupMemberSearch.toLowerCase()) ||
                     (m.designation || m.department || m.softwareDesignation || "").toLowerCase().includes(newGroupMemberSearch.toLowerCase())
@@ -3251,7 +3230,7 @@ export default function CanaanChatPage() {
                     return (
                       <label
                         key={m.staffId}
-                        className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-3 py-2 last:border-b-0 hover:bg-gray-50"
+                        className="flex cursor-pointer items-center gap-3 border-b border-separator-border px-3 py-2 last:border-b-0 hover:bg-fill-2"
                       >
                         <input
                           type="checkbox"
@@ -3263,12 +3242,12 @@ export default function CanaanChatPage() {
                                 : prev.filter((x) => x !== Number(m.staffId))
                             )
                           }
-                          className="h-4 w-4 accent-[#1b2b5e]"
+                          className="h-4 w-4 accent-accent-solid"
                         />
                         <Avatar name={m.name} photoUrl={m.photoUrl} size={32} />
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-gray-900">{m.name}</p>
-                          <p className="truncate text-[11px] text-gray-500">
+                          <p className="truncate text-body-medium text-text-primary">{m.name}</p>
+                          <p className="truncate text-[11px] text-text-secondary">
                             {m.designation || m.department || m.softwareDesignation || ""}
                           </p>
                         </div>
@@ -3282,7 +3261,7 @@ export default function CanaanChatPage() {
                 <button
                   type="button"
                   onClick={() => { setShowNewGroup(false); setNewGroupMemberSearch(""); }}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                  className="rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary transition-colors hover:bg-fill-2"
                 >
                   Cancel
                 </button>
@@ -3290,7 +3269,7 @@ export default function CanaanChatPage() {
                   type="button"
                   onClick={handleCreateGroup}
                   disabled={creatingGroup}
-                  className="rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-navy/90 disabled:opacity-50"
+                  className="rounded-lg bg-accent-solid px-5 py-2 text-body-semibold text-on-solid transition-colors hover:bg-accent-solid-hover/90 disabled:opacity-50"
                 >
                   {creatingGroup ? "Creating..." : "Create Group"}
                 </button>

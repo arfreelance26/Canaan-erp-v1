@@ -1,0 +1,66 @@
+/* ---------------------------------------------------------------------------
+ * shadcn/ui ↔ BoardUI bridge.
+ *
+ * shadcn components (installed under src/components/shadcn) read the classic
+ * shadcn variables (--background, --primary, --border …). Here every one of
+ * them points at a BoardUI semantic token, so both libraries share a single
+ * theme and both flip with the `.dark` class on <html> — no separate dark
+ * block is needed because the BoardUI tokens already flip.
+ *
+ * Never put raw colors here; change the BoardUI token (or styles/brand.css).
+ * --------------------------------------------------------------------------- */
+
+@import "tw-animate-css";
+
+:root {
+  --background: var(--color-background-full);
+  --foreground: var(--color-text-primary);
+
+  --card: var(--color-background-primary-default);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-background-primary-default);
+  --popover-foreground: var(--color-text-primary);
+
+  --primary: var(--color-accent-500);
+  --primary-foreground: var(--color-text-white);
+  --secondary: var(--color-background-secondary-default);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-background-secondary-default);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-background-secondary-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-text-destructive);
+
+  --border: var(--color-separator-border);
+  --input: var(--color-border-button-default);
+  --ring: var(--color-border-focus-ring);
+
+  --chart-1: var(--color-chart-1);
+  --chart-2: var(--color-chart-2);
+  --chart-3: var(--color-chart-3);
+  --chart-4: var(--color-chart-4);
+  --chart-5: var(--color-chart-5);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  /* Radii deliberately NOT remapped: Tailwind's rounded-* scale is shared with
+     BoardUI and every legacy page. shadcn components use that scale as-is. */
+}

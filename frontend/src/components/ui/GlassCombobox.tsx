@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown } from "lucide-react";
+import { RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
 interface Option {
@@ -146,9 +146,9 @@ export function GlassCombobox({
     <div className={cn("relative w-full text-[14px]", className)} ref={containerRef}>
       <div
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border bg-white/60 px-3 py-2 text-left shadow-[0_2px_10px_rgba(0,0,0,0.04)] backdrop-blur-md transition-all duration-300 focus-within:border-blue-400 focus-within:bg-white dark:focus-within:bg-gray-100 focus-within:ring-4 focus-within:ring-blue-500/10",
-          disabled ? "cursor-not-allowed bg-gray-50/50 opacity-60" : "hover:border-blue-200/80 hover:bg-white/80 hover:shadow-md",
-          isOpen ? "border-blue-400 bg-white shadow-md ring-4 ring-blue-500/10" : "border-gray-200",
+          "flex w-full items-center justify-between gap-2 rounded-lg border bg-background-primary-default px-3 py-2 text-left shadow-[0_2px_10px_rgba(0,0,0,0.04)] transition duration-300 focus-within:border-accent-border-strong focus-within:bg-background-primary-default focus-within:ring-4 focus-within:ring-accent-solid/10",
+          disabled ? "cursor-not-allowed bg-fill-1 opacity-60" : "hover:border-accent-border/80 hover:bg-fill-2 hover:shadow-md",
+          isOpen ? "border-accent-border-strong bg-background-primary-default shadow-md ring-4 ring-accent-solid/10" : "border-separator-border",
         )}
       >
         <input
@@ -167,7 +167,7 @@ export function GlassCombobox({
           disabled={disabled}
           required={required}
           placeholder={isOpen ? "Type to search..." : placeholder}
-          className="w-full bg-transparent font-medium uppercase text-gray-900 placeholder:normal-case placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed"
+          className="w-full bg-transparent font-medium uppercase text-text-primary placeholder:normal-case placeholder:text-text-placeholder focus:outline-none disabled:cursor-not-allowed"
         />
         <button
           type="button"
@@ -183,7 +183,7 @@ export function GlassCombobox({
           }}
           className="focus:outline-none"
         >
-          <ChevronDown className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform duration-300", isOpen && "rotate-180 text-blue-500")} />
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-text-tertiary transition-transform duration-300", isOpen && "rotate-180 text-accent-text")} />
         </button>
       </div>
 
@@ -191,7 +191,7 @@ export function GlassCombobox({
         createPortal(
           <div
             style={dropdownStyle}
-            className="overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar"
+            className="overflow-y-auto rounded-xl border border-separator-border bg-background-primary-default p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] animate-dropdown duration-200 custom-scrollbar"
           >
             {displayOptions.map((option, i) => {
               const isSelected = String(option.value) === String(value);
@@ -202,12 +202,12 @@ export function GlassCombobox({
                   type="button"
                   disabled={isOptDisabled}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-all duration-200",
+                    "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition duration-200",
                     isOptDisabled
-                      ? "cursor-not-allowed bg-gray-50/80 text-gray-400"
+                      ? "cursor-not-allowed bg-fill-1 text-text-tertiary"
                       : isSelected
-                      ? "bg-blue-50/80 font-semibold text-blue-700 shadow-[0_2px_10px_rgba(27,43,94,0.1)]"
-                      : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900",
+                      ? "bg-accent-surface/80 font-semibold text-accent-text shadow-md"
+                      : "text-text-primary hover:bg-fill-3 hover:text-text-primary",
                   )}
                   onMouseDown={(e) => {
                     e.preventDefault();
@@ -220,8 +220,8 @@ export function GlassCombobox({
                   {(option.badge || isOptDisabled) && (
                     <span
                       className={cn(
-                        "ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
-                        option.badgeTone === "red" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700",
+                        "ml-2 shrink-0 rounded-full px-2 py-0.5 text-caption-1-semibold",
+                        option.badgeTone === "red" ? "bg-danger-surface-strong text-danger-text" : "bg-warning-surface-strong text-warning-text",
                       )}
                     >
                       {option.badge ?? "Active Trip"}

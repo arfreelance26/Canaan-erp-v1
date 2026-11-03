@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { Download, Eye, Loader2, X, Users, History, Plus, Pencil, Clock } from "lucide-react";
+import { RiDownloadLine as Download, RiEyeLine as Eye, RiLoader4Line as Loader2, RiCloseLine as X, RiGroupLine as Users, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiTimeLine as Clock } from "@remixicon/react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,20 +15,21 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<StaffAttendanceEditEventRow["event"], typeof Plus> = {
   "Attendance Marked": Plus,
   "Attendance Updated": Pencil,
 };
 
 const EDIT_EVENT_COLOR: Record<StaffAttendanceEditEventRow["event"], string> = {
-  "Attendance Marked": "bg-blue-100 text-blue-700",
-  "Attendance Updated": "bg-amber-100 text-amber-700",
+  "Attendance Marked": "bg-accent-surface-strong text-accent-text",
+  "Attendance Updated": "bg-warning-surface-strong text-warning-text",
 };
 
 function getStaffAttendanceForDate(
@@ -360,12 +361,12 @@ export default function StaffAttendancePage() {
       <SetWorkingHoursDialog open={workingHoursOpen} onClose={() => setWorkingHoursOpen(false)} />
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
             <Users className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Staff Attendance</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Staff Attendance</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Track and mark attendance for all staff members
             </p>
           </div>
@@ -375,7 +376,7 @@ export default function StaffAttendancePage() {
             <button
               type="button"
               onClick={() => setWorkingHoursOpen(true)}
-              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
             >
               <Clock className="h-4 w-4" />
               Auto-Close Settings
@@ -386,14 +387,14 @@ export default function StaffAttendancePage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
           </button>
 )}
           {/* Day being marked */}
-          <div className="flex h-10 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-500">
+          <div className="flex h-10 items-center gap-1 rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition-transform duration-300 hover:shadow-md [&_.border-gold-solid]:!border-0 [&_.border-gold-solid]:!bg-transparent [&_.border-gold-solid]:!px-1 [&_.border-gold-solid]:!py-1 [&_.border-gold-solid]:!shadow-none [&_.border-brand-gold_svg]:!text-text-secondary">
             <div className="w-[128px]">
               <DatePickerInput value={date} onChange={(v) => setDate(v)} clearable={false} />
             </div>
@@ -402,21 +403,21 @@ export default function StaffAttendancePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Present</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">{summary.Present}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Present</p>
+          <p className="mt-1 text-title-1-semibold text-success-text">{summary.Present}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Absent</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{summary.Absent}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Absent</p>
+          <p className="mt-1 text-title-1-semibold text-danger-text">{summary.Absent}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">On Leave</p>
-          <p className="mt-1 text-2xl font-bold text-yellow-600">{summary["On Leave"]}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">On Leave</p>
+          <p className="mt-1 text-title-1-semibold text-warning-text">{summary["On Leave"]}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Not Marked</p>
-          <p className="mt-1 text-2xl font-bold text-gray-500">{summary["Not Marked"]}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Not Marked</p>
+          <p className="mt-1 text-title-1-semibold text-text-secondary">{summary["Not Marked"]}</p>
         </div>
       </div>
 
@@ -434,7 +435,7 @@ export default function StaffAttendancePage() {
             type="button"
             onClick={handleViewReport}
             disabled={reportLoading}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           >
             {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
             View
@@ -452,15 +453,15 @@ export default function StaffAttendancePage() {
       />
       {showReportModal && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}
         >
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl bg-background-primary-default shadow-2xl">
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
               <div>
-                <p className="font-semibold text-gray-900">Staff Attendance Report</p>
-                <p className="mt-0.5 text-xs text-gray-500">
+                <p className="font-semibold text-text-primary">Staff Attendance Report</p>
+                <p className="mt-0.5 text-xs text-text-secondary">
                   {(() => {
                     const f = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
                     return fromDate === toDate ? f(fromDate) : `${f(fromDate)} – ${f(toDate)}`;
@@ -468,7 +469,7 @@ export default function StaffAttendancePage() {
                   {" · "}{staff.length} staff member{staff.length !== 1 ? "s" : ""}
                 </p>
               </div>
-              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -476,22 +477,22 @@ export default function StaffAttendancePage() {
             {/* Report table */}
             <div className="flex-1 overflow-auto px-5 py-4">
               {reportLoading ? (
-                <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-400">
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-text-tertiary">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Loading report…
                 </div>
               ) : staff.length === 0 ? (
-                <p className="py-12 text-center text-sm text-gray-400">No attendance data for the selected range.</p>
+                <EmptyState size="compact" illustration="no-data" title="No attendance data for the selected range" />
               ) : (
                 <table className="w-full text-left text-sm">
                   <thead className="sticky top-0 z-10">
-                    <tr className="border-b border-gray-200 bg-gray-50">
+                    <tr className="border-b border-separator-border bg-fill-1">
                       {["#", "Staff ID", "Staff Name", "Designation", "Date", "Status"].map((col) => (
-                        <th key={col} className="whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">{col}</th>
+                        <th key={col} className="whitespace-nowrap px-3 py-2.5 text-caption-1-semibold text-text-secondary">{col}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-separator-border">
                     {(() => {
                       const dates: string[] = [];
                       const [fy, fm, fd] = fromDate.split("-").map(Number);
@@ -503,10 +504,10 @@ export default function StaffAttendancePage() {
                         cur.setDate(cur.getDate() + 1);
                       }
                       const statusColor: Record<string, string> = {
-                        "Present": "text-green-700 bg-green-50",
-                        "Absent": "text-red-700 bg-red-50",
-                        "On Leave": "text-yellow-700 bg-yellow-50",
-                        "Not Marked": "text-gray-500 bg-gray-50",
+                        "Present": "text-success-text bg-success-surface",
+                        "Absent": "text-danger-text bg-danger-surface",
+                        "On Leave": "text-warning-text bg-warning-surface",
+                        "Not Marked": "text-text-secondary bg-fill-1",
                       };
                       let rowIdx = 0;
                       return dates.flatMap((d) =>
@@ -514,16 +515,16 @@ export default function StaffAttendancePage() {
                           rowIdx++;
                           const status = reportRecords.find((r) => r.staffId === member.id && r.date === d)?.status ?? "Not Marked";
                           return (
-                            <tr key={`${d}-${member.id}`} className="hover:bg-gray-50">
-                              <td className="px-3 py-2 text-xs text-gray-400">{rowIdx}</td>
-                              <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">{member.staffId}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-gray-700">{member.name}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-gray-500">{member.designation || "—"}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-gray-500">
+                            <tr key={`${d}-${member.id}`} className="hover:bg-fill-2">
+                              <td className="px-3 py-2 text-xs text-text-tertiary">{rowIdx}</td>
+                              <td className="whitespace-nowrap px-3 py-2 font-medium text-text-primary">{member.staffId}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-text-primary">{member.name}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-text-secondary">{member.designation || "—"}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-text-secondary">
                                 {new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}
                               </td>
                               <td className="px-3 py-2">
-                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[status] ?? "text-gray-500 bg-gray-50"}`}>{status}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-caption-1-medium ${statusColor[status] ?? "text-text-secondary bg-fill-1"}`}>{status}</span>
                               </td>
                             </tr>
                           );
@@ -542,13 +543,13 @@ export default function StaffAttendancePage() {
                 filename={`staff_attendance_${fromDate}_to_${toDate}.xlsx`}
                 params={{ from_date: fromDate, to_date: toDate }}
                 direct
-                className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }}
                 disabled={downloading || staff.length === 0}
-                className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Download className="h-4 w-4" />
                 {downloading ? "Generating..." : "Download PDF"}
@@ -569,45 +570,43 @@ export default function StaffAttendancePage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by staff or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
               !q || ev.staffName.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No Admin-override edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No Admin-override edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Staff</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Date</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Staff</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Date</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.staffName}</td>
-                          <td className="px-3 py-2 text-gray-600">{ev.date}</td>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.staffName}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.date}</td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

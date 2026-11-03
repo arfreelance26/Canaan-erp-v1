@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Gauge } from "lucide-react";
+import { RiDashboard3Line as Gauge } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
@@ -27,9 +27,9 @@ type EmiInsightsDialogProps = {
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-gray-50 px-3.5 py-2.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className="truncate text-sm font-semibold text-gray-800">{value || "—"}</span>
+    <div className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-fill-1 px-3.5 py-2.5">
+      <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
+      <span className="truncate text-body-semibold text-text-primary">{value || "—"}</span>
     </div>
   );
 }
@@ -113,18 +113,18 @@ export function EmiInsightsDialog({ open, onClose, record }: EmiInsightsDialogPr
 
         {/* EMI Cost per Km — Basic & Advanced */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+          <div className="flex items-start gap-3 rounded-xl border border-separator-border bg-background-primary-default px-4 py-3.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning-surface text-warning-text">
               <Gauge className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">EMI Cost per Km (Basic)</p>
-              <p className="mt-1 text-lg font-bold text-gray-900">
+              <p className="text-caption-2-semibold text-text-tertiary">EMI Cost per Km (Basic)</p>
+              <p className="mt-1 text-title-3-semibold text-text-primary">
                 {insights.emiCostPerKm > 0
                   ? `₹ ${insights.emiCostPerKm.toLocaleString("en-IN", { minimumFractionDigits: 4 })}`
                   : "—"}
               </p>
-              <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+              <p className="mt-0.5 text-[11px] leading-snug text-text-secondary">
                 {!record.truckRegistration
                   ? "No truck assigned to this EMI"
                   : insights.kmPerDay === 0
@@ -134,25 +134,25 @@ export function EmiInsightsDialog({ open, onClose, record }: EmiInsightsDialogPr
             </div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+          <div className="flex items-start gap-3 rounded-xl border border-separator-border bg-background-primary-default px-4 py-3.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-surface text-purple-text">
               <Gauge className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">EMI Cost Per KM (Advanced)</p>
-              <p className="mt-1 text-lg font-bold text-gray-900">
+              <p className="text-caption-2-semibold text-text-tertiary">EMI Cost Per KM (Advanced)</p>
+              <p className="mt-1 text-title-3-semibold text-text-primary">
                 {insights.emiCostPerKmAdvanced > 0
                   ? `₹ ${insights.emiCostPerKmAdvanced.toLocaleString("en-IN", { minimumFractionDigits: 4 })}`
                   : "—"}
               </p>
-              <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+              <p className="mt-0.5 text-[11px] leading-snug text-text-secondary">
                 {!record.truckRegistration
                   ? "No truck assigned to this EMI"
                   : runStats.monthlyAvg === 0
                   ? "No trip run history for this truck yet"
                   : "Daily Finance Cost × 26 ÷ Monthly Avg. Distance"}
                 {record.truckRegistration && missingSheetsNote(runStats) && (
-                  <span className="block text-amber-600">{missingSheetsNote(runStats)}</span>
+                  <span className="block text-warning-text">{missingSheetsNote(runStats)}</span>
                 )}
               </p>
             </div>

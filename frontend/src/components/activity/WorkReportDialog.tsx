@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { RiFileExcel2Line as FileSpreadsheet, RiFileTextLine as FileText, RiLoader4Line as Loader2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -9,9 +9,10 @@ import { activityApi, downloadExcel, type WorkReport } from "@/lib/api";
 import { problemFromMessage, reportProblem } from "@/lib/connection-problem";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { dayLabel, duration, headline, savePdf } from "@/lib/work-report-pdf";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const ALL = "all";
 const MAX_RANGE_DAYS = 31; // backend work_report.MAX_RANGE_DAYS
 
@@ -49,18 +50,18 @@ function MiniTable({ title, headers, rows }: { title: string; headers: string[];
   if (rows.length === 0) return null;
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">{title}</p>
-      <div className="max-h-72 overflow-auto rounded-lg border border-gray-200">
+      <p className="mb-1.5 text-caption-2-semibold text-text-tertiary">{title}</p>
+      <div className="max-h-72 overflow-auto rounded-lg border border-separator-border">
         <table className="w-full text-left text-sm">
           <thead className="sticky top-0">
-            <tr className="border-b border-gray-100 bg-gray-50">
-              {headers.map((h) => <th key={h} className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">{h}</th>)}
+            <tr className="border-b border-separator-border bg-fill-1">
+              {headers.map((h) => <th key={h} className="px-3 py-2 text-caption-2-semibold text-text-tertiary">{h}</th>)}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-separator-border">
             {rows.map((row, r) => (
               <tr key={r}>
-                {row.map((cell, c) => <td key={c} className="px-3 py-2 text-gray-700">{cell}</td>)}
+                {row.map((cell, c) => <td key={c} className="px-3 py-2 text-text-primary">{cell}</td>)}
               </tr>
             ))}
           </tbody>
@@ -155,13 +156,13 @@ export function WorkReportDialog({ day, onClose }: { day: string; onClose: () =>
       <div className="flex flex-col gap-4">
         {/* Single day (the Activity Log's date) or a date range */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-full bg-gray-100 p-0.5 text-xs font-semibold">
+          <div className="flex rounded-full bg-fill-2 p-0.5 text-caption-1-semibold">
             {([["day", `Single day · ${formatDate(day)}`], ["range", "Date range"]] as const).map(([m, label]) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
-                className={cn("rounded-full px-3.5 py-1.5 transition-colors", mode === m ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                className={cn("rounded-full px-3.5 py-1.5 transition-colors", mode === m ? "bg-background-primary-default text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary")}
               >
                 {label}
               </button>
@@ -176,8 +177,8 @@ export function WorkReportDialog({ day, onClose }: { day: string; onClose: () =>
                     key={q.label}
                     type="button"
                     onClick={() => { setFrom(q.from); setTo(q.to); }}
-                    className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                      from === q.from && to === q.to ? "border-blue-300 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:bg-gray-50")}
+                    className={cn("rounded-full border px-3 py-1 text-caption-1-medium transition-colors",
+                      from === q.from && to === q.to ? "border-accent-border-strong bg-accent-surface text-accent-text" : "border-separator-border text-text-secondary hover:bg-fill-2")}
                   >
                     {q.label}
                   </button>
@@ -188,9 +189,9 @@ export function WorkReportDialog({ day, onClose }: { day: string; onClose: () =>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+          <div className="flex items-center justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
         ) : !report ? (
-          <p className="rounded-xl border border-gray-200 px-4 py-10 text-center text-sm text-gray-500">{message ?? "No work recorded."}</p>
+          <EmptyState size="compact" illustration="no-data" title={message ?? "No work recorded"} />
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -209,7 +210,7 @@ export function WorkReportDialog({ day, onClose }: { day: string; onClose: () =>
                   type="button"
                   onClick={handleExcel}
                   disabled={excelBusy}
-                  className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-full border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:opacity-50"
                 >
                   {excelBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
                   Download Excel
@@ -218,7 +219,7 @@ export function WorkReportDialog({ day, onClose }: { day: string; onClose: () =>
                   type="button"
                   onClick={handlePdf}
                   disabled={pdfBusy}
-                  className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-full border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50"
                 >
                   {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                   Download PDF
@@ -227,35 +228,35 @@ export function WorkReportDialog({ day, onClose }: { day: string; onClose: () =>
             </div>
 
             {report.live && (
-              <p className="rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs text-blue-800">
+              <p className="rounded-lg border border-accent-border bg-accent-surface px-3.5 py-2 text-xs text-accent-text-strong">
                 {report.range ? "This period includes today, which" : "Today"} isn&apos;t over yet, so this report keeps updating as work happens.
               </p>
             )}
             {report.limited && (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs text-amber-800">
+              <p className="rounded-lg border border-warning-border bg-warning-surface px-3.5 py-2 text-xs text-warning-text-strong">
                 {report.range ? "Some days here are" : "This day is"} older than the report, so they can&apos;t name each record or merge repeat saves.
               </p>
             )}
             {report.range && (
-              <p className="text-xs text-gray-500">The PDF keeps to the totals and the day-by-day table; every work item is in the Excel.</p>
+              <p className="text-xs text-text-secondary">The PDF keeps to the totals and the day-by-day table; every work item is in the Excel.</p>
             )}
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-text-secondary">
               Only work done in the software appears here. A quiet gap is something to ask about, not proof that no work was done.
             </p>
 
             <div className="flex flex-col gap-5">
               {people.map((p) => (
-                <section key={p.key} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4">
+                <section key={p.key} className="flex flex-col gap-3 rounded-xl border border-separator-border bg-background-primary-default p-4">
                   <div>
-                    <h3 className="text-base font-bold text-gray-900">{p.name}</h3>
-                    <p className="text-xs text-gray-500">{p.role}</p>
+                    <h3 className="text-headline-semibold text-text-primary">{p.name}</h3>
+                    <p className="text-xs text-text-secondary">{p.role}</p>
                   </div>
-                  <p className="rounded-lg bg-indigo-50 px-3.5 py-2.5 text-sm text-indigo-900">{p.summary}</p>
+                  <p className="rounded-lg bg-purple-surface px-3.5 py-2.5 text-sm text-purple-text-strong">{p.summary}</p>
                   <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     {headline(p, days).map(([label, value]) => (
                       <div key={label}>
-                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{label}</dt>
-                        <dd className="mt-0.5 text-sm font-semibold text-gray-800">{value}</dd>
+                        <dt className="text-caption-2-semibold text-text-tertiary">{label}</dt>
+                        <dd className="mt-0.5 text-body-semibold text-text-primary">{value}</dd>
                       </div>
                     ))}
                   </dl>

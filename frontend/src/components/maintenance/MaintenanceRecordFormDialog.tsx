@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { BellRing, Check, FileText, Paperclip, X } from "lucide-react";
+import { RiNotification4Line as BellRing, RiCheckLine as Check, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiCloseLine as X } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
@@ -341,19 +341,19 @@ export function MaintenanceRecordFormDialog({
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {isEdit && requireReason && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+          <div className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2.5 text-xs text-warning-text-strong">
             Your changes go to <span className="font-semibold">Edit Approvals</span> and are applied once an Admin approves them.
           </div>
         )}
         {!isEdit && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+          <div className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2.5 text-xs text-warning-text-strong">
             This record goes to <span className="font-semibold">Maintenance Approvals</span> and is added to the truck&apos;s record once Admin or Accounts approves it.
           </div>
         )}
         {currentOdometer !== null && currentOdometer > 0 && (
-          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">Current Odometer</span>
-            <span className="ml-auto text-sm font-bold text-blue-800">{currentOdometer.toLocaleString("en-IN")} km</span>
+          <div className="flex items-center gap-3 rounded-lg border border-accent-border bg-accent-surface px-4 py-2.5">
+            <span className="text-caption-1-semibold text-accent-text">Current Odometer</span>
+            <span className="ml-auto text-body-semibold text-accent-text-strong">{currentOdometer.toLocaleString("en-IN")} km</span>
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -381,16 +381,16 @@ export function MaintenanceRecordFormDialog({
               max={currentOdometer !== null && currentOdometer > 0 ? currentOdometer : undefined}
               value={form.odometer}
               onChange={(e) => handleOdometerChange(e.target.value)}
-              className={`${inputClass} ${odometerTooHigh ? "border-red-400 ring-2 ring-red-100" : ""}`}
+              className={`${inputClass} ${odometerTooHigh ? "border-danger-border-strong ring-2 ring-danger-border" : ""}`}
               placeholder="e.g. 85000"
             />
             {odometerTooHigh && (
-              <p className="mt-1 text-xs text-red-600">
+              <p className="mt-1 text-xs text-danger-text">
                 Must be less than or equal to the current odometer ({currentOdometer!.toLocaleString("en-IN")} km).
               </p>
             )}
             {!odometerTooHigh && currentOdometer !== null && currentOdometer > 0 && (
-              <p className="mt-1 text-xs text-gray-400">Enter the odometer reading when this maintenance was done.</p>
+              <p className="mt-1 text-xs text-text-tertiary">Enter the odometer reading when this maintenance was done.</p>
             )}
           </Field>
 
@@ -413,18 +413,18 @@ export function MaintenanceRecordFormDialog({
           {repairChips.length > 0 && (
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-gray-700">
-                  Repair Type <span className="ml-1 text-red-500">*</span>
-                  <span className="ml-1.5 text-xs font-normal text-gray-400">pick all that were done</span>
+                <span className="text-body-medium text-text-primary">
+                  Repair Type <span className="ml-1 text-danger-text">*</span>
+                  <span className="ml-1.5 text-caption-1-regular text-text-tertiary">pick all that were done</span>
                 </span>
                 {selectedRepairs.length > 0 && (
-                  <span className="text-xs font-semibold text-blue-600">{selectedRepairs.length} selected</span>
+                  <span className="text-caption-1-semibold text-accent-text">{selectedRepairs.length} selected</span>
                 )}
               </div>
               <div
                 role="group"
                 aria-label="Repair types"
-                className={`flex flex-wrap gap-1.5 rounded-lg border p-2 ${repairMissing ? "border-red-300 bg-red-50/40" : "border-gray-200 bg-gray-50/60"}`}
+                className={`flex flex-wrap gap-1.5 rounded-lg border p-2 ${repairMissing ? "border-danger-border-strong bg-danger-surface/40" : "border-separator-border bg-fill-1"}`}
               >
                 {repairChips.map((name) => {
                   const on = selectedRepairs.includes(name);
@@ -434,10 +434,10 @@ export function MaintenanceRecordFormDialog({
                       type="button"
                       aria-pressed={on}
                       onClick={() => toggleRepair(name)}
-                      className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-all duration-150 ${
+                      className={`flex items-center gap-1 rounded-full border px-3 py-1 text-caption-1-semibold transition duration-150 ${
                         on
-                          ? "border-brand-navy bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
-                          : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-700"
+                          ? "border-accent-solid bg-accent-solid text-on-solid shadow-md"
+                          : "border-separator-border bg-background-primary-default text-text-secondary hover:border-accent-border-strong hover:text-accent-text"
                       }`}
                     >
                       {on && <Check className="h-3 w-3" />}
@@ -446,7 +446,7 @@ export function MaintenanceRecordFormDialog({
                   );
                 })}
               </div>
-              {repairMissing && <p className="text-xs text-red-600">Pick at least one repair type.</p>}
+              {repairMissing && <p className="text-xs text-danger-text">Pick at least one repair type.</p>}
             </div>
           )}
 
@@ -475,8 +475,8 @@ export function MaintenanceRecordFormDialog({
               label text would be forwarded to the first toggle button. */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-gray-700">Maintenance By</span>
-              <div role="radiogroup" aria-label="Maintenance by" className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+              <span className="text-body-medium text-text-primary">Maintenance By</span>
+              <div role="radiogroup" aria-label="Maintenance by" className="flex shrink-0 gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
                 {MAINTENANCE_BY_TYPES.map((t) => (
                   <button
                     key={t}
@@ -490,10 +490,10 @@ export function MaintenanceRecordFormDialog({
                       update("maintenanceBy", "");
                       setVendorId("");
                     }}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
+                    className={`rounded-full px-3 py-1 text-caption-1-semibold transition duration-200 ${
                       maintenanceByType === t
-                        ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
-                        : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+                        ? "bg-accent-solid text-on-solid shadow-md"
+                        : "text-text-secondary hover:bg-fill-2 hover:text-text-primary"
                     }`}
                   >
                     {t}
@@ -564,18 +564,18 @@ export function MaintenanceRecordFormDialog({
         </Field>
 
         {/* Maintenance reminder — not a <Field>/<label> (see Maintenance By). */}
-        <div className={`rounded-xl border px-4 py-3 transition-colors ${remindOn ? "border-amber-200 bg-amber-50/50" : "border-gray-200 bg-gray-50/60"}`}>
+        <div className={`rounded-xl border px-4 py-3 transition-colors ${remindOn ? "border-warning-border bg-warning-surface/50" : "border-separator-border bg-fill-1"}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${remindOn ? "bg-amber-100 text-amber-600" : "bg-white text-gray-400 ring-1 ring-gray-200"}`}>
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${remindOn ? "bg-warning-surface-strong text-warning-text" : "bg-background-primary-default text-text-tertiary ring-1 ring-separator-border"}`}>
                 <BellRing className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800">Notify me when this is due again?</p>
-                <p className="text-xs text-gray-500">Get an alert when the truck reaches a set odometer.</p>
+                <p className="text-body-medium text-text-primary">Notify me when this is due again?</p>
+                <p className="text-xs text-text-secondary">Get an alert when the truck reaches a set odometer.</p>
               </div>
             </div>
-            <div role="radiogroup" aria-label="Maintenance reminder" className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+            <div role="radiogroup" aria-label="Maintenance reminder" className="flex shrink-0 gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
               {([false, true] as const).map((on) => (
                 <button
                   key={String(on)}
@@ -583,10 +583,10 @@ export function MaintenanceRecordFormDialog({
                   role="radio"
                   aria-checked={remindOn === on}
                   onClick={() => handleRemindToggle(on)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
+                  className={`rounded-full px-3 py-1 text-caption-1-semibold transition duration-200 ${
                     remindOn === on
-                      ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
-                      : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+                      ? "bg-accent-solid text-on-solid shadow-md"
+                      : "text-text-secondary hover:bg-fill-2 hover:text-text-primary"
                   }`}
                 >
                   {on ? "Yes" : "No"}
@@ -596,7 +596,7 @@ export function MaintenanceRecordFormDialog({
           </div>
 
           {remindOn && (
-            <div className="mt-3 grid grid-cols-1 gap-3 border-t border-amber-200/70 pt-3 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-3 border-t border-warning-border/70 pt-3 sm:grid-cols-2">
               <Field label="Remind after (km)">
                 <DecimalInput type="number"
                   min="1"
@@ -613,15 +613,15 @@ export function MaintenanceRecordFormDialog({
                   min="1"
                   value={form.remindAtOdometer ?? ""}
                   onChange={(e) => handleRemindAtChange(e.target.value)}
-                  className={`${inputClass} ${remindError && form.remindAtOdometer ? "border-red-400 ring-2 ring-red-100" : ""}`}
+                  className={`${inputClass} ${remindError && form.remindAtOdometer ? "border-danger-border-strong ring-2 ring-danger-border" : ""}`}
                   placeholder="e.g. 95000"
                 />
               </Field>
-              <p className={`text-xs sm:col-span-2 ${remindError && form.remindAtOdometer ? "text-red-600" : "text-gray-500"}`}>
+              <p className={`text-xs sm:col-span-2 ${remindError && form.remindAtOdometer ? "text-danger-text" : "text-text-secondary"}`}>
                 {remindError && form.remindAtOdometer
                   ? remindError
                   : remindTarget
-                    ? <>Admin, Commercial Managers and Maintenance get a heads-up at <span className="font-semibold text-gray-700">{Math.max(remindTarget - REMIND_SOON_KM, 0).toLocaleString("en-IN")} km</span> and an alert when the truck reaches <span className="font-semibold text-gray-700">{remindTarget.toLocaleString("en-IN")} km</span>.</>
+                    ? <>Admin, Commercial Managers and Maintenance get a heads-up at <span className="font-semibold text-text-primary">{Math.max(remindTarget - REMIND_SOON_KM, 0).toLocaleString("en-IN")} km</span> and an alert when the truck reaches <span className="font-semibold text-text-primary">{remindTarget.toLocaleString("en-IN")} km</span>.</>
                     : `Admin, Commercial Managers and Maintenance get a heads-up ${REMIND_SOON_KM} km before, and an alert when the truck reaches it.`}
               </p>
             </div>
@@ -648,16 +648,16 @@ export function MaintenanceRecordFormDialog({
         ) : (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-gray-700">Proof of Payment</span>
-            <span className="text-xs text-gray-400">
+            <span className="text-body-medium text-text-primary">Proof of Payment</span>
+            <span className="text-xs text-text-tertiary">
               Images {imageCount}/{PROOF_MAX_IMAGES} · PDFs {pdfCount}/{PROOF_MAX_PDFS}
             </span>
           </div>
           <label
             className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-4 text-sm transition-colors ${
               proofsFull
-                ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
-                : "border-gray-300 text-gray-600 hover:border-blue-400 hover:bg-blue-50/40 hover:text-blue-700"
+                ? "cursor-not-allowed border-separator-border bg-fill-1 text-text-tertiary"
+                : "border-border-button-default text-text-secondary hover:border-accent-border-strong hover:bg-accent-surface-strong/40 hover:text-accent-text"
             }`}
           >
             <Paperclip className="h-4 w-4" />
@@ -674,28 +674,28 @@ export function MaintenanceRecordFormDialog({
               }}
             />
           </label>
-          {proofError && <p className="text-xs text-red-600">{proofError}</p>}
+          {proofError && <p className="text-xs text-danger-text">{proofError}</p>}
           {proofs.length > 0 && (
             <ul className="flex flex-col gap-1.5">
               {proofs.map((p) => (
-                <li key={p.key} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-2.5 py-2">
+                <li key={p.key} className="flex items-center gap-3 rounded-lg border border-separator-border bg-background-primary-default px-2.5 py-2">
                   {p.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.url} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
                   ) : (
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-red-50 text-red-600">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-danger-surface text-danger-text">
                       <FileText className="h-4 w-4" />
                     </span>
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-gray-800">{p.file.name}</span>
-                    <span className="block text-xs text-gray-400">{proofTypeLabel(p.file.name, p.kind)} · {fileSize(p.file.size)}</span>
+                    <span className="block truncate text-sm text-text-primary">{p.file.name}</span>
+                    <span className="block text-xs text-text-tertiary">{proofTypeLabel(p.file.name, p.kind)} · {fileSize(p.file.size)}</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => removeProof(p.key)}
                     aria-label={`Remove ${p.file.name}`}
-                    className="rounded-full p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                    className="rounded-full p-1 text-text-tertiary transition-colors hover:bg-danger-surface-strong hover:text-danger-text"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -710,14 +710,14 @@ export function MaintenanceRecordFormDialog({
           <button
             type="button"
             onClick={() => { if (!isEdit) clearFormDraft(draftKey); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving || !!remindError || (requireReason && !reason.trim())}
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitLabel}
           </button>

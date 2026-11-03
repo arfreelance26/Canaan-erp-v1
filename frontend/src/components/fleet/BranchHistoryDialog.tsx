@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GitBranch } from "lucide-react";
+import { RiGitBranchLine as GitBranch } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type BranchHistoryEntry = {
   id: number;
   truck_id: number;
@@ -63,35 +64,33 @@ export function BranchHistoryDialog({ open, onClose, truck }: Props) {
     >
       {loading ? (
         <div className="flex items-center justify-center py-10">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-separator-border border-t-accent-solid" />
         </div>
       ) : entries.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-400">
-          No branch changes have been recorded for this truck yet.
-        </p>
+        <EmptyState size="compact" illustration="logistics" title="No branch changes have been recorded for this truck yet" />
       ) : (
         <div className="pr-1">
           <ol className="flex flex-col gap-3">
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"
+                className="rounded-xl border border-separator-border bg-fill-1 px-4 py-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm">
-                    <GitBranch className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                    <span className="font-semibold text-gray-500">
+                    <GitBranch className="h-3.5 w-3.5 shrink-0 text-accent-text" />
+                    <span className="font-semibold text-text-secondary">
                       {entry.from_branch || "Unassigned"}
                     </span>
-                    <span className="text-gray-300">→</span>
-                    <span className="font-bold text-blue-700">{entry.to_branch}</span>
+                    <span className="text-text-tertiary">→</span>
+                    <span className="font-semibold text-accent-text">{entry.to_branch}</span>
                   </div>
-                  <span className="shrink-0 text-[11px] text-gray-400">
+                  <span className="shrink-0 text-[11px] text-text-tertiary">
                     {formatTimestamp(entry.changed_at)}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-gray-700">{entry.note}</p>
-                <p className="mt-1.5 text-[11px] font-medium text-gray-400">
+                <p className="mt-2 text-sm text-text-primary">{entry.note}</p>
+                <p className="mt-1.5 text-caption-2-medium text-text-tertiary">
                   by {entry.changed_by_name || "Unknown"}
                 </p>
               </li>

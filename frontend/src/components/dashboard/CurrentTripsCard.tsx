@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Navigation, Search, Truck, X } from "lucide-react";
+import { RiArrowRightLine as ArrowRight, RiNavigationLine as Navigation, RiSearchLine as Search, RiTruckLine as Truck, RiCloseLine as X } from "@remixicon/react";
 import { notificationsApi, tripsApi, customersApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
 import type { Customer } from "@/types/customer";
-import { ACTIVE_TRIP_STATUSES, getStageLabel } from "@/lib/trip-stage";
+import { ACTIVE_TRIP_STATUSES, getRouteStep, getStageLabel } from "@/lib/trip-stage";
+import { RouteLine } from "@/components/trips/RouteLine";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 // Pipeline order, used both for the summary pills and to color each row's badge.
 const STAGE_ORDER = [
   "Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded",
@@ -21,32 +23,32 @@ const STAGE_ORDER = [
 // selected state (STAGE_ACTIVE_CLASSES below) still goes solid, so the
 // active filter stays unambiguous.
 const STAGE_CLASSES: Record<string, string> = {
-  "Assigned":                "bg-sky-50 text-sky-700",
-  "Started":                 "bg-violet-50 text-violet-700",
-  "Loaded":                  "bg-violet-50 text-violet-700",
-  "On-Transit":              "bg-violet-50 text-violet-700",
-  "Reached":                 "bg-violet-50 text-violet-700",
-  "Unloaded":                "bg-violet-50 text-violet-700",
-  "Completed":               "bg-teal-50 text-teal-700",
-  "Pending Sheet Delivery":  "bg-amber-50 text-amber-700",
-  "Pending Sheet Entry":     "bg-orange-50 text-orange-700",
-  "Pending Verification":    "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/20 dark:text-fuchsia-300",
-  "Ready to Invoice":        "bg-emerald-50 text-emerald-700",
+  "Assigned":                "bg-teal-surface text-teal-text",
+  "Started":                 "bg-purple-surface text-purple-text",
+  "Loaded":                  "bg-purple-surface text-purple-text",
+  "On-Transit":              "bg-purple-surface text-purple-text",
+  "Reached":                 "bg-purple-surface text-purple-text",
+  "Unloaded":                "bg-purple-surface text-purple-text",
+  "Completed":               "bg-teal-surface text-teal-text",
+  "Pending Sheet Delivery":  "bg-warning-surface text-warning-text",
+  "Pending Sheet Entry":     "bg-orange-surface text-orange-text",
+  "Pending Verification":    "bg-purple-surface text-purple-text",
+  "Ready to Invoice":        "bg-success-surface text-success-text",
 };
 
 // Selected state: the soft tint above turns into a solid fill.
 const STAGE_ACTIVE_CLASSES: Record<string, string> = {
-  "Assigned":                "bg-sky-600 text-white",
-  "Started":                 "bg-violet-600 text-white",
-  "Loaded":                  "bg-violet-600 text-white",
-  "On-Transit":              "bg-violet-600 text-white",
-  "Reached":                 "bg-violet-600 text-white",
-  "Unloaded":                "bg-violet-600 text-white",
-  "Completed":               "bg-teal-600 text-white",
-  "Pending Sheet Delivery":  "bg-amber-500 text-white",
-  "Pending Sheet Entry":     "bg-orange-500 text-white",
-  "Pending Verification":    "bg-fuchsia-600 text-white",
-  "Ready to Invoice":        "bg-emerald-600 text-white",
+  "Assigned":                "bg-teal-solid text-on-solid",
+  "Started":                 "bg-purple-solid text-on-solid",
+  "Loaded":                  "bg-purple-solid text-on-solid",
+  "On-Transit":              "bg-purple-solid text-on-solid",
+  "Reached":                 "bg-purple-solid text-on-solid",
+  "Unloaded":                "bg-purple-solid text-on-solid",
+  "Completed":               "bg-teal-solid text-on-solid",
+  "Pending Sheet Delivery":  "bg-warning-solid text-on-solid",
+  "Pending Sheet Entry":     "bg-orange-solid text-on-solid",
+  "Pending Verification":    "bg-purple-solid text-on-solid",
+  "Ready to Invoice":        "bg-success-solid text-on-solid",
 };
 
 function fmtHire(v?: string | null): string {
@@ -193,32 +195,32 @@ export function CurrentTripsCard() {
   const newCount = newTripIds.size;
 
   return (
-    <div className="dk-inset overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       {/* Card header */}
-      <div className="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-blue-50/70 via-white to-white px-5 py-3.5">
+      <div className="flex items-center justify-between border-b border-separator-border bg-accent-surface/70 px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-surface-strong text-accent-text">
             <Navigation className="h-3.5 w-3.5" />
           </span>
-          <h2 className="text-sm font-bold text-gray-900">Current Trips</h2>
+          <h2 className="text-body-semibold text-text-primary">Current Trips</h2>
           {/* Live indicator */}
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="absolute inline-flex h-full w-full rounded-full bg-success-solid opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-success-solid" />
           </span>
         </div>
         <div className="flex items-center gap-2">
           {newCount > 0 && (
-            <span className="animate-pulse rounded-full bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
+            <span className="animate-pulse rounded-full bg-accent-solid px-2.5 py-0.5 text-caption-2-semibold text-on-solid">
               {newCount} new
             </span>
           )}
-          <span className="rounded-full bg-gray-100 px-3 py-0.5 text-xs font-semibold text-gray-600">
-            <span className="font-bold text-gray-900">{trips.length}</span> {trips.length === 1 ? "trip" : "trips"}
+          <span className="rounded-full bg-fill-2 px-3 py-0.5 text-caption-1-semibold text-text-secondary">
+            <span className="font-semibold text-text-primary">{trips.length}</span> {trips.length === 1 ? "trip" : "trips"}
           </span>
           {/* Trip ID search — collapsed icon that expands on hover / focus */}
           <label
-            className={`group flex h-7 cursor-text items-center overflow-hidden rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm transition-all duration-300 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 hover:border-gray-300 ${
+            className={`group flex h-7 cursor-text items-center overflow-hidden rounded-full border border-separator-border bg-background-primary-default text-text-tertiary shadow-sm transition duration-300 focus-within:border-accent-border-strong focus-within:ring-2 focus-within:ring-accent-border hover:border-border-button-default ${
               tripSearch ? "w-56" : "w-7 hover:w-56 focus-within:w-56"
             }`}
           >
@@ -228,13 +230,13 @@ export function CurrentTripsCard() {
               value={tripSearch}
               onChange={(e) => setTripSearch(e.target.value)}
               placeholder="Trip ID, Truck, Driver, From/To…"
-              className="ml-2 min-w-0 flex-1 bg-transparent pr-2 text-[11px] text-gray-700 outline-none placeholder:text-gray-400"
+              className="ml-2 min-w-0 flex-1 bg-transparent pr-2 text-[11px] text-text-primary outline-none placeholder:text-text-placeholder"
             />
             {tripSearch && (
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); setTripSearch(""); }}
-                className="mr-2 shrink-0 text-gray-400 hover:text-gray-600"
+                className="mr-2 shrink-0 text-text-tertiary hover:text-text-secondary"
                 aria-label="Clear search"
               >
                 <X className="h-3 w-3" />
@@ -246,7 +248,7 @@ export function CurrentTripsCard() {
 
       {/* Stage summary pills — click to filter, click again to clear */}
       {trips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-gray-100 bg-white px-5 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-separator-border bg-background-primary-default px-5 py-2.5">
           {STAGE_ORDER.filter((label) => (stageCounts.get(label) ?? 0) > 0).map((label) => {
             const count = stageCounts.get(label) ?? 0;
             const active = stageFilter === label;
@@ -256,16 +258,16 @@ export function CurrentTripsCard() {
                 type="button"
                 onClick={() => setStageFilter((prev) => (prev === label ? null : label))}
                 aria-pressed={active}
-                className={`inline-flex items-center gap-1.5 rounded-full py-0.5 pl-2.5 pr-0.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-200 ${
+                className={`inline-flex items-center gap-1.5 rounded-full py-0.5 pl-2.5 pr-0.5 text-caption-2-semibold transition duration-200 ${
                   active
-                    ? `${STAGE_ACTIVE_CLASSES[label] ?? "bg-[#374151] text-white dark:bg-[#26305a]"} shadow-sm`
-                    : `${STAGE_CLASSES[label] ?? "bg-gray-100 text-gray-600"} hover:brightness-95`
+                    ? `${STAGE_ACTIVE_CLASSES[label] ?? "bg-accent-solid text-on-solid"} shadow-sm`
+                    : `${STAGE_CLASSES[label] ?? "bg-fill-2 text-text-secondary"} hover:brightness-95`
                 }`}
               >
                 {label}
                 <span
-                  className={`min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${
-                    active ? "bg-white/25 text-white" : "bg-white/80"
+                  className={`min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-caption-2-semibold tabular-nums ${
+                    active ? "bg-on-solid/25 text-on-solid" : "bg-background-primary-default"
                   }`}
                 >
                   {count}
@@ -277,7 +279,7 @@ export function CurrentTripsCard() {
             <button
               type="button"
               onClick={() => setStageFilter(null)}
-              className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold text-text-tertiary transition-colors hover:bg-fill-3 hover:text-text-secondary"
             >
               <X className="h-3 w-3" />
               Clear
@@ -288,7 +290,7 @@ export function CurrentTripsCard() {
 
       {/* Column headers */}
       {trips.length > 0 && (
-        <div className={`grid ${gridCols} gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400`}>
+        <div className={`grid ${gridCols} gap-x-3 border-b border-separator-border bg-fill-1 px-5 py-2 text-caption-2-semibold text-text-tertiary`}>
           <span>Trip ID</span>
           {canSeeCustomer && <span>Customer Account</span>}
           <span>From</span>
@@ -303,15 +305,14 @@ export function CurrentTripsCard() {
 
       {/* Trip rows */}
       {filteredTrips.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-center">
-          <Truck className="h-8 w-8 text-gray-200" />
-          <p className="text-sm text-gray-400">
-            {tripSearch ? "No trips match your search." : stageFilter ? `No trips in "${stageFilter}".` : "No current trips"}
-          </p>
-          {!tripSearch && !stageFilter && <p className="text-xs text-gray-300">Every trip is invoiced or waived</p>}
-        </div>
+        <EmptyState
+          size="compact"
+          illustration={tripSearch || stageFilter ? "not-found" : "all-done"}
+          title={tripSearch ? "No trips match your search" : stageFilter ? `No trips in "${stageFilter}"` : "No current trips"}
+          description={!tripSearch && !stageFilter ? "Every trip is invoiced or waived" : undefined}
+        />
       ) : (
-        <div className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
+        <div className="max-h-72 divide-y divide-separator-border overflow-y-auto">
           {filteredTrips.map((trip) => {
             const isNew = newTripIds.has(trip.tripId) || newTripIds.has(String(trip.id));
             const stageLabel = getStageLabel(trip);
@@ -319,63 +320,64 @@ export function CurrentTripsCard() {
               <div
                 key={trip.id}
                 className={`grid ${gridCols} items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
-                  isNew ? "bg-blue-50/70" : "hover:bg-gray-50/80"
+                  isNew ? "bg-accent-surface/70" : "hover:bg-fill-2"
                 }`}
               >
                 {/* Trip ID */}
                 <span className="flex min-w-0 items-center gap-1.5">
                   {isNew && (
-                    <span className="shrink-0 rounded-full bg-blue-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                    <span className="shrink-0 rounded-full bg-accent-solid px-1.5 py-0.5 text-[9px] font-semibold text-on-solid">
                       New
                     </span>
                   )}
-                  <span className="truncate rounded-md bg-indigo-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-indigo-600">
+                  <span className="truncate rounded-md bg-purple-surface px-2 py-0.5 font-mono text-caption-2-semibold text-purple-text">
                     {trip.tripId || "—"}
                   </span>
                 </span>
 
                 {/* Customer Account */}
                 {canSeeCustomer && (
-                  <span className="truncate font-medium text-gray-800" title={customerById.get(trip.customerId)?.name ?? ""}>
+                  <span className="truncate font-medium text-text-primary" title={customerById.get(trip.customerId)?.name ?? ""}>
                     {customerById.get(trip.customerId)?.name ?? "—"}
                   </span>
                 )}
 
                 {/* Origin */}
-                <span className="truncate font-medium text-gray-800">{trip.origin || "—"}</span>
+                <span className="truncate font-medium text-text-primary">{trip.origin || "—"}</span>
 
                 {/* Destination */}
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <ArrowRight className="h-3 w-3 shrink-0 text-gray-300" />
-                  <span className="truncate text-gray-600">{trip.destination || "—"}</span>
+                  <ArrowRight className="h-3 w-3 shrink-0 text-text-tertiary" />
+                  <span className="truncate text-text-secondary">{trip.destination || "—"}</span>
                 </div>
 
                 {/* Driver name */}
-                <span className="truncate font-medium text-gray-800" title={trip.driverName ?? ""}>{trip.driverName ?? "—"}</span>
+                <span className="truncate font-medium text-text-primary" title={trip.driverName ?? ""}>{trip.driverName ?? "—"}</span>
 
                 {/* Truck registration */}
-                <span className="w-fit shrink-0 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-medium text-gray-600">
+                <span className="w-fit shrink-0 rounded-md bg-fill-2 px-2 py-0.5 font-mono text-caption-2-medium text-text-secondary">
                   {trip.truckRegistration ?? "—"}
                 </span>
 
                 {/* Hire amount — Admin/Accounts only */}
                 {canSeeHire && (
-                  <span className="shrink-0 text-right text-xs font-semibold tabular-nums text-gray-900">
+                  <span className="shrink-0 text-right text-caption-1-semibold tabular-nums text-text-primary">
                     {fmtHire(trip.transportHireAmount)}
                   </span>
                 )}
 
                 {/* Booking created date */}
-                <span className="shrink-0 text-right text-[11px] tabular-nums text-gray-500">
+                <span className="shrink-0 text-right text-[11px] tabular-nums text-text-secondary">
                   {fmtDate(trip.bookingCreatedDate || trip.assignedDate)}
                 </span>
 
                 {/* Status badge */}
-                <span className="flex justify-end">
-                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${STAGE_CLASSES[stageLabel] ?? "bg-gray-100 text-gray-600"}`}>
+                <span className="flex flex-col items-end gap-1">
+                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-semibold ${STAGE_CLASSES[stageLabel] ?? "bg-fill-2 text-text-secondary"}`}>
                     <span className="h-1 w-1 rounded-full bg-current" />
                     {stageLabel}
                   </span>
+                  <RouteLine step={getRouteStep(trip) ?? 0} className="w-20" />
                 </span>
               </div>
             );

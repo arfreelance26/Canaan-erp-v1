@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, FileText } from "lucide-react";
+import { RiEyeLine as Eye, RiFileTextLine as FileText } from "@remixicon/react";
 import { fileUrl } from "@/lib/api";
 import { FileViewer } from "@/components/ui/FileViewer";
 
@@ -14,7 +14,7 @@ type FilePreviewBadgeProps = {
 };
 
 const badgeClass =
-  "mt-1 flex w-fit items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 active:scale-95";
+  "mt-1 flex w-fit items-center gap-1.5 rounded-md border border-separator-border bg-background-primary-default px-2 py-1 text-xs text-text-secondary shadow-sm transition hover:border-accent-border-strong hover:bg-accent-surface-strong hover:text-accent-text";
 
 /** The file name under an upload field — click to preview it in the in-app
  *  viewer: a freshly picked file before it's uploaded, or the saved one. */
@@ -26,7 +26,7 @@ export function FilePreviewBadge({ fileName, fileObj, entity, entityId, field }:
   if (!fileObj && !saved) {
     // A name with no file behind it yet (e.g. restored from a draft) — nothing to preview.
     return (
-      <span className="mt-1 flex w-fit items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500">
+      <span className="mt-1 flex w-fit items-center gap-1.5 rounded-md border border-separator-border bg-background-primary-default px-2 py-1 text-xs text-text-secondary">
         <FileText className="h-3.5 w-3.5" />
         <span className="max-w-[200px] truncate font-medium">{fileName}</span>
       </span>

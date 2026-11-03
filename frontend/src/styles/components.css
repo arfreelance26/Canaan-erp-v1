@@ -1,0 +1,20 @@
+/* ---------------------------------------------------------------------------
+ * Shared component surfaces that more than one file draws by hand.
+ * Token-only, so they flip with `.dark` like everything else.
+ *
+ *   seg-track   the well behind a segmented control
+ *   seg-thumb   the selected segment, a raised surface with a hairline
+ * --------------------------------------------------------------------------- */
+
+@utility seg-track {
+  background-color: var(--color-fill-2);
+  box-shadow: inset 0 0 0 1px var(--color-separator-border);
+}
+
+@utility seg-thumb {
+  background-color: var(--color-background-primary-default);
+  box-shadow:
+    0 0 0 1px var(--color-separator-border),
+    0 1px 2px color-mix(in oklab, var(--color-neutral-950) 8%, transparent);
+}
+

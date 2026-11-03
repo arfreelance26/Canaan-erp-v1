@@ -4,25 +4,26 @@ import { useEffect, useState } from "react";
 import { deletionApprovalsApi, type DeletionApprovalRequest, type DeletionApprovalEditEventRow } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { CheckCircle, XCircle, Clock, Droplets, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake, Boxes, History } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle, RiCloseCircleLine as XCircle, RiTimeLine as Clock, RiDropLine as Droplets, RiGasStationLine as Fuel, RiToolsLine as Wrench, RiTruckLine as Truck, RiUserLine as User, RiCalendarLine as Calendar, RiFileTextLine as FileText, RiStackLine as Layers, RiProfileLine as IdCard, RiDeleteBinLine as Trash2, RiGroupLine as Users, RiBuilding2Line as Building2, RiShakeHandsLine as Handshake, RiStackLine as Boxes, RiHistoryLine as History } from "@remixicon/react";
 import { formatDate, formatDateTime, inDateRange } from "@/lib/format-date";
 import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { cn } from "@/lib/utils";
 import { TYRE_ACTION_LABEL, type TyreAction } from "@/components/fleet/TruckTyreStepDialog";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<DeletionApprovalEditEventRow["event"], typeof CheckCircle> = {
   "Deletion Approved": CheckCircle,
   "Deletion Rejected": XCircle,
 };
 
 const EDIT_EVENT_COLOR: Record<DeletionApprovalEditEventRow["event"], string> = {
-  "Deletion Approved": "bg-emerald-100 text-emerald-700",
-  "Deletion Rejected": "bg-red-100 text-red-700",
+  "Deletion Approved": "bg-success-surface-strong text-success-text",
+  "Deletion Rejected": "bg-danger-surface-strong text-danger-text",
 };
 
 // ---------------------------------------------------------------------------
@@ -32,18 +33,18 @@ const EDIT_EVENT_COLOR: Record<DeletionApprovalEditEventRow["event"], string> = 
 function StatusBadge({ status }: { status: string }) {
   if (status === "Approved")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-bold text-green-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-success-surface-strong px-2.5 py-0.5 text-caption-2-semibold text-success-text">
         <CheckCircle className="h-3 w-3" /> Approved
       </span>
     );
   if (status === "Rejected")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-danger-surface-strong px-2.5 py-0.5 text-caption-2-semibold text-danger-text">
         <XCircle className="h-3 w-3" /> Rejected
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2.5 py-0.5 text-caption-2-semibold text-warning-text">
       <Clock className="h-3 w-3" /> Pending
     </span>
   );
@@ -57,8 +58,8 @@ function LogDetailRow({ label, value }: { label: string; value: React.ReactNode 
   if (value === null || value === undefined || value === "") return null;
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
-      <span className="text-xs font-semibold text-gray-700">{value}</span>
+      <span className="text-[9px] font-semibold text-text-tertiary">{label}</span>
+      <span className="text-caption-1-semibold text-text-primary">{value}</span>
     </div>
   );
 }
@@ -93,26 +94,26 @@ function RequestCard({
   const sale = (isSale ? d?.sale : null) as { sold_date?: string; sold_odometer?: number; note?: string | null } | null;
 
   const badgeClass = isTrip
-    ? "bg-purple-100 text-purple-600"
+    ? "bg-purple-surface-strong text-purple-text"
     : isMaintenance
-    ? "bg-blue-100 text-blue-600"
+    ? "bg-accent-surface-strong text-accent-text"
     : isDriver
-    ? "bg-indigo-100 text-indigo-600"
+    ? "bg-purple-surface-strong text-purple-text"
     : isTruck
-    ? "bg-amber-100 text-amber-600"
+    ? "bg-warning-surface-strong text-warning-text"
     : isStaff
-    ? "bg-emerald-100 text-emerald-600"
+    ? "bg-success-surface-strong text-success-text"
     : isCustomer
-    ? "bg-sky-100 text-sky-600"
+    ? "bg-teal-surface-strong text-teal-text"
     : isVendor
-    ? "bg-teal-100 text-teal-600"
+    ? "bg-teal-surface-strong text-teal-text"
     : isTyre
-    ? "bg-orange-100 text-orange-600"
+    ? "bg-orange-surface-strong text-orange-text"
     : isFuel
-    ? "bg-red-100 text-red-600"
+    ? "bg-danger-surface-strong text-danger-text"
     : isAdBlue
-    ? "bg-cyan-100 text-cyan-600"
-    : "bg-gray-100 text-gray-500";
+    ? "bg-teal-surface-strong text-teal-text"
+    : "bg-fill-2 text-text-secondary";
   const BadgeIcon = isTrip
     ? Truck
     : isMaintenance
@@ -136,23 +137,23 @@ function RequestCard({
     : FileText;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       {/* Top bar */}
-      <div className="flex items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
+      <div className="flex items-start justify-between gap-4 border-b border-separator-border bg-fill-1 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${badgeClass}`}>
             <BadgeIcon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-900">
+            <p className="text-body-semibold text-text-primary">
               {req.resourceName}
               {isTruck && (
-                <span className={`ml-2 rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold ${isSale ? "bg-brand-navy/10 text-brand-navy" : "bg-rose-50 text-rose-600"}`}>
+                <span className={`ml-2 rounded-full px-2 py-0.5 align-middle text-caption-2-semibold ${isSale ? "bg-accent-solid/10 text-accent-text-strong" : "bg-danger-surface text-danger-text"}`}>
                   {isSale ? "Sell" : "Delete"}
                 </span>
               )}
             </p>
-            <p className="mt-0.5 text-[11px] text-gray-400">
+            <p className="mt-0.5 text-[11px] text-text-tertiary">
               Requested {req.createdAt ? formatDate(req.createdAt.slice(0, 10)) : "—"}
             </p>
           </div>
@@ -164,32 +165,32 @@ function RequestCard({
         {/* Left — request info */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+            <div className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary mb-1">
               <User className="h-3 w-3" /> Requested By
             </div>
-            <p className="text-sm font-semibold text-gray-800">{req.requestedByName}</p>
+            <p className="text-body-semibold text-text-primary">{req.requestedByName}</p>
           </div>
 
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+            <div className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary mb-1">
               <FileText className="h-3 w-3" /> Reason
             </div>
-            <p className="text-sm text-gray-700 leading-relaxed">{req.reason}</p>
+            <p className="text-sm text-text-primary leading-relaxed">{req.reason}</p>
           </div>
 
           {req.status !== "Pending" && (
             <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+              <div className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary mb-1">
                 <CheckCircle className="h-3 w-3" /> Admin Action
               </div>
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-text-primary">
                 {req.status} by <span className="font-semibold">{req.approvedByName}</span>
                 {req.approvedAt && (
-                  <span className="text-gray-400"> · {formatDate(req.approvedAt.slice(0, 10))}</span>
+                  <span className="text-text-tertiary"> · {formatDate(req.approvedAt.slice(0, 10))}</span>
                 )}
               </p>
               {req.adminNote && (
-                <p className="mt-1 text-xs text-gray-500 italic">&ldquo;{req.adminNote}&rdquo;</p>
+                <p className="mt-1 text-xs text-text-secondary">&ldquo;{req.adminNote}&rdquo;</p>
               )}
             </div>
           )}
@@ -197,8 +198,8 @@ function RequestCard({
 
         {/* Right — a sell request's sale details */}
         {isSale && sale && (
-          <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
+          <div className="rounded-xl border border-separator-border bg-fill-1 px-4 py-3">
+            <div className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary mb-3">
               <Layers className="h-3 w-3" /> Sale
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3">
@@ -211,25 +212,25 @@ function RequestCard({
 
         {/* Right — a truck request's tyre choices */}
         {isTruck && Array.isArray(d?.tyre_rows) && (d.tyre_rows as unknown[]).length > 0 && (
-          <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
+          <div className="rounded-xl border border-separator-border bg-fill-1 px-4 py-3">
+            <div className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary mb-3">
               <Layers className="h-3 w-3" /> Tyres ({(d.tyre_rows as unknown[]).length})
             </div>
             <div className="flex max-h-56 flex-col gap-1.5 overflow-auto">
               {(d.tyre_rows as { tyre_number: string; position: string; action: TyreAction }[]).map((r, i) => (
                 <div key={i} className="flex items-center justify-between gap-3 text-xs">
-                  <span className="min-w-0 truncate text-gray-700">
+                  <span className="min-w-0 truncate text-text-primary">
                     <span className="font-mono">{r.tyre_number}</span>
-                    <span className="text-gray-400"> · {r.position}</span>
+                    <span className="text-text-tertiary"> · {r.position}</span>
                   </span>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-0.5 font-semibold text-gray-600 ring-1 ring-gray-200">
+                  <span className="shrink-0 rounded-full bg-background-primary-default px-2 py-0.5 font-semibold text-text-secondary ring-1 ring-separator-border">
                     {TYRE_ACTION_LABEL[r.action] ?? r.action}
                   </span>
                 </div>
               ))}
             </div>
             {typeof (d.tyre_plan as { removed_odometer?: number } | undefined)?.removed_odometer === "number" && (
-              <p className="mt-3 text-[11px] text-gray-400">
+              <p className="mt-3 text-[11px] text-text-tertiary">
                 Removed at {Number((d.tyre_plan as { removed_odometer: number }).removed_odometer).toLocaleString("en-IN")} km
                 {" "}on {formatDate(String((d.tyre_plan as { removed_date?: string }).removed_date ?? ""))}
               </p>
@@ -239,8 +240,8 @@ function RequestCard({
 
         {/* Right — log snapshot */}
         {d && !isTruck && (
-          <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
+          <div className="rounded-xl border border-separator-border bg-fill-1 px-4 py-3">
+            <div className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary mb-3">
               <Layers className="h-3 w-3" /> Log Details
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3">
@@ -273,18 +274,18 @@ function RequestCard({
 
       {/* Admin actions */}
       {isAdmin && isPending && (
-        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/40 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-separator-border bg-fill-1 px-5 py-3">
           <button
             type="button"
             onClick={() => onReject(req.id)}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary hover:bg-danger-surface-strong hover:border-danger-border hover:text-danger-text transition-colors"
           >
             <XCircle className="h-4 w-4" /> Reject
           </button>
           <button
             type="button"
             onClick={() => onApprove(req.id)}
-            className="flex items-center gap-1.5 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-success-solid px-5 py-2 text-body-semibold text-on-solid hover:bg-success-solid-hover transition-colors"
           >
             <CheckCircle className="h-4 w-4" /> {isSale ? "Approve & Sell" : "Approve & Delete"}
           </button>
@@ -369,12 +370,12 @@ export default function DeletionApprovalsPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-danger-border bg-danger-surface text-danger-text shadow-sm">
             <Trash2 className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Deletion Approvals</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Deletion Approvals</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Review deletion requests submitted by staff for admin approval.
             </p>
           </div>
@@ -385,7 +386,7 @@ export default function DeletionApprovalsPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -393,16 +394,16 @@ export default function DeletionApprovalsPage() {
 )}
 
           {/* Filter tabs */}
-          <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+          <div className="flex items-center gap-1 rounded-xl border border-separator-border bg-fill-1 p-1">
             {tabs.map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setFilter(t)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-caption-1-semibold transition-colors ${
                   filter === t
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-background-primary-default text-text-primary shadow-sm"
+                    : "text-text-secondary hover:text-text-primary"
                 }`}
               >
                 {tabLabel[t]}
@@ -429,12 +430,12 @@ export default function DeletionApprovalsPage() {
 
       {/* Content */}
       {datedRequests.length === 0 ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-            <Calendar className="h-5 w-5 text-gray-400" />
+        <div className="rounded-2xl border border-separator-border bg-background-primary-default p-12 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fill-2">
+            <Calendar className="h-5 w-5 text-text-tertiary" />
           </div>
-          <p className="text-sm font-semibold text-gray-600">No {filter === "all" ? "" : filter.toLowerCase()} requests</p>
-          <p className="mt-1 text-xs text-gray-400">Deletion requests from staff will appear here.</p>
+          <p className="text-body-semibold text-text-secondary">No {filter === "all" ? "" : filter.toLowerCase()} requests</p>
+          <p className="mt-1 text-xs text-text-tertiary">Deletion requests from staff will appear here.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -461,7 +462,7 @@ export default function DeletionApprovalsPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by requester, resource, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
@@ -471,37 +472,35 @@ export default function DeletionApprovalsPage() {
               ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No decisions have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "no-data" : "not-found"} title={editHistoryEvents.length === 0 ? "No decisions have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Requested By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Resource</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Requested By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Resource</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.requestedByName}</td>
-                          <td className="px-3 py-2 text-gray-600">
-                            {ev.resourceName} <span className="text-[11px] text-gray-400">({ev.resourceType})</span>
+                          <td className="px-3 py-2 font-semibold text-text-primary">{ev.requestedByName}</td>
+                          <td className="px-3 py-2 text-text-secondary">
+                            {ev.resourceName} <span className="text-[11px] text-text-tertiary">({ev.resourceType})</span>
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

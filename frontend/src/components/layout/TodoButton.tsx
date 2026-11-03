@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, Check, ListTodo, Loader2, Pencil, Plus, Search, Star, Trash2, X } from "lucide-react";
+import { RiCalendar2Line as CalendarDays, RiCheckLine as Check, RiTodoLine as ListTodo, RiLoader4Line as Loader2, RiPencilLine as Pencil, RiAddLine as Plus, RiSearchLine as Search, RiStarLine as Star, RiDeleteBinLine as Trash2, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { todosApi, type Todo, type TodoUsage } from "@/lib/api";
-import { confirmDelete, showError } from "@/lib/swal";
+import { confirmDelete, showError } from "@/lib/feedback";
 import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const TITLE_MAX = 300;
 
 type Filter = "active" | "done";
@@ -212,16 +213,16 @@ export function TodoButton() {
         title={dueCount ? `To-do — ${dueCount} due today or overdue` : "To-do"}
         onClick={() => (open ? closePanel() : openPanel())}
         className={cn(
-          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300",
-          "hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
+          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300",
+          "hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
           open
-            ? "border-blue-300 bg-blue-50 text-brand-navy focus:ring-blue-500/20"
-            : "border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:bg-blue-50 hover:text-brand-navy focus:ring-blue-500/10",
+            ? "border-accent-border-strong bg-accent-surface text-accent-text-strong focus:ring-accent-solid/20"
+            : "border-separator-border bg-background-primary-default text-text-secondary hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text-strong focus:ring-accent-solid/10",
         )}
       >
-        <ListTodo className="h-5 w-5 transition-transform duration-300 group-hover:scale-110" />
+        <ListTodo className="h-5 w-5 transition-transform duration-300" />
         {dueCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger-solid px-1 text-caption-2-semibold text-on-solid ring-2 ring-background-primary-default">
             {dueCount > 99 ? "99+" : dueCount}
           </span>
         )}
@@ -229,36 +230,36 @@ export function TodoButton() {
 
       {open && mounted && createPortal(
         <div className="fixed inset-0 z-[95] flex justify-end p-0 sm:p-3">
-          <div className="absolute inset-0 bg-black/40 animate-backdrop-in" onClick={closePanel} />
+          <div className="absolute inset-0 bg-scrim/40 animate-scrim-in" onClick={closePanel} />
           {/* data-no-track: the activity tracker labels clicks with a button's
               visible text — here that would be task text, which must never
               reach the (Admin-visible) Activity Log. */}
           <aside
             data-no-track
-            className="animate-notes-in relative flex h-full w-full max-w-xl flex-col overflow-hidden bg-white shadow-2xl sm:rounded-2xl sm:border sm:border-gray-200"
+            className="animate-notes-in relative flex h-full w-full max-w-xl flex-col overflow-hidden bg-background-primary-default shadow-2xl sm:rounded-2xl sm:border sm:border-separator-border"
           >
-            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 sm:px-6">
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-separator-border px-5 py-4 sm:px-6">
               <div className="flex items-center gap-3.5">
-                <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-brand-navy shadow-sm">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text-strong shadow-sm">
                   <ListTodo className="h-5 w-5" />
                 </span>
                 <div>
-                  <h2 className="text-lg font-bold tracking-tight text-gray-900">To-do</h2>
-                  <p className="text-xs text-gray-500">Private to you · saved automatically</p>
+                  <h2 className="text-title-3-semibold tracking-tight text-text-primary">To-do</h2>
+                  <p className="text-xs text-text-secondary">Private to you · saved automatically</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={closePanel}
                 aria-label="Close to-do"
-                className="rounded-lg p-1 text-gray-400 transition-colors hover:text-gray-600"
+                className="rounded-lg p-1 text-text-tertiary transition-colors hover:text-text-secondary"
               >
                 <X className="h-5 w-5" />
               </button>
             </header>
 
             {/* Add a task */}
-            <div className="shrink-0 border-b border-gray-100 bg-gray-50/70 p-4 sm:px-6">
+            <div className="shrink-0 border-b border-separator-border bg-fill-1 p-4 sm:px-6">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -274,7 +275,7 @@ export function TodoButton() {
                   maxLength={TITLE_MAX}
                   disabled={atLimit}
                   placeholder={atLimit ? "Task limit reached — clear completed tasks to add more" : "Add a task…"}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-colors focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl border border-separator-border bg-background-primary-default px-4 py-2.5 text-sm outline-none transition-colors focus:border-gold-solid focus:ring-2 focus:ring-gold-solid/20 disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <div className="flex items-center gap-2">
                   <div className="w-44">
@@ -285,7 +286,7 @@ export function TodoButton() {
                       type="button"
                       onClick={() => setNewDue("")}
                       title="Remove due date"
-                      className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                      className="rounded-full p-1 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -296,7 +297,7 @@ export function TodoButton() {
                     title={newImportant ? "Marked important" : "Mark important"}
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors",
-                      newImportant ? "border-amber-200 bg-amber-50 text-amber-500" : "border-gray-200 bg-white text-gray-400 hover:text-amber-500",
+                      newImportant ? "border-warning-border bg-warning-surface text-warning-text" : "border-separator-border bg-background-primary-default text-text-tertiary hover:text-warning-text",
                     )}
                   >
                     <Star className={cn("h-4 w-4", newImportant && "fill-current")} />
@@ -304,7 +305,7 @@ export function TodoButton() {
                   <button
                     type="submit"
                     disabled={!newTitle.trim() || adding || atLimit}
-                    className="ml-auto flex items-center gap-1.5 rounded-full bg-brand-navy px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-brand-navy/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="ml-auto flex items-center gap-1.5 rounded-full bg-accent-solid px-4 py-2 text-body-semibold text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                     Add
@@ -321,21 +322,21 @@ export function TodoButton() {
                   type="button"
                   onClick={() => setFilter(f)}
                   className={cn(
-                    "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
-                    filter === f ? "bg-brand-navy text-white" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                    "rounded-full px-3.5 py-1.5 text-caption-1-semibold transition-colors",
+                    filter === f ? "bg-accent-solid text-on-solid" : "border border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2",
                   )}
                 >
                   {f === "active" ? `To do · ${openCount}` : `Done · ${doneCount}`}
                 </button>
               ))}
               <div className="relative ml-auto w-full sm:w-48">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search tasks…"
-                  className="w-full rounded-full border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/20"
+                  className="w-full rounded-full border border-separator-border bg-background-primary-default py-1.5 pl-8 pr-3 text-xs outline-none transition-colors focus:border-gold-solid focus:ring-2 focus:ring-gold-solid/20"
                 />
               </div>
             </div>
@@ -343,23 +344,13 @@ export function TodoButton() {
             {/* List */}
             <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6">
               {loading && todos.length === 0 ? (
-                <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+                <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
               ) : visible.length === 0 ? (
-                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-                    <ListTodo className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <p className="text-sm font-semibold text-gray-600">
-                    {search.trim() ? "No matching tasks" : filter === "active" ? "Nothing to do" : "No completed tasks"}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {search.trim()
-                      ? "Try a different search."
+                <EmptyState size="compact" illustration={search.trim() ? "not-found" : "all-done"} title={search.trim() ? "No matching tasks" : filter === "active" ? "Nothing to do" : "No completed tasks"} description={search.trim()
+                      ? "Try a different search"
                       : filter === "active"
-                        ? "Add a task above — only you can see your list."
-                        : "Tick a task off and it shows up here."}
-                  </p>
-                </div>
+                        ? "Add a task above — only you can see your list"
+                        : "Tick a task off and it shows up here"} className="rounded-2xl border border-separator-border bg-background-primary-default" />
               ) : (
                 <ul className="flex flex-col gap-2">
                   {visible.map((t) => {
@@ -369,8 +360,8 @@ export function TodoButton() {
                       <li
                         key={t.id}
                         className={cn(
-                          "group/item flex items-start gap-3 rounded-xl border bg-white px-3.5 py-3 transition-all duration-200",
-                          editing ? "border-blue-200 shadow-[0_4px_14px_-6px_rgba(27,43,94,0.25)]" : "border-gray-200/80 hover:border-gray-300 hover:shadow-sm",
+                          "group/item flex items-start gap-3 rounded-xl border bg-background-primary-default px-3.5 py-3 transition duration-200",
+                          editing ? "border-accent-border shadow-md" : "border-separator-border hover:border-border-button-default hover:shadow-sm",
                         )}
                       >
                         <button
@@ -379,7 +370,7 @@ export function TodoButton() {
                           aria-label={t.done ? "Mark as not done" : "Mark as done"}
                           className={cn(
                             "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                            t.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-gray-300 hover:border-emerald-500",
+                            t.done ? "border-success-solid bg-success-solid text-on-solid" : "border-border-button-default hover:border-success-solid",
                           )}
                         >
                           {t.done && <Check className="h-3 w-3" strokeWidth={3} />}
@@ -399,7 +390,7 @@ export function TodoButton() {
                                 }
                               }}
                               maxLength={TITLE_MAX}
-                              className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/20"
+                              className="w-full rounded-lg border border-separator-border px-3 py-1.5 text-sm outline-none focus:border-gold-solid focus:ring-2 focus:ring-gold-solid/20"
                             />
                             <div className="flex flex-wrap items-center gap-2">
                               <div className="w-44">
@@ -410,7 +401,7 @@ export function TodoButton() {
                                   type="button"
                                   onClick={() => setEditDue("")}
                                   title="Remove due date"
-                                  className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                                  className="rounded-full p-1 text-text-tertiary hover:bg-fill-3 hover:text-text-secondary"
                                 >
                                   <X className="h-3.5 w-3.5" />
                                 </button>
@@ -418,14 +409,14 @@ export function TodoButton() {
                               <button
                                 type="button"
                                 onClick={() => setEditingId(null)}
-                                className="ml-auto rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                                className="ml-auto rounded-full border border-separator-border px-3 py-1 text-caption-1-semibold text-text-secondary hover:bg-fill-2"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void saveEdit(t)}
-                                className="rounded-full bg-brand-navy px-3 py-1 text-xs font-semibold text-white hover:bg-brand-navy/90"
+                                className="rounded-full bg-accent-solid px-3 py-1 text-caption-1-semibold text-on-solid hover:bg-accent-solid-hover/90"
                               >
                                 Save
                               </button>
@@ -438,16 +429,16 @@ export function TodoButton() {
                             title="Edit task"
                             className="min-w-0 flex-1 text-left"
                           >
-                            <span className={cn("block break-words text-sm", t.done ? "text-gray-400 line-through" : "text-gray-800")}>
+                            <span className={cn("block break-words text-sm", t.done ? "text-text-tertiary line-through" : "text-text-primary")}>
                               {t.title}
                             </span>
                             {chip && (
                               <span
                                 className={cn(
-                                  "mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                                  chip.tone === "red" && "bg-red-50 text-red-600",
-                                  chip.tone === "amber" && "bg-amber-50 text-amber-700",
-                                  chip.tone === "gray" && "bg-gray-100 text-gray-500",
+                                  "mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold",
+                                  chip.tone === "red" && "bg-danger-surface text-danger-text",
+                                  chip.tone === "amber" && "bg-warning-surface text-warning-text",
+                                  chip.tone === "gray" && "bg-fill-2 text-text-secondary",
                                 )}
                               >
                                 <CalendarDays className="h-3 w-3" /> {chip.text}
@@ -465,7 +456,7 @@ export function TodoButton() {
                                 title={t.important ? "Remove important" : "Mark important"}
                                 className={cn(
                                   "rounded-full p-1.5 transition-colors",
-                                  t.important ? "text-amber-500" : "text-gray-300 hover:text-amber-500",
+                                  t.important ? "text-warning-text" : "text-text-tertiary hover:text-warning-text",
                                 )}
                               >
                                 <Star className={cn("h-4 w-4", t.important && "fill-current")} />
@@ -475,7 +466,7 @@ export function TodoButton() {
                               type="button"
                               onClick={() => startEdit(t)}
                               title="Edit task"
-                              className="rounded-full p-1.5 text-gray-300 transition-colors hover:text-gray-600 sm:opacity-0 sm:group-hover/item:opacity-100"
+                              className="rounded-full p-1.5 text-text-tertiary transition-colors hover:text-text-secondary sm:opacity-0 sm:group-hover/item:opacity-100"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
@@ -483,7 +474,7 @@ export function TodoButton() {
                               type="button"
                               onClick={() => void deleteTodo(t)}
                               title="Delete task"
-                              className="rounded-full p-1.5 text-gray-300 transition-colors hover:text-red-600 sm:opacity-0 sm:group-hover/item:opacity-100"
+                              className="rounded-full p-1.5 text-text-tertiary transition-colors hover:text-danger-text sm:opacity-0 sm:group-hover/item:opacity-100"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -496,16 +487,16 @@ export function TodoButton() {
               )}
             </div>
 
-            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/70 px-6 py-2.5 text-[11px] font-medium text-gray-400">
-              <span className={cn(atLimit && "font-semibold text-amber-600")}>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-separator-border bg-fill-1 px-6 py-2.5 text-caption-2-medium text-text-tertiary">
+              <span className={cn(atLimit && "font-semibold text-warning-text")}>
                 {usage ? `${usage.count} of ${usage.maxTodos} tasks` : `${todos.length} tasks`}
-                {dueCount > 0 && <span className="text-red-500"> · {dueCount} due today or overdue</span>}
+                {dueCount > 0 && <span className="text-danger-text"> · {dueCount} due today or overdue</span>}
               </span>
               {filter === "done" && doneCount > 0 && (
                 <button
                   type="button"
                   onClick={() => void clearCompleted()}
-                  className="flex items-center gap-1 font-semibold text-gray-500 transition-colors hover:text-red-600"
+                  className="flex items-center gap-1 font-semibold text-text-secondary transition-colors hover:text-danger-text"
                 >
                   <Trash2 className="h-3 w-3" /> Clear completed
                 </button>

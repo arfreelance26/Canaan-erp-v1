@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import { Dialog } from "@/components/ui/Dialog";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 
 type Props = {
   tyre: TyreInventoryItem | null;
@@ -45,18 +45,18 @@ export function DiscardReasonDialog({ tyre, onClose, onConfirm }: Props) {
       title={tyre ? `Flag ${tyre.tyreNumber} as Discarded` : "Flag as Discarded"}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-1">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-text-secondary">
           The tyre will move to the Discarded Tyres page. You can move it back to Tyre Inventory later.
         </p>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-gray-700">Reason</span>
+          <span className="font-medium text-text-primary">Reason</span>
           <textarea
             required
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Worn out beyond retreading, sidewall damage"
-            className="rounded-lg border border-gray-300 px-3 py-2"
+            className="rounded-lg border border-border-button-default px-3 py-2"
           />
         </label>
         <div className="flex justify-end gap-2 pt-2">
@@ -64,14 +64,14 @@ export function DiscardReasonDialog({ tyre, onClose, onConfirm }: Props) {
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-border-button-default px-4 py-2 text-body-medium text-text-primary hover:bg-fill-2 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            className="rounded-lg bg-danger-solid px-4 py-2 text-body-medium text-on-solid hover:bg-danger-solid-hover disabled:opacity-50"
           >
             {saving ? "Discarding…" : "Flag as Discarded"}
           </button>

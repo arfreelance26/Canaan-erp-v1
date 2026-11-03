@@ -68,8 +68,8 @@ export function useTruckRunStats(truck: Truck | null, active: boolean) {
   return { stats, loading };
 }
 
-/** "⚠ 3 trips missing trip sheets" — or "" when none. */
+/** "3 completed trips missing a trip sheet …" — or "" when none. */
 export function missingSheetsNote(stats: Pick<TruckRunStats, "missingSheets">): string {
   const n = stats.missingSheets;
-  return n > 0 ? `⚠ ${n} completed trip${n === 1 ? "" : "s"} missing a trip sheet — not counted until entered` : "";
+  return n > 0 ? `${n} completed trip${n === 1 ? "" : "s"} missing a trip sheet — not counted until entered` : "";
 }

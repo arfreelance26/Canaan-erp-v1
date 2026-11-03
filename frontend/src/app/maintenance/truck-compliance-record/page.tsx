@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ShieldCheck, ShieldAlert, ShieldX, ChevronDown, Truck as TruckIcon, FileCheck2 } from "lucide-react";
+import { RiSearchLine as Search, RiShieldCheckLine as ShieldCheck, RiShieldFlashLine as ShieldAlert, RiShieldCrossLine as ShieldX, RiArrowDownSLine as ChevronDown, RiTruckLine as TruckIcon, RiFileShield2Line as FileCheck2 } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
@@ -14,6 +14,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 
 const n = (v: string | number | undefined | null) => {
@@ -45,9 +46,9 @@ const DOC_SPECS: DocSpec[] = [
 ];
 
 const STATUS_BADGE: Record<ComplianceStatus, string> = {
-  Valid: "bg-emerald-100 text-emerald-700",
-  "Expiring Soon": "bg-amber-100 text-amber-700",
-  Expired: "bg-red-100 text-red-700",
+  Valid: "bg-success-surface-strong text-success-text",
+  "Expiring Soon": "bg-warning-surface-strong text-warning-text",
+  Expired: "bg-danger-surface-strong text-danger-text",
 };
 const STATUS_RANK: Record<ComplianceStatus, number> = { Expired: 2, "Expiring Soon": 1, Valid: 0 };
 const STATUS_ICON: Record<ComplianceStatus, typeof ShieldCheck> = { Valid: ShieldCheck, "Expiring Soon": ShieldAlert, Expired: ShieldX };
@@ -55,21 +56,21 @@ const STATUS_ICON: Record<ComplianceStatus, typeof ShieldCheck> = { Valid: Shiel
 function DetailChip({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className={`truncate text-sm font-medium text-gray-800 dark:text-gray-950 ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
+      <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
+      <span className={`truncate text-body-medium text-text-primary ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
     </div>
   );
 }
 
 function StatCard({ icon: Icon, label, value, accent }: { icon: typeof TruckIcon; label: string; value: string; accent: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/80 bg-white/60 px-4 py-3.5 shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/60">
+    <div className="flex items-center gap-3 rounded-xl border border-separator-border bg-background-primary-default px-4 py-3.5 shadow-sm">
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent}`}>
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-        <p className="truncate text-lg font-bold leading-tight text-gray-900 dark:text-gray-950">{value}</p>
+        <p className="text-caption-2-semibold text-text-tertiary">{label}</p>
+        <p className="truncate text-title-3-semibold leading-tight text-text-primary">{value}</p>
       </div>
     </div>
   );
@@ -141,12 +142,12 @@ export default function TruckComplianceRecordPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Compliance Record</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Truck Compliance Record</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Read-only audit view of RC, FC, Road Tax, National &amp; Local Permit, Pollution Certificate, and Insurance across the fleet
             </p>
           </div>
@@ -155,9 +156,9 @@ export default function TruckComplianceRecordPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard icon={ShieldCheck} label="Valid" value={String(summary.Valid)} accent="bg-emerald-50 text-emerald-600" />
-        <StatCard icon={ShieldAlert} label="Expiring Soon" value={String(summary["Expiring Soon"])} accent="bg-amber-50 text-amber-600" />
-        <StatCard icon={ShieldX} label="Expired" value={String(summary.Expired)} accent="bg-red-50 text-red-600" />
+        <StatCard icon={ShieldCheck} label="Valid" value={String(summary.Valid)} accent="bg-success-surface text-success-text" />
+        <StatCard icon={ShieldAlert} label="Expiring Soon" value={String(summary["Expiring Soon"])} accent="bg-warning-surface text-warning-text" />
+        <StatCard icon={ShieldX} label="Expired" value={String(summary.Expired)} accent="bg-danger-surface text-danger-text" />
       </div>
 
       {/* Filters */}
@@ -165,17 +166,17 @@ export default function TruckComplianceRecordPage() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Search: collapsed icon pill that expands on hover / focus / when it holds text */}
         <label
-          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md dark:border-gray-300/30 dark:bg-gray-200 ${
+          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition duration-300 hover:shadow-md focus-within:scale-105 focus-within:border-accent-border-strong focus-within:shadow-md ${
             search ? "w-72" : "w-10 hover:w-72 focus-within:w-72"
           }`}
         >
-          <Search className="h-4 w-4 shrink-0 text-gray-500" />
+          <Search className="h-4 w-4 shrink-0 text-text-secondary" />
           <input
             type="text"
             placeholder="Search by truck, manufacturer, model…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full min-w-0 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-950"
+            className="w-full min-w-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-placeholder"
           />
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -193,12 +194,7 @@ export default function TruckComplianceRecordPage() {
 
       {/* Truck cards */}
       {visibleTrucks.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/40">
-          <ShieldCheck className="h-8 w-8 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">
-            {trucks.length === 0 ? "No trucks yet." : "No trucks match this search."}
-          </p>
-        </div>
+        <EmptyState size="compact" illustration="not-found" title={trucks.length === 0 ? "No trucks yet" : "No trucks match this search"} className="rounded-xl border border-separator-border bg-background-primary-default" />
       ) : (
         <div className="flex flex-col gap-3">
           {visibleTrucks.map((truck) => {
@@ -215,16 +211,16 @@ export default function TruckComplianceRecordPage() {
             return (
               <div
                 key={truck.id}
-                className={`overflow-hidden rounded-xl border bg-white/60 shadow-sm backdrop-blur-sm transition-all dark:bg-gray-200/60 ${
-                  isOpen ? "border-blue-200 ring-1 ring-blue-100 dark:border-blue-400/40 dark:ring-blue-400/20" : "border-white/80 hover:border-blue-100 dark:border-gray-300/30 dark:hover:border-blue-400/30"
+                className={`overflow-hidden rounded-xl border bg-background-primary-default shadow-sm transition ${
+                  isOpen ? "border-accent-border ring-1 ring-accent-border " : "border-separator-border hover:border-accent-border "
                 }`}
               >
                 <button
                   type="button"
                   onClick={() => toggle(truck.id)}
-                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-white/70 dark:hover:bg-gray-300/20"
+                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-fill-2"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-surface text-accent-text">
                     <TruckIcon className="h-5 w-5" />
                   </span>
 
@@ -239,23 +235,23 @@ export default function TruckComplianceRecordPage() {
                   <div className="ml-auto flex shrink-0 items-center gap-4">
                     {(expiredCount > 0 || expiringCount > 0) && (
                       <div className="hidden flex-col items-end gap-0.5 sm:flex">
-                        {expiredCount > 0 && <span className="text-[11px] font-medium text-red-600">{expiredCount} expired</span>}
-                        {expiringCount > 0 && <span className="text-[11px] font-medium text-amber-600">{expiringCount} expiring soon</span>}
+                        {expiredCount > 0 && <span className="text-caption-2-medium text-danger-text">{expiredCount} expired</span>}
+                        {expiringCount > 0 && <span className="text-caption-2-medium text-warning-text">{expiringCount} expiring soon</span>}
                       </div>
                     )}
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE[worst]}`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption-1-semibold ${STATUS_BADGE[worst]}`}>
                       <WorstIcon className="h-3 w-3" />
                       {worst}
                     </span>
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-text-tertiary transition-transform ${isOpen ? "rotate-180" : ""}`} />
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="overflow-x-auto border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white/80 px-3 pb-3 pt-1 dark:border-gray-300/20 dark:from-gray-200/40 dark:to-gray-200/60">
+                  <div className="overflow-x-auto border-t border-separator-border bg-fill-1 px-3 pb-3 pt-1">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead>
-                        <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                        <tr className="text-left text-caption-2-semibold text-text-tertiary">
                           <th className="px-3 py-2">Document</th>
                           <th className="px-3 py-2">Number</th>
                           <th className="px-3 py-2">Expiry Date</th>
@@ -270,17 +266,17 @@ export default function TruckComplianceRecordPage() {
                           return (
                             <tr
                               key={spec.key}
-                              className={`rounded-lg transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-100/10 ${i % 2 === 1 ? "bg-white/70 dark:bg-gray-300/20" : "bg-white/40 dark:bg-transparent"}`}
+                              className={`rounded-lg transition-colors hover:bg-accent-surface-strong/50 ${i % 2 === 1 ? "bg-background-primary-default " : "bg-background-primary-default "}`}
                             >
                               <td className="rounded-l-lg px-3 py-2.5 flex items-center gap-2">
-                                <FileCheck2 className="h-3.5 w-3.5 text-gray-400" />
-                                <span className="font-medium text-gray-900 dark:text-gray-950">{spec.label}</span>
+                                <FileCheck2 className="h-3.5 w-3.5 text-text-tertiary" />
+                                <span className="font-medium text-text-primary">{spec.label}</span>
                               </td>
-                              <td className="px-3 py-2.5 font-mono text-xs text-gray-600 dark:text-gray-800">{spec.number ? spec.number(truck) || "—" : "—"}</td>
-                              <td className="px-3 py-2.5 text-gray-600 dark:text-gray-800">{date ? formatDate(date) : "—"}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-800">{fmtCur(spec.cost(truck))}</td>
+                              <td className="px-3 py-2.5 font-mono text-xs text-text-secondary">{spec.number ? spec.number(truck) || "—" : "—"}</td>
+                              <td className="px-3 py-2.5 text-text-secondary">{date ? formatDate(date) : "—"}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(spec.cost(truck))}</td>
                               <td className="rounded-r-lg px-3 py-2.5">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[status]}`}>
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold ${STATUS_BADGE[status]}`}>
                                   <StatusIcon className="h-3 w-3" />
                                   {status}
                                 </span>

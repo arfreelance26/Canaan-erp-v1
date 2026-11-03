@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, CornerDownLeft } from "lucide-react";
+import { RiCheckLine as Check, RiFileCopyLine as Copy, RiCornerDownLeftLine as CornerDownLeft } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
 export type PercentMode = "of" | "what" | "change" | "addRemove" | "gst";
@@ -183,26 +183,26 @@ export function PercentageCalculator({ onUseResult }: Props) {
             onClick={() => pickMode(m.id)}
             className={cn(
               "rounded-lg px-1 py-1.5 text-[10.5px] font-semibold leading-tight transition-colors",
-              mode === m.id ? "bg-blue-600 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              mode === m.id ? "bg-accent-solid text-on-solid shadow-sm" : "bg-fill-2 text-text-secondary hover:bg-fill-3"
             )}
           >
             {m.label}
           </button>
         ))}
       </div>
-      <p className="-mt-1 text-[11px] text-gray-400">{MODES.find((m) => m.id === mode)?.hint}</p>
+      <p className="-mt-1 text-[11px] text-text-tertiary">{MODES.find((m) => m.id === mode)?.hint}</p>
 
       {/* Add / Remove switch */}
       {mode === "addRemove" && (
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-fill-2 p-1">
           {(["add", "remove"] as const).map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => setAddMode(k)}
               className={cn(
-                "rounded-md py-1 text-xs font-semibold transition-colors",
-                addMode === k ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                "rounded-md py-1 text-caption-1-semibold transition-colors",
+                addMode === k ? "bg-background-primary-default text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
               )}
             >
               {k === "add" ? "+ Add %" : "− Remove %"}
@@ -216,7 +216,7 @@ export function PercentageCalculator({ onUseResult }: Props) {
         const f = FIELDS[mode][i];
         return (
           <div key={`${mode}-${i}`} className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{f.label}</label>
+            <label className="text-caption-2-semibold text-text-secondary">{f.label}</label>
             <div className="relative">
               <input
                 ref={i === 0 ? firstInputRef : undefined}
@@ -227,13 +227,13 @@ export function PercentageCalculator({ onUseResult }: Props) {
                 onChange={(e) => setField(i, e.target.value)}
                 placeholder="0"
                 className={cn(
-                  "h-10 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-right text-sm font-semibold tabular-nums text-gray-900 outline-none transition-colors",
-                  "focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-500/15",
+                  "h-10 w-full rounded-xl border border-separator-border bg-fill-1 px-3 text-right text-body-semibold tabular-nums text-text-primary outline-none transition-colors",
+                  "focus:border-accent-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-accent-solid/15",
                   f.suffix && "pr-8"
                 )}
               />
               {f.suffix && (
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">{f.suffix}</span>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-body-semibold text-text-tertiary">{f.suffix}</span>
               )}
             </div>
             {percentField === i && (
@@ -244,8 +244,8 @@ export function PercentageCalculator({ onUseResult }: Props) {
                     type="button"
                     onClick={() => setField(i, r)}
                     className={cn(
-                      "flex-1 rounded-md py-0.5 text-[11px] font-semibold transition-colors",
-                      values[mode][i] === r ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                      "flex-1 rounded-md py-0.5 text-caption-2-semibold transition-colors",
+                      values[mode][i] === r ? "bg-accent-surface text-accent-text ring-1 ring-accent-border" : "bg-fill-1 text-text-secondary hover:bg-fill-3"
                     )}
                   >
                     {r}%
@@ -259,21 +259,21 @@ export function PercentageCalculator({ onUseResult }: Props) {
 
       {/* Result */}
       {/* Fixed hex colours: stays a dark display in both themes (see CalculatorButton). */}
-      <div className="rounded-xl bg-[#111827] px-4 py-3 text-right dark:bg-[#070a12]">
-        <p className="h-4 truncate text-[11px] font-medium text-[#9ca3af]" title={result?.breakdown}>
+      <div className="rounded-xl bg-inverse px-4 py-3 text-right">
+        <p className="h-4 truncate text-caption-2-medium text-on-solid/60" title={result?.breakdown}>
           {result?.breakdown || " "}
         </p>
         <p
           className={cn(
-            "mt-1 truncate text-2xl font-bold tabular-nums",
-            result?.tone === "up" ? "text-[#34d399]" : result?.tone === "down" ? "text-[#f87171]" : "text-[#f9fafb]"
+            "mt-1 truncate text-title-1-semibold tabular-nums",
+            result?.tone === "up" ? "text-success-text" : result?.tone === "down" ? "text-danger-text" : "text-on-solid/90"
           )}
         >
           {result ? result.text : "—"}
         </p>
         {result?.extra && (
-          <p className="mt-0.5 truncate text-xs font-medium text-gray-400">
-            {result.extra.label}: <span className="tabular-nums text-gray-200">{result.extra.text}</span>
+          <p className="mt-0.5 truncate text-caption-1-medium text-text-tertiary">
+            {result.extra.label}: <span className="tabular-nums text-on-solid/80">{result.extra.text}</span>
           </p>
         )}
       </div>
@@ -284,9 +284,9 @@ export function PercentageCalculator({ onUseResult }: Props) {
           type="button"
           onClick={copy}
           disabled={!result}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gray-100 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 disabled:opacity-40"
+          className="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-fill-2 text-caption-1-semibold text-text-secondary transition-colors hover:bg-fill-3 disabled:opacity-40"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? <Check className="h-3.5 w-3.5 text-success-text" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? "Copied" : "Copy"}
         </button>
         <button
@@ -294,7 +294,7 @@ export function PercentageCalculator({ onUseResult }: Props) {
           onClick={() => result && onUseResult(Math.round(result.value * 100) / 100)}
           disabled={!result}
           title="Send this result to the Basic calculator"
-          className="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-50 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-40"
+          className="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-accent-surface text-caption-1-semibold text-accent-text transition-colors hover:bg-accent-surface-strong disabled:opacity-40"
         >
           <CornerDownLeft className="h-3.5 w-3.5" />
           Use in calc

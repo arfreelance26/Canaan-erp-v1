@@ -11,37 +11,12 @@ import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { TripSheetCoordinatorDashboard } from "@/components/dashboard/TripSheetCoordinatorDashboard";
 import { AuditorDashboard } from "@/components/dashboard/AuditorDashboard";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
-import { BirthdayCard } from "@/components/dashboard/BirthdayCard";
-import { SeasonCard } from "@/components/dashboard/SeasonCard";
-import { FoundingCard } from "@/components/dashboard/FoundingCard";
+import { CelebrationCard } from "@/components/dashboard/CelebrationCard";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { Button } from "@/components/base/buttons/button";
 import { SheetTrackingCard } from "@/components/dashboard/SheetTrackingCard";
 import Link from "next/link";
-import {
-  Truck,
-  Navigation,
-  ClipboardList,
-  AlertTriangle,
-  Activity,
-  Wrench,
-  ShieldCheck,
-  Wallet,
-  CheckCircle2,
-  UserCheck,
-  FileCheck2,
-  Inbox,
-  FileSpreadsheet,
-  Database,
-  FolderArchive,
-  ArrowRight,
-  CalendarDays,
-  Loader2,
-  Fuel,
-  Pencil,
-  LayoutDashboard,
-  Flag,
-  Download,
-  ChevronDown,
-} from "lucide-react";
+import { RiTruckLine as Truck, RiNavigationLine as Navigation, RiFileList3Line as ClipboardList, RiAlertLine as AlertTriangle, RiPulseLine as Activity, RiToolsLine as Wrench, RiShieldCheckLine as ShieldCheck, RiWallet3Line as Wallet, RiCheckboxCircleLine as CheckCircle2, RiUserFollowLine as UserCheck, RiFileShield2Line as FileCheck2, RiInboxLine as Inbox, RiFileExcel2Line as FileSpreadsheet, RiDatabase2Line as Database, RiFolderZipLine as FolderArchive, RiArrowRightLine as ArrowRight, RiCalendar2Line as CalendarDays, RiLoader4Line as Loader2, RiGasStationLine as Fuel, RiPencilLine as Pencil, RiFlagLine as Flag, RiDownloadLine as Download, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { FleetStatusPanel } from "@/components/dashboard/FleetStatusPanel";
 import {
@@ -83,7 +58,7 @@ import { AttendanceTodayCard } from "@/components/dashboard/AttendanceTodayCard"
 import { PendingLeaveCard } from "@/components/dashboard/PendingLeaveCard";
 import { FleetConstellationCard } from "@/components/dashboard/FleetConstellationCard";
 import { TripTrendChart } from "@/components/dashboard/TripTrendChart";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 
 function formatCurrency(value: number): string {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
@@ -117,59 +92,18 @@ const COMPLIANCE_DOCS: Array<{ key: string; label: string; field: keyof TruckTyp
   { key: "pollution", label: "Pollution",    field: "pollutionCertificateDate" },
 ];
 
-/**
- * The header date badge's day number. When `play` is set it counts up from 1
- * to `day` in about 1.2 s — fast at first, slowing over the last few numbers —
- * each number a quick page flip, landing on today with a small bounce. A
- * fresh mount replays it (the badge is re-keyed on click).
- */
-function DayFlip({ day, play }: { day: number; play: boolean }) {
-  const [shown, setShown] = useState(play ? 1 : day);
-  const [landed, setLanded] = useState(!play);
-  useEffect(() => {
-    if (!play) return;
-    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || day <= 1) {
-      setShown(day);
-      setLanded(true);
-      return;
-    }
-    // Start from 1 (play can switch on after the first render, once the page
-    // has decided to animate — the number mustn't show today first).
-    setShown(1);
-    setLanded(false);
-    const START = 380;   // after the card slides in and the month strip drops
-    const TOTAL = 1200;  // the whole count, whatever the date
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let k = 1; k <= day; k++) {
-      // Gaps grow toward the end: (progress)^2.4 races, then slows into today.
-      const at = START + TOTAL * Math.pow((k - 1) / (day - 1), 2.4);
-      timers.push(setTimeout(() => {
-        setShown(k);
-        if (k === day) setLanded(true);
-      }, at));
-    }
-    return () => timers.forEach(clearTimeout);
-  }, [day, play]);
-
-  return (
-    <span key={shown} className={play ? (landed ? "date-day-land" : "date-day-tick") : undefined}>
-      {shown}
-    </span>
-  );
+/** Time-of-day greeting in India time. */
+function greetingFor(d: Date): string {
+  const h = Number(new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(d));
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
-
-/** Whether the header date badge animates on this page load (see DashboardPage). */
-let dateIntroDecision: boolean | null = null;
 
 export default function DashboardPage() {
   // The birthday person's greeting (and the Christmas / New Year one) sits
   // above whichever dashboard their role gets.
   return (
     <>
-      <BirthdayCard />
-      <SeasonCard />
-      <FoundingCard />
+      <CelebrationCard />
       <RoleDashboard />
     </>
   );
@@ -201,6 +135,7 @@ function RoleDashboard() {
 }
 
 function AdminDashboard() {
+  const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [trucks, setTrucks] = useState<TruckType[]>([]);
@@ -227,29 +162,6 @@ function AdminDashboard() {
   const [sheetEnteredDate, setSheetEnteredDate] = useState("");
   const [backupLoading, setBackupLoading] = useState<"excel" | "sql" | "files" | null>(null);
   const [backupMenuOpen, setBackupMenuOpen] = useState(false);
-  // Header date badge: animate in the first time the dashboard opens in this
-  // browser session (when the software is opened), then stay still; clicking
-  // it replays the animation. Decided after mount — "pending" keeps it hidden
-  // for that first frame so it never flashes before animating.
-  const [dateIntro, setDateIntro] = useState<"pending" | "play" | "still">("pending");
-  const [dateIntroRun, setDateIntroRun] = useState(0);
-  useEffect(() => {
-    // Decide once per page load (React may run this effect twice in
-    // development — both runs must get the same answer).
-    if (dateIntroDecision === null) {
-      try {
-        dateIntroDecision = sessionStorage.getItem("dash_date_intro") !== "1";
-        sessionStorage.setItem("dash_date_intro", "1");
-      } catch {
-        dateIntroDecision = true;
-      }
-    }
-    setDateIntro(dateIntroDecision ? "play" : "still");
-    // Coming back to the dashboard later in this session shows it still.
-    const done = setTimeout(() => { dateIntroDecision = false; }, 2000);
-    return () => clearTimeout(done);
-  }, []);
-  const replayDateIntro = () => { setDateIntro("play"); setDateIntroRun((n) => n + 1); };
   const backupMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!backupMenuOpen) return;
@@ -275,7 +187,7 @@ function AdminDashboard() {
     try {
       await downloadExcel(`/backup/${type}`, fallbackName);
     } catch (err) {
-      alert(`Backup failed: ${err instanceof Error ? err.message : String(err)}`);
+      showError(err instanceof Error ? err.message : String(err), "Backup failed");
     } finally {
       setBackupLoading(null);
     }
@@ -290,7 +202,7 @@ function AdminDashboard() {
       setFuelRate({ costPerLitre: cfg.cost_per_litre != null ? Number(cfg.cost_per_litre) : null, updatedAt: cfg.updated_at });
       setFuelRateInput("");
     } catch {
-      alert("Failed to update fuel rate. Please try again.");
+      showError("Please try again.", "Couldn't update the fuel rate");
     } finally {
       setFuelRateSaving(false);
     }
@@ -509,10 +421,10 @@ function AdminDashboard() {
           type="button"
           onClick={() => setActiveTab(key)}
           className={cn(
-            "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-sm transition-all",
+            "flex items-center gap-2 rounded-full px-4 py-2 text-body-medium shadow-sm transition",
             activeTab === key
-              ? "bg-blue-600 text-white shadow-blue-200"
-              : "border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+              ? "bg-accent-solid text-on-solid"
+              : "border border-separator-border bg-background-primary-default text-text-secondary hover:border-border-button-default hover:bg-fill-2"
           )}
         >
           <Icon className="h-4 w-4" />
@@ -527,32 +439,32 @@ function AdminDashboard() {
       <div className="flex flex-col gap-6 animate-pulse">
         <div className="flex items-end justify-between">
           <div className="space-y-1.5">
-            <div className="h-7 w-36 rounded-lg bg-slate-200" />
-            <div className="h-4 w-60 rounded bg-slate-100" />
+            <div className="h-7 w-36 rounded-lg bg-fill-3" />
+            <div className="h-4 w-60 rounded bg-fill-2" />
           </div>
-          <div className="h-8 w-16 rounded-full bg-slate-200" />
+          <div className="h-8 w-16 rounded-full bg-fill-3" />
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-gray-200 bg-white p-5">
-              <div className="h-3 w-20 rounded bg-slate-200" />
-              <div className="mt-3 h-8 w-16 rounded-lg bg-slate-200" />
-              <div className="mt-2 h-3 w-28 rounded bg-slate-100" />
+            <div key={i} className="rounded-xl border border-separator-border bg-background-primary-default p-5">
+              <div className="h-3 w-20 rounded bg-fill-3" />
+              <div className="mt-3 h-8 w-16 rounded-lg bg-fill-3" />
+              <div className="mt-2 h-3 w-28 rounded bg-fill-2" />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-[300px] rounded-xl border border-gray-200 bg-white p-5">
-              <div className="h-4 w-32 rounded bg-slate-200 mb-1" />
-              <div className="h-3 w-20 rounded bg-slate-100 mb-4" />
-              <div className="h-[230px] rounded-lg bg-slate-100" />
+            <div key={i} className="h-[300px] rounded-xl border border-separator-border bg-background-primary-default p-5">
+              <div className="h-4 w-32 rounded bg-fill-3 mb-1" />
+              <div className="h-3 w-20 rounded bg-fill-2 mb-4" />
+              <div className="h-[230px] rounded-lg bg-fill-2" />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <div className="h-52 rounded-xl border border-gray-200 bg-white lg:col-span-3" />
-          <div className="h-52 rounded-xl border border-gray-200 bg-white lg:col-span-2" />
+          <div className="h-52 rounded-xl border border-separator-border bg-background-primary-default lg:col-span-3" />
+          <div className="h-52 rounded-xl border border-separator-border bg-background-primary-default lg:col-span-2" />
         </div>
       </div>
     );
@@ -580,42 +492,46 @@ function AdminDashboard() {
       {activeTab === "maintenance" && <TyreManagerDashboard />}
 
       {activeTab === "overview" && <>
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      {/* relative z-30: every .animate-stagger child is its own stacking
-          context (animation fill keeps a transform), so without this the
-          Current Trips card below paints over the open Backup menu. */}
-      <div className="relative z-30 flex items-center justify-between gap-6">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3.5">
-            <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
-              <LayoutDashboard className="h-5 w-5" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-              <p className="mt-0.5 text-sm text-gray-400">Fleet command centre</p>
-            </div>
-          </div>
+      {/* ── Hero ────────────────────────────────────────────────────────── */}
+      {/* relative z-30: keeps the open Backup menu above the cards below. */}
+      <DashboardHero
+        className="relative z-30 overflow-visible"
+        image={{ src: "/images/hero-truck.png", alt: "Canaan Global truck" }}
+        eyebrow={`${today_.weekday}, ${today_.day} ${today_.monthLong} ${today_.year}`}
+        title={`${greetingFor(new Date())}, ${(user?.name ?? "").split(" ")[0] || "there"}`}
+        description={
+          loading
+            ? "Loading today's fleet…"
+            : `${trucks.length} trucks and ${drivers.length} drivers on record` +
+              (complianceExpired.length > 0 ? ` · ${complianceExpired.length} documents expired` : "")
+        }
+        actions={
+          <>
+            <Link
+              href="/trips/current"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent-solid px-4 text-body-medium text-on-solid outline-none transition-colors hover:bg-accent-solid-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            >
+              <Truck className="size-4" />
+              Current trips
+            </Link>
           <div className="relative" ref={backupMenuRef}>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => setBackupMenuOpen((v) => !v)}
               disabled={backupLoading !== null}
-              className="group flex h-11 items-center gap-2.5 rounded-full border border-gray-200 bg-white py-1 pl-1.5 pr-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+              leadingIcon={backupLoading !== null ? Loader2 : Download}
+              trailingIcon={ChevronDown}
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-transform duration-300 group-hover:scale-110">
-                {backupLoading !== null ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </span>
               {backupLoading !== null ? "Downloading…" : "Backup"}
-              <ChevronDown className={cn("h-3.5 w-3.5 text-gray-400 transition-transform duration-200", backupMenuOpen && "rotate-180")} />
-            </button>
+            </Button>
 
             {backupMenuOpen && (
-              <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg">
+              <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-separator-border bg-background-primary-default py-1.5 shadow-lg">
                 {(
                   [
-                    { key: "excel", label: "Download Excel", icon: FileSpreadsheet, chip: "bg-emerald-100 text-emerald-600" },
-                    { key: "sql", label: "Download SQL", icon: Database, chip: "bg-indigo-100 text-indigo-600" },
-                    { key: "files", label: "Download Files (ZIP)", icon: FolderArchive, chip: "bg-amber-100 text-amber-600" },
+                    { key: "excel", label: "Download Excel", icon: FileSpreadsheet, chip: "bg-success-surface-strong text-success-text" },
+                    { key: "sql", label: "Download SQL", icon: Database, chip: "bg-purple-surface-strong text-purple-text" },
+                    { key: "files", label: "Download Files (ZIP)", icon: FolderArchive, chip: "bg-warning-surface-strong text-warning-text" },
                   ] as const
                 ).map(({ key, label, icon: Icon, chip }) => (
                   <button
@@ -623,7 +539,7 @@ function AdminDashboard() {
                     type="button"
                     onClick={() => handleBackup(key)}
                     disabled={backupLoading !== null}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-body-medium text-text-primary transition-colors hover:bg-fill-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${chip}`}>
                       <Icon className="h-3.5 w-3.5" />
@@ -634,33 +550,9 @@ function AdminDashboard() {
               </div>
             )}
           </div>
-        </div>
-        {/* Today — a small calendar-page badge */}
-        <div
-          className={cn(
-            "relative flex shrink-0 cursor-pointer select-none self-start items-center gap-2.5 overflow-hidden rounded-2xl border border-gray-200/80 bg-white py-1.5 pl-1.5 pr-4 shadow-sm dark:border-gray-300/30 dark:bg-gray-200",
-            dateIntro === "pending" && "opacity-0",
-            dateIntro === "play" && "date-intro-card",
-          )}
-          key={dateIntroRun}
-          onClick={replayDateIntro}
-          title={`${today_.weekday}, ${today_.day} ${today_.monthLong} ${today_.year}`}
-        >
-          <span className="flex w-10 flex-col overflow-hidden rounded-lg border border-[#1b2b5e]/15 text-center shadow-sm dark:border-white/10 dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.6)]">
-            <span className={cn("bg-gradient-to-br from-[#1b2b5e] to-[#2d4590] py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#fcd34d] dark:from-[#2b3f9f] dark:to-[#4a63c9] dark:text-[#fde68a]", dateIntro === "play" && "date-intro-month")}>
-              {today_.month}
-            </span>
-            <span className="bg-white py-0.5 text-base font-bold leading-tight tabular-nums text-[#1b2b5e] dark:text-white">
-              <DayFlip day={Number(today_.day)} play={dateIntro === "play"} />
-            </span>
-          </span>
-          <span className={cn("flex flex-col leading-tight", dateIntro === "play" && "date-intro-text")}>
-            <span className="text-sm font-semibold text-gray-800">{today_.weekday}</span>
-            <span className="text-[11px] font-medium text-gray-400">{today_.monthLong} {today_.year}</span>
-          </span>
-          {dateIntro === "play" && <span aria-hidden className="date-intro-shimmer" />}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <DailySummaryCard />
 
@@ -676,30 +568,30 @@ function AdminDashboard() {
           return [...map.entries()].sort((x, y) => y[1].length - x[1].length);
         };
         const sections = [
-          { key: "expired", title: "Expired", groups: groupByLabel(complianceExpired), chip: "border-red-200 bg-white text-red-700", dot: "bg-red-500", count: "bg-red-100 text-red-700" },
-          { key: "soon", title: "Expiring soon", groups: groupByLabel(complianceExpiringSoon), chip: "border-amber-200 bg-white text-amber-700", dot: "bg-amber-400", count: "bg-amber-100 text-amber-700" },
+          { key: "expired", title: "Expired", groups: groupByLabel(complianceExpired), chip: "border-danger-border bg-background-primary-default text-danger-text", dot: "bg-danger-solid", count: "bg-danger-surface-strong text-danger-text" },
+          { key: "soon", title: "Expiring soon", groups: groupByLabel(complianceExpiringSoon), chip: "border-warning-border bg-background-primary-default text-warning-text", dot: "bg-warning-solid", count: "bg-warning-surface-strong text-warning-text" },
         ].filter((sec) => sec.groups.length > 0);
         const total = hasExpired ? complianceExpired.length : complianceExpiringSoon.length;
         const truckCount = new Set((hasExpired ? complianceExpired : complianceExpiringSoon).map((i) => i.truckId)).size;
         return (
           <div className={cn(
-            "dk-inset overflow-hidden rounded-2xl border bg-gradient-to-r to-white shadow-sm",
-            hasExpired ? "border-red-200/80 from-red-50" : "border-amber-200/80 from-amber-50"
+            "overflow-hidden rounded-2xl border bg-background-primary-default shadow-sm",
+            hasExpired ? "border-danger-border/80" : "border-warning-border/80"
           )}>
             <div className="flex items-center gap-3 px-5 py-3.5">
               <span className={cn(
                 "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                hasExpired ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                hasExpired ? "bg-danger-surface-strong text-danger-text" : "bg-warning-surface-strong text-warning-text"
               )}>
                 <AlertTriangle className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-body-semibold text-text-primary">
                   {hasExpired
                     ? `${total} document${total === 1 ? " has" : "s have"} expired`
                     : `${total} document${total === 1 ? " is" : "s are"} expiring soon`}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-text-secondary">
                   {hasExpired ? "Renewal required" : "Renew soon"} · {truckCount} truck{truckCount === 1 ? "" : "s"} affected
                 </p>
               </div>
@@ -707,8 +599,8 @@ function AdminDashboard() {
                 type="button"
                 onClick={() => router.push("/resources/fleet")}
                 className={cn(
-                  "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md",
-                  hasExpired ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"
+                  "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-4 text-caption-1-semibold text-on-solid shadow-sm transition duration-300 hover:shadow-md",
+                  hasExpired ? "bg-danger-solid hover:bg-danger-solid-hover" : "bg-warning-solid hover:bg-warning-solid-hover"
                 )}
               >
                 View Fleet
@@ -716,18 +608,18 @@ function AdminDashboard() {
               </button>
             </div>
 
-            <div className={cn("flex flex-col gap-2.5 border-t px-5 py-3", hasExpired ? "border-red-100" : "border-amber-100")}>
+            <div className={cn("flex flex-col gap-2.5 border-t px-5 py-3", hasExpired ? "border-danger-border" : "border-warning-border")}>
               {sections.map((sec) =>
                 sec.groups.map(([label, trucks]) => (
                   <div key={`${sec.key}-${label}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <span className="flex w-40 shrink-0 items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    <span className="flex w-40 shrink-0 items-center gap-2 text-caption-2-semibold text-text-secondary">
                       {label}
-                      <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums", sec.count)}>{trucks.length}</span>
-                      {sections.length > 1 && <span className="font-medium normal-case tracking-normal text-gray-400">· {sec.title.toLowerCase()}</span>}
+                      <span className={cn("rounded-full px-1.5 py-0.5 text-caption-2-semibold tabular-nums", sec.count)}>{trucks.length}</span>
+                      {sections.length > 1 && <span className="font-medium normal-case tracking-normal text-text-tertiary">· {sec.title.toLowerCase()}</span>}
                     </span>
                     <div className="flex flex-1 flex-wrap gap-1.5">
                       {trucks.map((truckId, i) => (
-                        <span key={`${truckId}-${i}`} className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-medium", sec.chip)}>
+                        <span key={`${truckId}-${i}`} className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-caption-2-medium", sec.chip)}>
                           <span className={cn("h-1.5 w-1.5 rounded-full", sec.dot)} />
                           {truckId}
                         </span>
@@ -745,22 +637,22 @@ function AdminDashboard() {
       {(() => {
         const updatedToday = inDateRange(fuelRate.updatedAt, today, today);
         return (
-          <div className="dk-inset flex flex-wrap items-center gap-4 rounded-2xl border border-gray-200/80 bg-white px-5 py-3.5 shadow-sm">
+          <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-separator-border bg-background-primary-default px-5 py-3.5 shadow-sm">
             <span className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-              updatedToday ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+              updatedToday ? "bg-success-surface text-success-text" : "bg-warning-surface text-warning-text"
             )}>
               <Fuel className="h-5 w-5" />
             </span>
 
             {/* Label + current value */}
             <div className="flex min-w-0 flex-col gap-0.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Today&apos;s Fuel Rate</p>
-              <span className="text-xl font-bold tabular-nums text-gray-900">
+              <p className="text-caption-2-semibold text-text-tertiary">Today&apos;s Fuel Rate</p>
+              <span className="text-title-2-semibold tabular-nums text-text-primary">
                 {fuelRate.costPerLitre !== null ? (
                   <>
                     ₹{Number(fuelRate.costPerLitre).toFixed(2)}
-                    <span className="ml-1 text-sm font-medium text-gray-400">/ L</span>
+                    <span className="ml-1 text-body-medium text-text-tertiary">/ L</span>
                   </>
                 ) : "Not set"}
               </span>
@@ -768,10 +660,10 @@ function AdminDashboard() {
 
             {/* One status: fresh today, or due with the date the rate was set */}
             <span className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-              updatedToday ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption-2-semibold",
+              updatedToday ? "border-success-border bg-success-surface text-success-text" : "border-warning-border bg-warning-surface text-warning-text"
             )}>
-              <span className={cn("h-1.5 w-1.5 rounded-full", updatedToday ? "bg-emerald-500" : "bg-amber-400")} />
+              <span className={cn("h-1.5 w-1.5 rounded-full", updatedToday ? "bg-success-solid" : "bg-warning-solid")} />
               {updatedToday
                 ? "Updated today"
                 : fuelRate.updatedAt
@@ -781,8 +673,8 @@ function AdminDashboard() {
 
             {/* Always-visible input + button */}
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <div className="flex h-8 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 shadow-sm transition-all focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
-                <span className="text-sm text-gray-400">₹</span>
+              <div className="flex h-8 items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3.5 shadow-sm transition focus-within:border-accent-border-strong focus-within:ring-2 focus-within:ring-accent-border">
+                <span className="text-sm text-text-tertiary">₹</span>
                 <input
                   type="number"
                   min="0"
@@ -790,18 +682,18 @@ function AdminDashboard() {
                   value={fuelRateInput}
                   onChange={(e) => setFuelRateInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleSaveFuelRate(); }}
-                  className="w-24 bg-transparent text-sm font-semibold tabular-nums text-gray-800 outline-none placeholder:font-normal placeholder:text-gray-300"
+                  className="w-24 bg-transparent text-body-semibold tabular-nums text-text-primary outline-none placeholder:font-normal placeholder:text-text-placeholder"
                   placeholder="e.g. 102.50"
                 />
-                <span className="text-xs text-gray-400">/ L</span>
+                <span className="text-xs text-text-tertiary">/ L</span>
               </div>
               <button
                 type="button"
                 onClick={handleSaveFuelRate}
                 disabled={fuelRateSaving || !fuelRateInput}
                 className={cn(
-                  "flex h-8 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-sm",
-                  updatedToday ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"
+                  "flex h-8 items-center gap-1.5 rounded-full px-4 text-caption-1-semibold text-on-solid shadow-sm transition duration-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm",
+                  updatedToday ? "bg-success-solid hover:bg-success-solid-hover" : "bg-warning-solid hover:bg-warning-solid-hover"
                 )}
               >
                 <Pencil className="h-3 w-3" />
@@ -856,7 +748,7 @@ function AdminDashboard() {
 
       {/* ── Section 1b: Audit ────────────────────────────────────────────── */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Audit</h2>
+        <h2 className="mb-3 text-body-semibold text-text-tertiary">Audit</h2>
         <FleetStatusPanel
           segments={[
             flaggedUnderReviewCount > 0
@@ -942,7 +834,7 @@ function AdminDashboard() {
 
         return (
           <div>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Trip Sheet Tracking</h2>
+            <h2 className="mb-3 text-body-semibold text-text-tertiary">Trip Sheet Tracking</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
               {/* Delivered by Yard Supervisor */}
@@ -1004,7 +896,7 @@ function AdminDashboard() {
               />
             </div>
             {awaitingReceipt.length > 0 && (
-              <p className="mt-2 text-xs font-medium text-amber-600">
+              <p className="mt-2 text-caption-1-medium text-warning-text">
                 {awaitingReceipt.length} sheet{awaitingReceipt.length > 1 ? "s" : ""} delivered but not yet confirmed received.
               </p>
             )}
@@ -1015,50 +907,50 @@ function AdminDashboard() {
       {/* ── Edit Approval Requests ───────────────────────────────────────── */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Edit Approval Requests</h2>
+          <h2 className="text-body-semibold text-text-tertiary">Edit Approval Requests</h2>
           <Link
             href="/attendance/edit-approvals"
-            className="group flex h-8 items-center gap-1.5 rounded-full border border-purple-200 bg-white px-4 text-xs font-semibold text-purple-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-purple-300 hover:bg-purple-50 hover:shadow-md"
+            className="group flex h-8 items-center gap-1.5 rounded-full border border-purple-border bg-background-primary-default px-4 text-caption-1-semibold text-purple-text shadow-sm transition duration-300 hover:border-purple-border-strong hover:bg-purple-surface-strong hover:shadow-md"
           >
             Open Edit Approvals
-            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300" />
           </Link>
         </div>
-        <div className="dk-inset flex flex-col gap-3 rounded-2xl border border-purple-200/70 bg-gradient-to-b from-purple-50/80 to-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 rounded-2xl border border-purple-border/70 bg-purple-surface/80 p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-surface-strong text-purple-text">
                 <ShieldCheck className="h-4 w-4" />
               </span>
-              <h3 className="text-sm font-semibold text-gray-900">Pending Requests</h3>
+              <h3 className="text-body-semibold text-text-primary">Pending Requests</h3>
             </div>
-            <span className="rounded-full bg-purple-100 px-3 py-0.5 text-sm font-bold tabular-nums text-purple-700">
+            <span className="rounded-full bg-purple-surface-strong px-3 py-0.5 text-body-semibold tabular-nums text-purple-text">
               {pendingEditApprovals.length}
             </span>
           </div>
           {pendingEditApprovals.length === 0 ? (
-            <p className="py-4 text-center text-xs text-gray-400">No pending edit requests.</p>
+            <p className="py-4 text-center text-xs text-text-tertiary">No pending edit requests.</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {pendingEditApprovals.slice(0, 6).map((r) => (
                 <li key={r.id}>
                   <Link
                     href="/attendance/edit-approvals"
-                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-purple-200"
+                    className="flex items-center gap-3 rounded-xl border border-separator-border bg-background-primary-default px-3 py-2 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-purple-border"
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-purple-100 text-[11px] font-bold uppercase text-purple-700">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-purple-surface-strong text-caption-2-semibold uppercase text-purple-text">
                       {r.staffName?.trim().charAt(0) || "?"}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold text-gray-900">{r.staffName}</span>
-                      <span className="block truncate text-[11px] text-gray-500">
-                        {r.action} <span className="font-mono text-gray-700">{r.resourceName}</span>
+                      <span className="block truncate font-semibold text-text-primary">{r.staffName}</span>
+                      <span className="block truncate text-[11px] text-text-secondary">
+                        {r.action} <span className="font-mono text-text-primary">{r.resourceName}</span>
                       </span>
                     </span>
-                    <span className="hidden shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500 sm:inline">
+                    <span className="hidden shrink-0 rounded-full bg-fill-2 px-2 py-0.5 text-caption-2-semibold text-text-secondary sm:inline">
                       {r.resourceType}
                     </span>
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-warning-surface px-2 py-0.5 text-caption-2-semibold text-warning-text">
                       <span className="h-1 w-1 rounded-full bg-current" />
                       Pending
                     </span>
@@ -1066,8 +958,8 @@ function AdminDashboard() {
                 </li>
               ))}
               {pendingEditApprovals.length > 6 && (
-                <li className="px-1 pt-0.5 text-[11px] text-gray-400">
-                  <Link href="/attendance/edit-approvals" className="font-medium text-purple-600 hover:text-purple-800">
+                <li className="px-1 pt-0.5 text-[11px] text-text-tertiary">
+                  <Link href="/attendance/edit-approvals" className="font-medium text-purple-text hover:text-purple-text-strong">
                     +{pendingEditApprovals.length - 6} more
                   </Link>
                 </li>
@@ -1108,32 +1000,32 @@ function AdminDashboard() {
         return (
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Booking Horizon</h2>
+              <h2 className="text-body-semibold text-text-tertiary">Booking Horizon</h2>
               {latestDate && (
-                <span className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs text-gray-500 shadow-sm">
-                  <CalendarDays className="h-3.5 w-3.5 text-indigo-500" />
-                  Booked up to <span className="font-semibold tabular-nums text-gray-900">{fmtD(latestDate)}</span>
+                <span className="flex items-center gap-2 rounded-full border border-separator-border bg-background-primary-default px-3.5 py-1.5 text-xs text-text-secondary shadow-sm">
+                  <CalendarDays className="h-3.5 w-3.5 text-purple-text" />
+                  Booked up to <span className="font-semibold tabular-nums text-text-primary">{fmtD(latestDate)}</span>
                 </span>
               )}
             </div>
-            <div className="dk-inset rounded-2xl border border-indigo-200/70 bg-gradient-to-b from-indigo-50/80 to-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-purple-border/70 bg-purple-surface/80 p-4 shadow-sm">
               {sortedDates.length === 0 ? (
-                <p className="py-4 text-center text-xs text-gray-400">No active bookings found.</p>
+                <p className="py-4 text-center text-xs text-text-tertiary">No active bookings found.</p>
               ) : (
                 <div className="flex flex-col gap-3">
                   {/* Summary strip */}
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 font-semibold text-indigo-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-surface-strong px-3 py-1 font-semibold text-purple-text">
+                      <span className="h-1.5 w-1.5 rounded-full bg-purple-solid" />
                       {activeTrips.length} active trip{activeTrips.length !== 1 ? "s" : ""}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 font-semibold text-gray-600">
-                      <CalendarDays className="h-3 w-3 text-gray-400" />
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1 font-semibold text-text-secondary">
+                      <CalendarDays className="h-3 w-3 text-text-tertiary" />
                       {sortedDates.length} date{sortedDates.length !== 1 ? "s" : ""} booked
                     </span>
                     {past.length > 0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-surface px-3 py-1 font-semibold text-warning-text ring-1 ring-inset ring-warning-border">
+                        <span className="h-1.5 w-1.5 rounded-full bg-warning-solid" />
                         {past.reduce((s, d) => s + byDate.get(d)!.length, 0)} trip{past.reduce((s, d) => s + byDate.get(d)!.length, 0) !== 1 ? "s" : ""} on past dates still active
                       </span>
                     )}
@@ -1150,31 +1042,31 @@ function AdminDashboard() {
                           key={d}
                           className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] ${
                             isToday
-                              ? "border-indigo-200 bg-indigo-50"
+                              ? "border-purple-border bg-purple-surface"
                               : isPast
-                              ? "border-amber-200/70 bg-amber-50/60"
-                              : "border-gray-100 bg-white"
+                              ? "border-warning-border/70 bg-warning-surface/60"
+                              : "border-separator-border bg-background-primary-default"
                           }`}
                         >
-                          <span className={`w-9 shrink-0 text-[11px] font-semibold uppercase tracking-wide ${isPast ? "text-amber-600" : isToday ? "text-indigo-600" : "text-gray-400"}`}>
+                          <span className={`w-9 shrink-0 text-caption-2-semibold ${isPast ? "text-warning-text" : isToday ? "text-purple-text" : "text-text-tertiary"}`}>
                             {dayName(d)}
                           </span>
-                          <span className={`flex w-40 shrink-0 items-center gap-2 font-semibold tabular-nums ${isPast ? "text-amber-800" : isToday ? "text-indigo-900" : "text-gray-800"}`}>
+                          <span className={`flex w-40 shrink-0 items-center gap-2 font-semibold tabular-nums ${isPast ? "text-warning-text-strong" : isToday ? "text-purple-text-strong" : "text-text-primary"}`}>
                             {fmtD(d)}
-                            {isToday && <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">Today</span>}
-                            {isPast && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700">Past</span>}
+                            {isToday && <span className="rounded-full bg-purple-solid px-2 py-0.5 text-[9px] font-semibold text-on-solid">Today</span>}
+                            {isPast && <span className="rounded-full bg-warning-surface-strong px-2 py-0.5 text-[9px] font-semibold text-warning-text">Past</span>}
                           </span>
                           <div className="flex flex-1 flex-wrap gap-1">
                             {tripsOnDay.slice(0, 8).map((t) => (
-                              <span key={t.id} className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200">
+                              <span key={t.id} className="rounded-md bg-background-primary-default px-1.5 py-0.5 font-mono text-caption-2-medium text-text-secondary ring-1 ring-inset ring-separator-border">
                                 {t.tripId}
                               </span>
                             ))}
                             {tripsOnDay.length > 8 && (
-                              <span className="text-[10px] text-gray-400">+{tripsOnDay.length - 8} more</span>
+                              <span className="text-[10px] text-text-tertiary">+{tripsOnDay.length - 8} more</span>
                             )}
                           </div>
-                          <span className={`flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-2 text-[11px] font-bold tabular-nums ${isPast ? "bg-amber-100 text-amber-700" : isToday ? "bg-indigo-200 text-indigo-800" : "bg-emerald-100 text-emerald-700"}`}>
+                          <span className={`flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-2 text-caption-2-semibold tabular-nums ${isPast ? "bg-warning-surface-strong text-warning-text" : isToday ? "bg-purple-surface-strong text-purple-text-strong" : "bg-success-surface-strong text-success-text"}`}>
                             {tripsOnDay.length}
                           </span>
                         </div>
@@ -1183,9 +1075,9 @@ function AdminDashboard() {
                   </div>
 
                   {upcoming.length > 0 && (
-                    <p className="text-[11px] text-gray-400">
-                      Next booking: <span className="font-semibold text-gray-600">{fmtD(upcoming[0])}</span>
-                      {" · "}Furthest booking: <span className="font-semibold text-gray-600">{fmtD(latestDate!)}</span>
+                    <p className="text-[11px] text-text-tertiary">
+                      Next booking: <span className="font-semibold text-text-secondary">{fmtD(upcoming[0])}</span>
+                      {" · "}Furthest booking: <span className="font-semibold text-text-secondary">{fmtD(latestDate!)}</span>
                     </p>
                   )}
                 </div>

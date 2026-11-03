@@ -1,11 +1,13 @@
 "use client";
 
+import { cx } from "@/utils/cx";
+
 type Option<T extends string> = {
   value: T;
   label: string;
-  /** Small count chip after the label. */
+  /** Small count after the label. */
   count?: number;
-  /** Tailwind background class for a leading colour dot. */
+  /** Tailwind background class for a leading status dot, e.g. "bg-success-solid". */
   dot?: string;
 };
 
@@ -14,18 +16,18 @@ type Props<T extends string> = {
   onChange: (v: T) => void;
   options: Option<T>[];
   label: string;
-  /** "sm" for cards, "md" for page-level toolbars (matches the 40px pill height). */
+  /** "sm" inside cards, "md" in page toolbars (40px, matches inputs). */
   size?: "sm" | "md";
 };
 
-/** Pill-shaped segmented control (the `dk-seg` classes keep it visible in dark mode). */
+/** Segmented control: a quiet well with the selected segment raised on it. */
 export function Segmented<T extends string>({ value, onChange, options, label, size = "sm" }: Props<T>) {
   const md = size === "md";
   return (
     <div
       role="group"
       aria-label={label}
-      className={`dk-seg flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-full ${md ? "min-h-10 p-1" : "p-0.5"}`}
+      className={cx("seg-track flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-lg p-0.5", md && "min-h-10 rounded-[10px] p-1")}
     >
       {options.map((o) => {
         const active = value === o.value;
@@ -35,18 +37,16 @@ export function Segmented<T extends string>({ value, onChange, options, label, s
             type="button"
             onClick={() => onChange(o.value)}
             aria-pressed={active}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-full font-semibold transition-colors duration-150 ${
-              md ? "h-8 px-4 text-[13px]" : "px-2.5 py-1 text-[11px]"
-            } ${active ? "dk-seg-active text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            className={cx(
+              "flex items-center gap-1.5 whitespace-nowrap rounded-md outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+              md ? "h-8 px-3.5 text-body-medium" : "h-7 px-2.5 text-caption-1-medium",
+              active ? "seg-thumb text-text-primary" : "text-text-secondary hover:text-text-primary",
+            )}
           >
-            {o.dot && <span className={`h-1.5 w-1.5 rounded-full ${o.dot}`} />}
+            {o.dot && <span className={cx("size-1.5 rounded-full", o.dot)} />}
             {o.label}
             {o.count !== undefined && (
-              <span
-                className={`rounded-full px-1.5 text-[10px] font-bold tabular-nums ${
-                  active ? "bg-blue-100 text-blue-700" : "bg-gray-200/70 text-gray-500"
-                }`}
-              >
+              <span className={cx("font-mono text-caption-1-regular tabular-nums", active ? "text-text-secondary" : "text-text-tertiary")}>
                 {o.count}
               </span>
             )}

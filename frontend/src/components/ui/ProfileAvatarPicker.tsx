@@ -1,6 +1,6 @@
 "use client";
 
-import { Shuffle } from "lucide-react";
+import { RiShuffleLine as Shuffle } from "@remixicon/react";
 import { ProfileAvatar, newAvatarSeed, type AvatarLook } from "@/components/ui/ProfileAvatar";
 import { cn } from "@/lib/utils";
 
@@ -17,15 +17,15 @@ type Props = {
 export function ProfileAvatarPicker({ look, seed, fallbackSeed, onChange }: Props) {
   const shapes = look === "shapes";
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-gray-200 p-3">
+    <div className="flex items-center gap-4 rounded-xl border border-separator-border p-3">
       <ProfileAvatar look={look} seed={seed || fallbackSeed} className="h-16 w-16 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-sm font-medium text-gray-700">Profile picture</p>
+        <p className="text-body-medium text-text-primary">Profile picture</p>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => onChange({ look: look ?? "notionists", seed: newAvatarSeed() })}
-            className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+            className="flex items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3 py-1.5 text-caption-1-semibold text-text-primary shadow-sm hover:bg-fill-2"
           >
             <Shuffle className="h-3.5 w-3.5" /> Shuffle
           </button>
@@ -35,13 +35,13 @@ export function ProfileAvatarPicker({ look, seed, fallbackSeed, onChange }: Prop
             aria-checked={shapes}
             onClick={() => onChange({ look: shapes ? "notionists" : "shapes", seed: seed || fallbackSeed })}
             className={cn(
-              "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors",
-              shapes ? "border-blue-300 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
+              "flex items-center gap-2 rounded-full border px-3 py-1.5 text-caption-1-semibold shadow-sm transition-colors",
+              shapes ? "border-accent-border-strong bg-accent-surface text-accent-text" : "border-separator-border bg-background-primary-default text-text-primary hover:bg-fill-2",
             )}
           >
             {/* Track 24px, knob 10px, 2px inset: off at 2px, on at 12px. */}
-            <span className={cn("relative h-3.5 w-6 shrink-0 rounded-full transition-colors", shapes ? "bg-blue-500" : "bg-gray-300")}>
-              <span className={cn("absolute left-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-[#fff] shadow-sm transition-transform", shapes ? "translate-x-2.5" : "translate-x-0")} />
+            <span className={cn("relative h-3.5 w-6 shrink-0 rounded-full transition-colors", shapes ? "bg-accent-solid" : "bg-fill-4")}>
+              <span className={cn("absolute left-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-fill-2 shadow-sm transition-transform", shapes ? "translate-x-2.5" : "translate-x-0")} />
             </span>
             No Characters
           </button>

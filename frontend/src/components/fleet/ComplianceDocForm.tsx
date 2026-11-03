@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { IndianRupee, Paperclip, Trash2, X } from "lucide-react";
+import { RiMoneyRupeeCircleLine as IndianRupee, RiAttachment2 as Paperclip, RiDeleteBinLine as Trash2, RiCloseLine as X } from "@remixicon/react";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
-import { showError, validateFileSize } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
+import { validateFileSize } from "@/lib/file-limits";
 import type { ComplianceDocInput } from "@/lib/api";
 import type { ComplianceDocMeta } from "@/lib/compliance-docs";
 
@@ -57,7 +58,7 @@ export function ComplianceDocForm({ doc, mode, initial, currentFileName, saving,
       <div className={doc.numberKey ? "grid grid-cols-1 gap-4 sm:grid-cols-2" : ""}>
         <Field label={`Cost of this ${doc.label}`}>
           <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-tertiary">
               <IndianRupee className="h-4 w-4" />
             </span>
             <input
@@ -98,21 +99,21 @@ export function ComplianceDocForm({ doc, mode, initial, currentFileName, saving,
           }}
         />
         {removeFile ? (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-sm text-danger-text">
             <Trash2 className="h-4 w-4 shrink-0" />
             <span className="flex-1 truncate">The current file ({currentFileName}) will be removed</span>
-            <button type="button" onClick={() => setRemoveFile(false)} className="text-xs font-semibold underline">
+            <button type="button" onClick={() => setRemoveFile(false)} className="text-caption-1-semibold underline">
               Keep it
             </button>
           </div>
         ) : file ? (
-          <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
-            <Paperclip className="h-4 w-4 shrink-0 text-blue-500" />
-            <span className="flex-1 truncate text-blue-700">{file.name}</span>
+          <div className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-sm">
+            <Paperclip className="h-4 w-4 shrink-0 text-accent-text" />
+            <span className="flex-1 truncate text-accent-text">{file.name}</span>
             <button
               type="button"
               onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
-              className="text-blue-400 hover:text-blue-600"
+              className="text-accent-text hover:text-accent-text"
             >
               <X className="h-4 w-4" />
             </button>
@@ -121,20 +122,20 @@ export function ComplianceDocForm({ doc, mode, initial, currentFileName, saving,
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-500 transition hover:border-blue-400 hover:text-blue-600"
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border-button-default bg-background-primary-default px-3 py-2 text-sm text-text-secondary transition hover:border-accent-border-strong hover:text-accent-text"
           >
             <Paperclip className="h-4 w-4" />
             Click to attach {renew ? "the new document" : "the right file"}
           </button>
         )}
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-text-tertiary">
           {renew ? "Optional — the old document's file stays in the history." : "Optional — only if the wrong file was uploaded."}
         </p>
         {!renew && currentFileName && !file && !removeFile && (
           <button
             type="button"
             onClick={() => setRemoveFile(true)}
-            className="mt-1 flex w-fit items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 hover:underline"
+            className="mt-1 flex w-fit items-center gap-1 text-caption-1-semibold text-danger-text hover:text-danger-text hover:underline"
           >
             <Trash2 className="h-3.5 w-3.5" /> Wrong file and no replacement yet? Remove the current file
           </button>
@@ -158,14 +159,14 @@ export function ComplianceDocForm({ doc, mode, initial, currentFileName, saving,
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95 disabled:opacity-50"
+          className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2 disabled:opacity-50"
         >
           Back
         </button>
         <button
           type="submit"
           disabled={saving || (renew && !validUntil)}
-          className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving…" : renew ? `Renew ${doc.short}` : "Save Correction"}
         </button>

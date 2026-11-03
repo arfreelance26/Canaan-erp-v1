@@ -2,25 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  CircleDot,
-  Boxes,
-  Wrench,
-  AlertTriangle,
-  BarChart3,
-  ShieldCheck,
-  CheckCircle2,
-  Clock,
-  TrendingDown,
-  Calendar,
-  Gauge,
-  Search,
-  X,
-  Check,
-  ArrowRight,
-} from "lucide-react";
+import { RiRecordCircleLine as CircleDot, RiStackLine as Boxes, RiToolsLine as Wrench, RiAlertLine as AlertTriangle, RiBarChartBoxLine as BarChart3, RiShieldCheckLine as ShieldCheck, RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiArrowRightDownLine as TrendingDown, RiCalendarLine as Calendar, RiDashboard3Line as Gauge, RiSearchLine as Search, RiCloseLine as X, RiCheckLine as Check, RiArrowRightLine as ArrowRight } from "@remixicon/react";
 import { tyreApi, trucksApi, maintenanceApi } from "@/lib/api";
-import { showError } from "@/lib/swal";
+import { showError } from "@/lib/feedback";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { FleetStatusPanel } from "./FleetStatusPanel";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -33,32 +17,34 @@ import type { Truck as TruckType } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 
 
+import { EmptyState } from "@/components/ui/EmptyState";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 const QUICK_LINKS = [
-  { label: "Tyre Management",   href: "/maintenance/tyre-management",  icon: CircleDot, color: "bg-blue-50 text-blue-600 border-blue-200" },
-  { label: "Tyre Inventory",    href: "/maintenance/tyre-inventory",   icon: Boxes,     color: "bg-violet-50 text-violet-600 border-violet-200" },
-  { label: "Truck Maintenance", href: "/maintenance/trucks",           icon: Wrench,    color: "bg-amber-50 text-amber-600 border-amber-200" },
+  { label: "Tyre Management",   href: "/maintenance/tyre-management",  icon: CircleDot, color: "bg-accent-surface text-accent-text border-accent-border" },
+  { label: "Tyre Inventory",    href: "/maintenance/tyre-inventory",   icon: Boxes,     color: "bg-purple-surface text-purple-text border-purple-border" },
+  { label: "Truck Maintenance", href: "/maintenance/trucks",           icon: Wrench,    color: "bg-warning-surface text-warning-text border-warning-border" },
 ];
 
 const PANEL_TONE = {
-  purple: { border: "border-purple-200/70", head: "from-purple-50/70", chip: "bg-purple-100 text-purple-600" },
-  emerald: { border: "border-emerald-200/70", head: "from-emerald-50/70", chip: "bg-emerald-100 text-emerald-600" },
-  blue: { border: "border-blue-200/70", head: "from-blue-50/70", chip: "bg-blue-100 text-blue-600" },
-  red: { border: "border-red-200/70", head: "from-red-50/70", chip: "bg-red-100 text-red-600" },
-  amber: { border: "border-amber-200/70", head: "from-amber-50/70", chip: "bg-amber-100 text-amber-600" },
+  purple: { border: "border-purple-border/70", head: "", chip: "bg-purple-surface-strong text-purple-text" },
+  emerald: { border: "border-success-border/70", head: "", chip: "bg-success-surface-strong text-success-text" },
+  blue: { border: "border-accent-border/70", head: "", chip: "bg-accent-surface-strong text-accent-text" },
+  red: { border: "border-danger-border/70", head: "", chip: "bg-danger-surface-strong text-danger-text" },
+  amber: { border: "border-warning-border/70", head: "", chip: "bg-warning-surface-strong text-warning-text" },
 } as const;
 
 const HEADER_LINK =
-  "group flex h-8 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 text-xs font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md";
+  "group flex h-8 items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default px-3.5 text-caption-1-semibold text-text-primary shadow-sm transition duration-300 hover:shadow-md";
 
 function AllClear({ title, text }: { title: string; text: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-5 py-8 text-center">
-      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 ring-8 ring-emerald-50">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-success-surface-strong text-success-text ring-8 ring-success-border">
         <Check className="h-7 w-7" strokeWidth={2.5} />
       </span>
       <div>
-        <p className="text-sm font-semibold text-gray-900">{title}</p>
-        <p className="text-xs text-gray-500">{text}</p>
+        <p className="text-body-semibold text-text-primary">{title}</p>
+        <p className="text-xs text-text-secondary">{text}</p>
       </div>
     </div>
   );
@@ -75,15 +61,15 @@ function Panel({ icon: Icon, title, subtitle, tone, right, className = "", child
 }) {
   const c = PANEL_TONE[tone];
   return (
-    <div className={`dk-inset flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm ${c.border} ${className}`}>
-      <div className={`flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r ${c.head} via-white to-white px-5 py-3.5`}>
+    <div className={`flex flex-col overflow-hidden rounded-2xl border bg-background-primary-default shadow-sm ${c.border} ${className}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-3 border-b border-separator-border ${c.head} px-5 py-3.5`}>
         <div className="flex items-center gap-3">
           <span className={`flex h-8 w-8 items-center justify-center rounded-full ${c.chip}`}>
             <Icon className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-sm font-bold text-gray-900">{title}</h2>
-            {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+            <h2 className="text-body-semibold text-text-primary">{title}</h2>
+            {subtitle && <p className="text-xs text-text-secondary">{subtitle}</p>}
           </div>
         </div>
         {right}
@@ -95,10 +81,10 @@ function Panel({ icon: Icon, title, subtitle, tone, right, className = "", child
 
 type Health = "replace" | "critical" | "wear" | "good";
 const HEALTH_META: Record<Health, { label: string; pill: string; bar: string; chip: string; active: string }> = {
-  replace: { label: "Replace", pill: "bg-red-50 text-red-700", bar: "bg-red-500", chip: "bg-red-50 text-red-700", active: "bg-red-600 text-white" },
-  critical: { label: "Critical", pill: "bg-orange-50 text-orange-700", bar: "bg-orange-500", chip: "bg-orange-50 text-orange-700", active: "bg-orange-500 text-white" },
-  wear: { label: "Wear", pill: "bg-amber-50 text-amber-700", bar: "bg-amber-400", chip: "bg-amber-50 text-amber-700", active: "bg-amber-500 text-white" },
-  good: { label: "Good", pill: "bg-emerald-50 text-emerald-700", bar: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700", active: "bg-emerald-600 text-white" },
+  replace: { label: "Replace", pill: "bg-danger-surface text-danger-text", bar: "bg-danger-solid", chip: "bg-danger-surface text-danger-text", active: "bg-danger-solid text-on-solid" },
+  critical: { label: "Critical", pill: "bg-orange-surface text-orange-text", bar: "bg-orange-solid", chip: "bg-orange-surface text-orange-text", active: "bg-orange-solid text-on-solid" },
+  wear: { label: "Wear", pill: "bg-warning-surface text-warning-text", bar: "bg-warning-solid", chip: "bg-warning-surface text-warning-text", active: "bg-warning-solid text-on-solid" },
+  good: { label: "Good", pill: "bg-success-surface text-success-text", bar: "bg-success-solid", chip: "bg-success-surface text-success-text", active: "bg-success-solid text-on-solid" },
 };
 const healthOf = (pct: number | null): Health | null =>
   pct === null ? null : pct <= 0 ? "replace" : pct <= 20 ? "critical" : pct <= 50 ? "wear" : "good";
@@ -217,20 +203,12 @@ export function TyreManagerDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white text-orange-600 shadow-sm">
-              <Wrench className="h-5 w-5" />
-            </span>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Maintenance Dashboard</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Fleet tyre health, fitment status, and maintenance overview</p>
-          </div>
-        </div>
+        <DashboardHero illustration="maintenance" title="Maintenance" description="Tyre health, fitment and maintenance across the fleet" />
         <div className="flex flex-wrap items-center gap-3">
           {!loading && criticalTyres > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-              <span className="text-xs font-semibold text-red-700">{criticalTyres} tyre{criticalTyres > 1 ? "s" : ""} need immediate replacement</span>
+            <div className="flex items-center gap-2 rounded-xl border border-danger-border bg-danger-surface px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-danger-text" />
+              <span className="text-caption-1-semibold text-danger-text">{criticalTyres} tyre{criticalTyres > 1 ? "s" : ""} need immediate replacement</span>
             </div>
           )}
         </div>
@@ -267,11 +245,11 @@ export function TyreManagerDashboard() {
 
       {/* Quick Access */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Quick Access</h2>
+        <h2 className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
         <div className="grid grid-cols-3 gap-3 sm:max-w-md">
           {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
             <Link key={href} href={href}
-              className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center text-xs font-semibold transition-all hover:-translate-y-1 hover:shadow-md ${color}`}
+              className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center text-caption-1-semibold transition hover:shadow-md ${color}`}
             >
               <Icon className="h-6 w-6" />
               {label}
@@ -296,7 +274,7 @@ export function TyreManagerDashboard() {
           }
           right={
             <label
-              className={`flex h-8 cursor-text items-center overflow-hidden rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm transition-all duration-300 hover:border-gray-300 focus-within:border-purple-300 focus-within:ring-2 focus-within:ring-purple-100 ${
+              className={`flex h-8 cursor-text items-center overflow-hidden rounded-full border border-separator-border bg-background-primary-default text-text-tertiary shadow-sm transition duration-300 hover:border-border-button-default focus-within:border-purple-border-strong focus-within:ring-2 focus-within:ring-purple-border ${
                 tyreQuery ? "w-56" : "w-8 hover:w-56 focus-within:w-56"
               }`}
             >
@@ -306,10 +284,10 @@ export function TyreManagerDashboard() {
                 onChange={(e) => setTyreQuery(e.target.value)}
                 placeholder="Search tyres…"
                 aria-label="Search tyres"
-                className="ml-2 min-w-0 flex-1 bg-transparent pr-2 text-xs text-gray-700 outline-none placeholder:text-gray-400"
+                className="ml-2 min-w-0 flex-1 bg-transparent pr-2 text-xs text-text-primary outline-none placeholder:text-text-placeholder"
               />
               {tyreQuery && (
-                <button type="button" onClick={(e) => { e.preventDefault(); setTyreQuery(""); }} aria-label="Clear search" className="mr-2 shrink-0 text-gray-400 hover:text-gray-600">
+                <button type="button" onClick={(e) => { e.preventDefault(); setTyreQuery(""); }} aria-label="Clear search" className="mr-2 shrink-0 text-text-tertiary hover:text-text-secondary">
                   <X className="h-3 w-3" />
                 </button>
               )}
@@ -319,7 +297,7 @@ export function TyreManagerDashboard() {
           {loading ? (
             <div className="space-y-3">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : tyreLifeRows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400">No tyres currently fitted.</p>
+            <p className="py-6 text-center text-sm text-text-tertiary">No tyres currently fitted.</p>
           ) : (
             <>
               {/* Health chips — click to filter, click again to clear */}
@@ -334,72 +312,72 @@ export function TyreManagerDashboard() {
                         type="button"
                         onClick={() => setHealthFilter((prev) => (prev === h ? null : h))}
                         aria-pressed={active}
-                        className={`inline-flex items-center gap-2 rounded-full py-0.5 pl-3 pr-0.5 text-[11px] font-bold uppercase tracking-wide transition-colors duration-150 ${
+                        className={`inline-flex items-center gap-2 rounded-full py-0.5 pl-3 pr-0.5 text-caption-2-semibold transition-colors duration-150 ${
                           active ? HEALTH_META[h].active : `${HEALTH_META[h].chip} hover:brightness-95`
                         }`}
                       >
                         {HEALTH_META[h].label}
-                        <span className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-[11px] font-extrabold tabular-nums ${active ? "bg-white/25 text-white" : "bg-white/80"}`}>
+                        <span className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-caption-2-semibold tabular-nums ${active ? "bg-on-solid/25 text-on-solid" : "bg-background-primary-default"}`}>
                           {healthCounts[h]}
                         </span>
                       </button>
                     );
                   })}
                 {healthFilter && (
-                  <button type="button" onClick={() => setHealthFilter(null)} className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
+                  <button type="button" onClick={() => setHealthFilter(null)} className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold text-text-tertiary transition-colors hover:bg-fill-3 hover:text-text-secondary">
                     <X className="h-3 w-3" /> Clear
                   </button>
                 )}
               </div>
 
-              <div className="overflow-hidden rounded-xl border border-gray-100">
+              <div className="overflow-hidden rounded-xl border border-separator-border">
                 <div className="custom-scrollbar max-h-[465px] overflow-auto">
                   <table className="w-full min-w-[640px] text-left text-xs">
                     <thead className="sticky top-0 z-10">
-                      <tr className="border-b border-gray-100 bg-gray-50">
+                      <tr className="border-b border-separator-border bg-fill-1">
                         {["Truck", "Position", "Tyre No.", "Brand", "Km Driven", "Life left", "Status"].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">{h}</th>
+                          <th key={h} className="px-4 py-2.5 text-caption-2-semibold text-text-secondary">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-separator-border">
                       {visibleLifeRows.length === 0 ? (
-                        <tr><td colSpan={7} className="px-4 py-10 text-center text-xs text-gray-400">No tyres match this filter.</td></tr>
+                        <tr><td colSpan={7} className="p-0"><EmptyState size="compact" illustration="not-found" title="No tyres match this filter" /></td></tr>
                       ) : (
                         visibleLifeRows.map(({ f, tyre, truck, kmDriven, remaining, lifePct }) => {
                           const h = healthOf(lifePct);
                           return (
-                            <tr key={f.id} className="transition-colors hover:bg-gray-50/70">
+                            <tr key={f.id} className="transition-colors hover:bg-fill-2">
                               <td className="px-4 py-2.5">
-                                <p className="font-semibold text-gray-900">{truck.truckId}</p>
-                                <p className="text-[10px] text-gray-400">{truck.registrationNumber}</p>
+                                <p className="font-semibold text-text-primary">{truck.truckId}</p>
+                                <p className="text-[10px] text-text-tertiary">{truck.registrationNumber}</p>
                               </td>
-                              <td className="px-4 py-2.5 font-medium text-gray-700">{f.position}</td>
-                              <td className="px-4 py-2.5 font-mono text-[11px] text-gray-600">{tyre.tyreNumber}</td>
-                              <td className="px-4 py-2.5 text-gray-600">{tyre.brand}</td>
-                              <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-gray-700">{kmDriven.toLocaleString("en-IN")} km</td>
+                              <td className="px-4 py-2.5 font-medium text-text-primary">{f.position}</td>
+                              <td className="px-4 py-2.5 font-mono text-[11px] text-text-secondary">{tyre.tyreNumber}</td>
+                              <td className="px-4 py-2.5 text-text-secondary">{tyre.brand}</td>
+                              <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-text-primary">{kmDriven.toLocaleString("en-IN")} km</td>
                               <td className="min-w-[130px] px-4 py-2.5">
                                 {remaining !== null && lifePct !== null && h ? (
                                   <div className="flex flex-col gap-1">
-                                    <span className={`tabular-nums ${remaining <= 0 ? "font-bold text-red-600" : remaining <= 5000 ? "font-semibold text-orange-600" : "text-gray-700"}`}>
+                                    <span className={`tabular-nums ${remaining <= 0 ? "font-semibold text-danger-text" : remaining <= 5000 ? "font-semibold text-orange-text" : "text-text-primary"}`}>
                                       {remaining <= 0 ? "Overdue" : `${remaining.toLocaleString("en-IN")} km`}
                                     </span>
-                                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200/70">
+                                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-fill-3">
                                       <div className={`h-full rounded-full ${HEALTH_META[h].bar}`} style={{ width: `${Math.max(lifePct, remaining <= 0 ? 100 : 4)}%`, opacity: remaining <= 0 ? 0.35 : 1 }} />
                                     </div>
                                   </div>
                                 ) : (
-                                  <span className="text-gray-300">—</span>
+                                  <span className="text-text-tertiary">—</span>
                                 )}
                               </td>
                               <td className="px-4 py-2.5">
                                 {h ? (
-                                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${HEALTH_META[h].pill}`}>
+                                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-caption-2-semibold ${HEALTH_META[h].pill}`}>
                                     {h === "replace" ? <AlertTriangle className="h-3 w-3" /> : h === "critical" ? <TrendingDown className="h-3 w-3" /> : <i className="h-1.5 w-1.5 rounded-full bg-current" />}
                                     {HEALTH_META[h].label}
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] text-gray-300">N/A</span>
+                                  <span className="text-[10px] text-text-tertiary">N/A</span>
                                 )}
                               </td>
                             </tr>
@@ -410,8 +388,8 @@ export function TyreManagerDashboard() {
                   </table>
                 </div>
               </div>
-              <p className="mt-2 text-[11px] text-gray-500">
-                Showing <span className="font-semibold tabular-nums text-gray-700">{visibleLifeRows.length}</span> of {tyreLifeRows.length} fitted tyres · shortest life first
+              <p className="mt-2 text-[11px] text-text-secondary">
+                Showing <span className="font-semibold tabular-nums text-text-primary">{visibleLifeRows.length}</span> of {tyreLifeRows.length} fitted tyres · shortest life first
               </p>
             </>
           )}
@@ -424,40 +402,40 @@ export function TyreManagerDashboard() {
             {loading ? (
               <div className="space-y-3"><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-full" /></div>
             ) : totalTyres === 0 ? (
-              <p className="text-sm text-gray-400">No tyres.</p>
+              <p className="text-sm text-text-tertiary">No tyres.</p>
             ) : (
               <div className="flex flex-col gap-3.5">
                 <div className="flex items-end justify-between">
                   <div>
-                    <p className="text-3xl font-bold tabular-nums text-gray-900">{totalTyres}</p>
-                    <p className="text-xs text-gray-500">tyres in inventory</p>
+                    <p className="text-display-4-semibold tabular-nums text-text-primary">{totalTyres}</p>
+                    <p className="text-xs text-text-secondary">tyres in inventory</p>
                   </div>
                 </div>
-                <div className="flex h-2.5 overflow-hidden rounded-full bg-gray-200/70">
-                  <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${(newCount / totalTyres) * 100}%` }} />
-                  <div className="h-full bg-amber-400 transition-all duration-700" style={{ width: `${(retreadCount / totalTyres) * 100}%` }} />
+                <div className="flex h-2.5 overflow-hidden rounded-full bg-fill-3">
+                  <div className="h-full bg-success-solid transition duration-700" style={{ width: `${(newCount / totalTyres) * 100}%` }} />
+                  <div className="h-full bg-warning-solid transition duration-700" style={{ width: `${(retreadCount / totalTyres) * 100}%` }} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {[
-                    { label: "New", n: newCount, dot: "bg-emerald-500" },
-                    { label: "Rethreaded", n: retreadCount, dot: "bg-amber-400" },
+                    { label: "New", n: newCount, dot: "bg-success-solid" },
+                    { label: "Rethreaded", n: retreadCount, dot: "bg-warning-solid" },
                   ].map((r) => (
                     <div key={r.label} className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-2 text-gray-600"><i className={`h-2 w-2 rounded-full ${r.dot}`} />{r.label}</span>
-                      <span className="font-semibold tabular-nums text-gray-900">
-                        {r.n} <span className="font-normal text-gray-400">({Math.round((r.n / totalTyres) * 100)}%)</span>
+                      <span className="flex items-center gap-2 text-text-secondary"><i className={`h-2 w-2 rounded-full ${r.dot}`} />{r.label}</span>
+                      <span className="font-semibold tabular-nums text-text-primary">
+                        {r.n} <span className="font-normal text-text-tertiary">({Math.round((r.n / totalTyres) * 100)}%)</span>
                       </span>
                     </div>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Fitted</p>
-                    <p className="text-lg font-bold tabular-nums text-gray-900">{fittedCount}</p>
+                  <div className="rounded-xl border border-purple-border bg-purple-surface px-3 py-2">
+                    <p className="text-caption-2-semibold text-purple-text">Fitted</p>
+                    <p className="text-title-3-semibold tabular-nums text-text-primary">{fittedCount}</p>
                   </div>
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">In stock</p>
-                    <p className="text-lg font-bold tabular-nums text-gray-900">{availableCount}</p>
+                  <div className="rounded-xl border border-success-border bg-success-surface px-3 py-2">
+                    <p className="text-caption-2-semibold text-success-text">In stock</p>
+                    <p className="text-title-3-semibold tabular-nums text-text-primary">{availableCount}</p>
                   </div>
                 </div>
               </div>
@@ -469,7 +447,7 @@ export function TyreManagerDashboard() {
             {loading ? (
               <div className="space-y-3"><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-full" /></div>
             ) : topBrands.length === 0 ? (
-              <p className="text-sm text-gray-400">No data.</p>
+              <p className="text-sm text-text-tertiary">No data.</p>
             ) : (
               <div className="flex flex-col gap-3">
                 {topBrands.map(([brand, count], i) => {
@@ -477,17 +455,17 @@ export function TyreManagerDashboard() {
                   return (
                     <div key={brand} className="flex flex-col gap-1.5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-2 font-medium text-gray-800">
-                          <span className="w-3 text-[10px] font-bold tabular-nums text-gray-400">{i + 1}</span>
+                        <span className="flex items-center gap-2 font-medium text-text-primary">
+                          <span className="w-3 text-caption-2-semibold tabular-nums text-text-tertiary">{i + 1}</span>
                           {brand}
                         </span>
-                        <span className="font-semibold tabular-nums text-gray-900">
-                          {count} <span className="font-normal text-gray-400">({pct}%)</span>
+                        <span className="font-semibold tabular-nums text-text-primary">
+                          {count} <span className="font-normal text-text-tertiary">({pct}%)</span>
                         </span>
                       </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200/70">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-fill-3">
                         <div
-                          className={`h-full rounded-full bg-gradient-to-r transition-all duration-700 ${i === 0 ? "from-blue-500 to-indigo-500" : "from-blue-400/80 to-indigo-400/80"}`}
+                          className={`h-full rounded-full bg-accent-solid transition duration-700 ${i === 0 ? " " : " "}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -495,7 +473,7 @@ export function TyreManagerDashboard() {
                   );
                 })}
                 {otherBrandCount > 0 && (
-                  <p className="text-[11px] text-gray-500">+ {otherBrandCount} tyres from other brands</p>
+                  <p className="text-[11px] text-text-secondary">+ {otherBrandCount} tyres from other brands</p>
                 )}
               </div>
             )}
@@ -518,7 +496,7 @@ export function TyreManagerDashboard() {
           }
           right={
             <Link href="/maintenance/truck-records" className={HEADER_LINK}>
-              All records <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+              All records <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300" />
             </Link>
           }
         >
@@ -526,31 +504,31 @@ export function TyreManagerDashboard() {
             <div className="space-y-3">{[1,2,3,4,5].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : recentRecords.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-400 ring-8 ring-gray-50">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-fill-2 text-text-tertiary ring-8 ring-separator-border">
                 <Calendar className="h-6 w-6" />
               </span>
-              <p className="text-sm text-gray-500">No maintenance records yet</p>
+              <p className="text-sm text-text-secondary">No maintenance records yet</p>
             </div>
           ) : (
             <ul className="custom-scrollbar flex max-h-[300px] flex-col gap-1.5 overflow-y-auto pr-1">
               {recentRecords.map((r) => {
                 const truck = truckByDbId.get(r.truckId);
                 return (
-                  <li key={r.id} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-blue-200">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <li key={r.id} className="flex items-center gap-3 rounded-xl border border-separator-border bg-background-primary-default px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-accent-border">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-accent-text">
                       <Wrench className="h-4 w-4" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-900">{r.maintenanceType}</p>
-                      <p className="truncate text-[11px] text-gray-500">
+                      <p className="truncate text-caption-1-semibold text-text-primary">{r.maintenanceType}</p>
+                      <p className="truncate text-[11px] text-text-secondary">
                         {truck ? `${truck.truckId} · ${truck.registrationNumber}` : r.truckId}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-xs font-bold tabular-nums text-gray-900">
+                      <p className="text-caption-1-semibold tabular-nums text-text-primary">
                         {r.cost ? `₹${Number(r.cost).toLocaleString("en-IN")}` : "—"}
                       </p>
-                      <p className="text-[10px] tabular-nums text-gray-500">{formatDate(r.date)}</p>
+                      <p className="text-[10px] tabular-nums text-text-secondary">{formatDate(r.date)}</p>
                     </div>
                   </li>
                 );

@@ -10,14 +10,15 @@ import type { LeaveApplicantCategory, LeaveRequest } from "@/types/leave-request
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/feedback";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
-import { CheckCircle2, History, Send, Check, X } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle2, RiHistoryLine as History, RiSendPlaneLine as Send, RiCheckLine as Check, RiCloseLine as X } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<LeaveRequestEditEventRow["event"], typeof Send> = {
   "Leave Requested": Send,
   "Leave Approved": Check,
@@ -25,9 +26,9 @@ const EDIT_EVENT_ICON: Record<LeaveRequestEditEventRow["event"], typeof Send> = 
 };
 
 const EDIT_EVENT_COLOR: Record<LeaveRequestEditEventRow["event"], string> = {
-  "Leave Requested": "bg-blue-100 text-blue-700",
-  "Leave Approved": "bg-emerald-100 text-emerald-700",
-  "Leave Rejected": "bg-red-100 text-red-700",
+  "Leave Requested": "bg-accent-surface-strong text-accent-text",
+  "Leave Approved": "bg-success-surface-strong text-success-text",
+  "Leave Rejected": "bg-danger-surface-strong text-danger-text",
 };
 
 const categoryLabels: Record<LeaveApplicantCategory, string> = {
@@ -151,12 +152,12 @@ export default function LeaveApprovalsPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text shadow-sm">
               <CheckCircle2 className="h-5 w-5" />
             </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Leave Approvals</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Leave Approvals</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Review and respond to leave requests from drivers, commercial managers, accounts, maintenance, and staff
             </p>
           </div>
@@ -165,7 +166,7 @@ export default function LeaveApprovalsPage() {
 <button
           type="button"
           onClick={openEditHistory}
-          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
         >
           <History className="h-4 w-4" />
           Edit History
@@ -174,17 +175,17 @@ export default function LeaveApprovalsPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-4 sm:max-w-md">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Pending</p>
-          <p className="mt-1 text-2xl font-bold text-yellow-600">{summary.Pending}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Pending</p>
+          <p className="mt-1 text-title-1-semibold text-warning-text">{summary.Pending}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Approved</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">{summary.Approved}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Approved</p>
+          <p className="mt-1 text-title-1-semibold text-success-text">{summary.Approved}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Rejected</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{summary.Rejected}</p>
+        <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
+          <p className="text-caption-1-medium text-text-secondary">Rejected</p>
+          <p className="mt-1 text-title-1-semibold text-danger-text">{summary.Rejected}</p>
         </div>
       </div>
 
@@ -193,20 +194,20 @@ export default function LeaveApprovalsPage() {
           type="button"
           onClick={() => setFilter("All")}
           className={cn(
-            "relative rounded-full px-4 py-2 text-sm font-medium shadow-sm transition-all",
+            "relative rounded-full px-4 py-2 text-body-medium shadow-sm transition",
             filter === "All"
-              ? "bg-blue-600 text-white shadow-blue-200"
-              : "border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+              ? "bg-accent-solid text-on-solid"
+              : "border border-separator-border bg-background-primary-default text-text-secondary hover:border-border-button-default hover:bg-fill-2"
           )}
         >
           All
           {pendingCounts.All > 0 && (
             <span
               className={cn(
-                "absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold ring-2",
+                "absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-caption-2-semibold ring-2",
                 filter === "All"
-                  ? "bg-amber-400 text-amber-900 ring-blue-600"
-                  : "bg-red-500 text-white ring-white"
+                  ? "bg-warning-solid text-warning-text-strong ring-accent-solid"
+                  : "bg-danger-solid text-on-solid ring-background-primary-default"
               )}
             >
               {pendingCounts.All}
@@ -219,20 +220,20 @@ export default function LeaveApprovalsPage() {
             type="button"
             onClick={() => setFilter(category)}
             className={cn(
-              "relative rounded-full px-4 py-2 text-sm font-medium shadow-sm transition-all",
+              "relative rounded-full px-4 py-2 text-body-medium shadow-sm transition",
               filter === category
-                ? "bg-blue-600 text-white shadow-blue-200"
-                : "border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                ? "bg-accent-solid text-on-solid"
+                : "border border-separator-border bg-background-primary-default text-text-secondary hover:border-border-button-default hover:bg-fill-2"
             )}
           >
             {categoryLabels[category]}
             {pendingCounts[category] > 0 && (
               <span
                 className={cn(
-                  "absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold ring-2",
+                  "absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-caption-2-semibold ring-2",
                   filter === category
-                    ? "bg-amber-400 text-amber-900 ring-blue-600"
-                    : "bg-red-500 text-white ring-white"
+                    ? "bg-warning-solid text-warning-text-strong ring-accent-solid"
+                    : "bg-danger-solid text-on-solid ring-background-primary-default"
                 )}
               >
                 {pendingCounts[category]}
@@ -271,42 +272,40 @@ export default function LeaveApprovalsPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by applicant or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const q = editHistorySearch.toLowerCase();
             const filtered = editHistoryEvents.filter((ev) =>
               !q || ev.applicantName.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q)
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No leave requests have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "all-done" : "not-found"} title={editHistoryEvents.length === 0 ? "No leave requests have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Applicant</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Applicant</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={`${ev.id}-${ev.event}`}>
-                          <td className="px-3 py-2 font-semibold text-gray-800">
-                            {ev.applicantName} <span className="text-[11px] font-normal text-gray-400">({ev.category})</span>
+                          <td className="px-3 py-2 font-semibold text-text-primary">
+                            {ev.applicantName} <span className="text-caption-2-regular text-text-tertiary">({ev.category})</span>
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 text-text-secondary">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

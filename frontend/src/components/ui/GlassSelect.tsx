@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown } from "lucide-react";
+import { RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
 interface Option {
@@ -89,10 +89,10 @@ export function GlassSelect({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border bg-white/60 px-3 py-2 text-left shadow-[0_2px_10px_rgba(0,0,0,0.04)] backdrop-blur-md transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-blue-500/10",
-          disabled ? "cursor-not-allowed opacity-60 bg-gray-50/50" : "cursor-pointer hover:bg-white/80 hover:shadow-md hover:border-blue-200/80",
-          isOpen ? "border-blue-400 bg-white shadow-md ring-4 ring-blue-500/10" : "border-gray-200",
-          !selectedOption ? "text-gray-500" : "text-gray-900 font-medium"
+          "flex w-full items-center justify-between gap-2 rounded-lg border bg-background-primary-default px-3 py-2 text-left shadow-[0_2px_10px_rgba(0,0,0,0.04)] transition duration-300 focus:outline-none focus:ring-4 focus:ring-accent-solid/10",
+          disabled ? "cursor-not-allowed opacity-60 bg-fill-1" : "cursor-pointer hover:bg-fill-2 hover:shadow-md hover:border-accent-border/80",
+          isOpen ? "border-accent-border-strong bg-background-primary-default shadow-md ring-4 ring-accent-solid/10" : "border-separator-border",
+          !selectedOption ? "text-text-secondary" : "text-text-primary font-medium"
         )}
       >
         <span className="block truncate">
@@ -100,8 +100,8 @@ export function GlassSelect({
         </span>
         <ChevronDown
           className={cn(
-            "h-4 w-4 shrink-0 text-gray-400 transition-transform duration-300",
-            isOpen ? "rotate-180 text-blue-500" : ""
+            "h-4 w-4 shrink-0 text-text-tertiary transition-transform duration-300",
+            isOpen ? "rotate-180 text-accent-text" : ""
           )}
         />
       </button>
@@ -110,7 +110,7 @@ export function GlassSelect({
         <div 
           ref={dropdownRef}
           style={dropdownStyle}
-          className="z-[9999] overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar"
+          className="z-[9999] overflow-y-auto rounded-xl border border-separator-border bg-background-primary-default p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] animate-dropdown duration-200 custom-scrollbar"
         >
           {options.map((option, index) => {
             const isSelected = String(option.value) === String(value);
@@ -119,10 +119,10 @@ export function GlassSelect({
                 key={`${option.value}-${index}`}
                 type="button"
                 className={cn(
-                  "flex w-full items-center rounded-lg px-3 py-2 text-left transition-all duration-200",
+                  "flex w-full items-center rounded-lg px-3 py-2 text-left transition duration-200",
                   isSelected
-                    ? "bg-blue-50/80 font-semibold text-blue-700 shadow-[0_2px_10px_rgba(27,43,94,0.1)]"
-                    : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
+                    ? "bg-accent-surface/80 font-semibold text-accent-text shadow-md"
+                    : "text-text-primary hover:bg-fill-3 hover:text-text-primary"
                 )}
                 onMouseDown={(e) => {
                   e.preventDefault();

@@ -2,7 +2,7 @@
 
 import { inDateRange } from "@/lib/format-date";
 import { useEffect, useState } from "react";
-import { Truck as TruckIcon, FileText, BarChart3, Activity } from "lucide-react";
+import { RiTruckLine as TruckIcon, RiFileTextLine as FileText, RiBarChartBoxLine as BarChart3, RiPulseLine as Activity } from "@remixicon/react";
 import { trucksApi, tripsApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
@@ -13,11 +13,12 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { TruckRunRecordDialog } from "@/components/maintenance/TruckRunRecordDialog";
 import { TruckBreakdownDialog } from "@/components/maintenance/TruckBreakdownDialog";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 function DetailChip({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className={`truncate text-sm font-medium text-gray-800 ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
+      <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
+      <span className={`truncate text-body-medium text-text-primary ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
     </div>
   );
 }
@@ -66,12 +67,12 @@ export default function TruckRunRecordPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
           <Activity className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Run Record</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Truck Run Record</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">
             Track actual truck run distance and history
           </p>
         </div>
@@ -93,18 +94,15 @@ export default function TruckRunRecordPage() {
       </div>
 
       {filteredTrucks.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm">
-          <TruckIcon className="h-8 w-8 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">{trucks.length === 0 ? "No trucks yet." : "No trucks match these filters."}</p>
-        </div>
+        <EmptyState size="compact" illustration="not-found" title={trucks.length === 0 ? "No trucks yet" : "No trucks match these filters"} className="rounded-xl border border-separator-border bg-background-primary-default" />
       ) : (
         <div className="flex flex-col gap-3">
           {filteredTrucks.map((truck) => (
             <div
               key={truck.id}
-              className="flex items-center gap-5 rounded-xl border border-white/80 bg-white/60 px-5 py-4 shadow-sm backdrop-blur-sm transition-all hover:border-blue-100"
+              className="flex items-center gap-5 rounded-xl border border-separator-border bg-background-primary-default px-5 py-4 shadow-sm transition hover:border-accent-border"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-surface text-accent-text">
                 <TruckIcon className="h-5 w-5" />
               </span>
               <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-6">
@@ -119,7 +117,7 @@ export default function TruckRunRecordPage() {
                 <button
                   type="button"
                   onClick={() => handleViewRecord(truck)}
-                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  className="flex items-center gap-1.5 rounded-lg border border-accent-border bg-accent-surface px-3 py-1.5 text-caption-1-semibold text-accent-text hover:bg-accent-surface-strong"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   View Record
@@ -127,7 +125,7 @@ export default function TruckRunRecordPage() {
                 <button
                   type="button"
                   onClick={() => handleViewBreakdown(truck)}
-                  className="flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                  className="flex items-center gap-1.5 rounded-lg border border-purple-border bg-purple-surface px-3 py-1.5 text-caption-1-semibold text-purple-text hover:bg-purple-surface-strong"
                 >
                   <BarChart3 className="h-3.5 w-3.5" />
                   View Breakdown

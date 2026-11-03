@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2, Plus, X, IdCard, History, Pencil, Trash2, Undo2 } from "lucide-react";
+import { RiDownloadLine as Download, RiFileTextLine as FileText, RiLoader4Line as Loader2, RiAddLine as Plus, RiCloseLine as X, RiProfileLine as IdCard, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2 } from "@remixicon/react";
 import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog, DRAFT_KEY as DRIVER_DRAFT_KEY } from "@/components/drivers/DriverFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { driversApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi, type DriverEditEventRow } from "@/lib/api";
-import { confirmAction, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
 import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
@@ -25,6 +25,7 @@ import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const EDIT_EVENT_ICON: Record<DriverEditEventRow["event"], typeof Plus> = {
   "Driver Created": Plus,
   "Driver Edited": Pencil,
@@ -33,10 +34,10 @@ const EDIT_EVENT_ICON: Record<DriverEditEventRow["event"], typeof Plus> = {
 };
 
 const EDIT_EVENT_COLOR: Record<DriverEditEventRow["event"], string> = {
-  "Driver Created": "bg-blue-100 text-blue-700",
-  "Driver Edited": "bg-amber-100 text-amber-700",
-  "Driver Deleted": "bg-red-100 text-red-700",
-  "Driver Restored": "bg-emerald-100 text-emerald-700",
+  "Driver Created": "bg-accent-surface-strong text-accent-text",
+  "Driver Edited": "bg-warning-surface-strong text-warning-text",
+  "Driver Deleted": "bg-danger-surface-strong text-danger-text",
+  "Driver Restored": "bg-success-surface-strong text-success-text",
 };
 export default function DriversPage() {
   const { user } = useAuth();
@@ -317,7 +318,7 @@ export default function DriversPage() {
 
       pdf.save(`driver-${driver.driverId ?? driver.id}.pdf`);
     } catch {
-      const { showError: se } = await import("@/lib/swal");
+      const { showError: se } = await import("@/lib/feedback");
       se("Failed to generate PDF.");
     } finally {
       setDownloading(false);
@@ -330,12 +331,12 @@ export default function DriversPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
           <IdCard className="h-5 w-5" />
         </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Drivers</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Our Drivers</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               Manage driver records across all branches
             </p>
           </div>
@@ -345,7 +346,7 @@ export default function DriversPage() {
 <button
             type="button"
             onClick={openEditHistory}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm transition duration-300 hover:bg-fill-2"
           >
             <History className="h-4 w-4" />
             Edit History
@@ -354,7 +355,7 @@ export default function DriversPage() {
           <button
             type="button"
             onClick={handleAdd}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Driver
@@ -422,26 +423,26 @@ export default function DriversPage() {
         const isExpired = (v: string) => !!v && new Date(v) < new Date();
         const Field = ({ label, value, expired }: { label: string; value: string; expired?: boolean }) => (
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
-            <span className={`text-sm font-medium ${expired ? "text-red-600" : "text-gray-800"}`}>{value || "—"}</span>
+            <span className="text-caption-1-medium text-text-tertiary">{label}</span>
+            <span className={`text-body-medium ${expired ? "text-danger-text" : "text-text-primary"}`}>{value || "—"}</span>
           </div>
         );
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingDriver(null); }}>
-            <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingDriver(null); }}>
+            <div className="w-full max-w-2xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
                 <div>
-                  <p className="font-semibold text-gray-900">{d.driverId} — {d.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{d.contactNumber} · {d.email}</p>
+                  <p className="font-semibold text-text-primary">{d.driverId} — {d.name}</p>
+                  <p className="text-xs text-text-secondary mt-0.5">{d.contactNumber} · {d.email}</p>
                 </div>
-                <button type="button" onClick={() => setViewingDriver(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                <button type="button" onClick={() => setViewingDriver(null)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3">
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-6">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">General Information</p>
+                  <p className="text-caption-1-semibold text-accent-text mb-3">General Information</p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="Driver ID" value={d.driverId} />
                     <Field label="Name" value={d.name} />
@@ -454,7 +455,7 @@ export default function DriversPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">License & Identity</p>
+                  <p className="text-caption-1-semibold text-accent-text mb-3">License & Identity</p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="Aadhaar Number" value={d.aadhaarNumber} />
                     <Field label="License Number" value={d.licenseNumber} />
@@ -467,7 +468,7 @@ export default function DriversPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Banking Details</p>
+                  <p className="text-caption-1-semibold text-accent-text mb-3">Banking Details</p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="Bank Name" value={d.bankName} />
                     <Field label="Branch Name" value={d.bankBranchName} />
@@ -478,23 +479,23 @@ export default function DriversPage() {
 
                 {(d.photoUrl || d.aadhaarFileName || d.licenseFileName) && (
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
+                    <p className="text-caption-1-semibold text-accent-text mb-3">Uploaded Documents</p>
                     <div className="flex flex-wrap gap-3">
                       {d.photoUrl && (
                         <button type="button" onClick={() => setViewingFile({ url: fileUrl("drivers", d.id, "photo"), title: `${d.name} — Photo` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
                         </button>
                       )}
                       {d.aadhaarFileName && (
                         <button type="button" onClick={() => setViewingFile({ url: fileUrl("drivers", d.id, "aadhaar"), title: `${d.name} — Aadhaar` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Aadhaar
                         </button>
                       )}
                       {d.licenseFileName && (
                         <button type="button" onClick={() => setViewingFile({ url: fileUrl("drivers", d.id, "license"), title: `${d.name} — License` })}
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-surface px-3 py-2 text-caption-1-medium text-accent-text transition-colors hover:bg-accent-surface-strong">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> License
                         </button>
                       )}
@@ -508,7 +509,7 @@ export default function DriversPage() {
                   type="button"
                   onClick={async () => { await handleDownloadPDF(d); setViewingDriver(null); }}
                   disabled={downloading}
-                  className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   {downloading ? "Generating..." : "Download PDF"}
@@ -533,7 +534,7 @@ export default function DriversPage() {
         <div className="flex flex-col gap-4">
           <PillSearch placeholder="Search by driver name, ID, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
-            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+            <p className="py-8 text-center text-sm text-text-tertiary">Loading history…</p>
           ) : (() => {
             const filtered = editHistoryEvents.filter((ev) =>
               !editHistorySearch ||
@@ -542,39 +543,37 @@ export default function DriversPage() {
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">
-                {editHistoryEvents.length === 0 ? "No driver edits have been logged yet." : "No history matches this search."}
-              </p>
+              <EmptyState size="compact" illustration={editHistoryEvents.length === 0 ? "logistics" : "not-found"} title={editHistoryEvents.length === 0 ? "No driver edits have been logged yet" : "No history matches this search"} />
             ) : (
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-separator-border">
                 <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Driver</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                  <thead className="sticky top-0 bg-fill-1">
+                    <tr className="border-b border-separator-border">
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Driver</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">Action</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">By</th>
+                      <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-separator-border">
                     {filtered.map((ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.driverName}</p>
-                            <p className="text-[11px] text-gray-400">{ev.driverIdStr}</p>
+                            <p className="font-semibold text-text-primary">{ev.driverName}</p>
+                            <p className="text-[11px] text-text-tertiary">{ev.driverIdStr}</p>
                           </td>
                           <td className="px-3 py-2">
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-600">
+                          <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}
-                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                            {ev.actorRole && <span className="text-[11px] text-text-tertiary"> ({ev.actorRole})</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
                     })}

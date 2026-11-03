@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useLayoutE
 import { notificationsApi, remindersApi, type Reminder } from "@/lib/api";
 import { subscribeRealtime } from "@/lib/realtime";
 import { useAuth } from "./AuthContext";
-import { showToast } from "@/lib/swal";
+import { showToast } from "@/lib/feedback";
 
 export type SheetAlertNotif = {
   serverId?: number;          // present when persisted in the DB

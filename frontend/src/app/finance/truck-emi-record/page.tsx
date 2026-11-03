@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Landmark, ChevronDown, Truck as TruckIcon, ClipboardList, IndianRupee, Boxes } from "lucide-react";
+import { RiSearchLine as Search, RiBankLine as Landmark, RiArrowDownSLine as ChevronDown, RiTruckLine as TruckIcon, RiFileList3Line as ClipboardList, RiMoneyRupeeCircleLine as IndianRupee, RiStackLine as Boxes } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { trucksApi, maintenanceApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
@@ -14,6 +14,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate, todayIst, overlapsDateRange } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 const OTHER_ASSETS_KEY = "__other__";
 
@@ -28,21 +29,21 @@ const fmtCurCompact = (v: number) => `₹${v.toLocaleString("en-IN", { maximumFr
 function DetailChip({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className={`truncate text-sm font-medium text-gray-800 ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
+      <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
+      <span className={`truncate text-body-medium text-text-primary ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
     </div>
   );
 }
 
 function StatCard({ icon: Icon, label, value, accent }: { icon: typeof TruckIcon; label: string; value: string; accent: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/80 bg-white/60 px-4 py-3.5 shadow-sm backdrop-blur-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-separator-border bg-background-primary-default px-4 py-3.5 shadow-sm">
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent}`}>
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-        <p className="truncate text-lg font-bold leading-tight text-gray-900">{value}</p>
+        <p className="text-caption-2-semibold text-text-tertiary">{label}</p>
+        <p className="truncate text-title-3-semibold leading-tight text-text-primary">{value}</p>
       </div>
     </div>
   );
@@ -178,22 +179,22 @@ export default function TruckEmiRecordPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-border bg-purple-surface text-purple-text shadow-sm">
             <Landmark className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck EMI Record</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Read-only audit view of every loan EMI across the fleet</p>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Truck EMI Record</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Read-only audit view of every loan EMI across the fleet</p>
           </div>
         </div>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <StatCard icon={TruckIcon} label="Trucks" value={String(trucks.length)} accent="bg-blue-50 text-blue-600" />
-        <StatCard icon={ClipboardList} label="Total EMI Entries" value={String(records.length)} accent="bg-violet-50 text-violet-600" />
-        <StatCard icon={Landmark} label="Active EMIs" value={String(activeCount)} accent="bg-amber-50 text-amber-600" />
-        <StatCard icon={IndianRupee} label="Total Monthly EMI (Active)" value={fmtCurCompact(totalMonthlyActive)} accent="bg-emerald-50 text-emerald-600" />
+        <StatCard icon={TruckIcon} label="Trucks" value={String(trucks.length)} accent="bg-accent-surface text-accent-text" />
+        <StatCard icon={ClipboardList} label="Total EMI Entries" value={String(records.length)} accent="bg-purple-surface text-purple-text" />
+        <StatCard icon={Landmark} label="Active EMIs" value={String(activeCount)} accent="bg-warning-surface text-warning-text" />
+        <StatCard icon={IndianRupee} label="Total Monthly EMI (Active)" value={fmtCurCompact(totalMonthlyActive)} accent="bg-success-surface text-success-text" />
       </div>
 
       {/* Filters */}
@@ -201,17 +202,17 @@ export default function TruckEmiRecordPage() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Search: collapsed icon pill that expands on hover / focus / when it holds text */}
         <label
-          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md ${
+          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition duration-300 hover:shadow-md focus-within:scale-105 focus-within:border-accent-border-strong focus-within:shadow-md ${
             search ? "w-72" : "w-10 hover:w-72 focus-within:w-72"
           }`}
         >
-          <Search className="h-4 w-4 shrink-0 text-gray-500" />
+          <Search className="h-4 w-4 shrink-0 text-text-secondary" />
           <input
             type="text"
             placeholder="Search by truck, EMI name, bank, loan no…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full min-w-0 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
+            className="w-full min-w-0 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-placeholder"
           />
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -229,12 +230,7 @@ export default function TruckEmiRecordPage() {
 
       {/* Cards */}
       {visibleGroups.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm">
-          <Landmark className="h-8 w-8 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">
-            {trucks.length === 0 && records.length === 0 ? "No trucks or EMI entries yet." : "No trucks or EMI entries match these filters."}
-          </p>
-        </div>
+        <EmptyState size="compact" illustration="not-found" title={trucks.length === 0 && records.length === 0 ? "No trucks or EMI entries yet" : "No trucks or EMI entries match these filters"} className="rounded-xl border border-separator-border bg-background-primary-default" />
       ) : (
         <div className="flex flex-col gap-3">
           {visibleGroups.map((group) => {
@@ -248,25 +244,25 @@ export default function TruckEmiRecordPage() {
             return (
               <div
                 key={group.key}
-                className={`overflow-hidden rounded-xl border bg-white/60 shadow-sm backdrop-blur-sm transition-all ${
-                  isOpen ? "border-blue-200 ring-1 ring-blue-100" : "border-white/80 hover:border-blue-100"
+                className={`overflow-hidden rounded-xl border bg-background-primary-default shadow-sm transition ${
+                  isOpen ? "border-accent-border ring-1 ring-accent-border" : "border-separator-border hover:border-accent-border"
                 }`}
               >
                 <button
                   type="button"
                   onClick={() => toggle(group.key)}
-                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-white/70 dark:hover:bg-gray-300/20"
+                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-fill-2"
                 >
-                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${
-                    isOther ? "from-gray-100 to-gray-50 text-gray-500" : "from-blue-50 to-indigo-50 text-blue-600"
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-fill-2 ${
+                    isOther ? " text-text-secondary" : " text-accent-text"
                   }`}>
                     {isOther ? <Boxes className="h-5 w-5" /> : <TruckIcon className="h-5 w-5" />}
                   </span>
 
                   {isOther ? (
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-gray-900">Other Financed Assets</p>
-                      <p className="text-xs text-gray-400">EMI entries not linked to a known truck registration</p>
+                      <p className="text-body-semibold text-text-primary">Other Financed Assets</p>
+                      <p className="text-xs text-text-tertiary">EMI entries not linked to a known truck registration</p>
                     </div>
                   ) : (
                     <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-5">
@@ -282,33 +278,33 @@ export default function TruckEmiRecordPage() {
                     {groupRecords.length > 0 && (
                       <div className="hidden items-start gap-4 sm:flex">
                         <div className="flex flex-col items-end gap-0.5">
-                          <span className="text-[11px] text-gray-400">Active monthly EMI</span>
-                          <span className="text-xs font-semibold text-emerald-700">{fmtCurCompact(groupMonthly)}</span>
+                          <span className="text-[11px] text-text-tertiary">Active monthly EMI</span>
+                          <span className="text-caption-1-semibold text-success-text">{fmtCurCompact(groupMonthly)}</span>
                         </div>
                         <div className="flex flex-col items-end gap-0.5">
-                          <span className="text-[11px] text-gray-400">Monthly Finance Cost</span>
-                          <span className="text-xs font-semibold text-blue-700">{fmtCurCompact(groupFinanceCost)}</span>
+                          <span className="text-[11px] text-text-tertiary">Monthly Finance Cost</span>
+                          <span className="text-caption-1-semibold text-accent-text">{fmtCurCompact(groupFinanceCost)}</span>
                         </div>
                       </div>
                     )}
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      groupRecords.length > 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-caption-1-semibold ${
+                      groupRecords.length > 0 ? "bg-accent-surface-strong text-accent-text" : "bg-fill-2 text-text-secondary"
                     }`}>
                       {groupRecords.length} EMI{groupRecords.length !== 1 ? "s" : ""}
                     </span>
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-text-tertiary transition-transform ${isOpen ? "rotate-180" : ""}`} />
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white/80 dark:border-gray-300/20 dark:from-gray-200/40 dark:to-gray-200/60">
+                  <div className="border-t border-separator-border bg-fill-1">
                     {groupRecords.length === 0 ? (
-                      <p className="px-5 py-6 text-center text-sm text-gray-400">No EMI entries for this truck.</p>
+                      <p className="px-5 py-6 text-center text-sm text-text-tertiary">No EMI entries for this truck.</p>
                     ) : (
                       <div className="overflow-x-auto px-3 pb-3 pt-1">
                         <table className="w-full text-left text-sm whitespace-nowrap">
                           <thead>
-                            <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                            <tr className="text-left text-caption-2-semibold text-text-tertiary">
                               <th className="px-3 py-2">EMI Name</th>
                               <th className="px-3 py-2">Bank</th>
                               <th className="px-3 py-2">Loan No.</th>
@@ -327,20 +323,20 @@ export default function TruckEmiRecordPage() {
                               return (
                                 <tr
                                   key={r.id}
-                                  className={`rounded-lg transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-100/10 ${i % 2 === 1 ? "bg-white/70 dark:bg-gray-300/20" : "bg-white/40 dark:bg-transparent"}`}
+                                  className={`rounded-lg transition-colors hover:bg-accent-surface-strong/50 ${i % 2 === 1 ? "bg-background-primary-default " : "bg-background-primary-default "}`}
                                 >
-                                  <td className="rounded-l-lg px-3 py-2.5 font-medium text-gray-900">{r.emiName || "—"}</td>
-                                  <td className="px-3 py-2.5 text-gray-600">{r.bankName || "—"}</td>
-                                  <td className="px-3 py-2.5 font-mono text-xs text-gray-600">{r.loanNumber || "—"}</td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{fmtCur(r.loanAmount)}</td>
-                                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900">{fmtCur(r.emiAmount)}</td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums text-blue-700">{fmtCur(r.monthlyFinanceCost)}</td>
-                                  <td className="px-3 py-2.5 text-gray-600">{r.emiStartDate ? formatDate(r.emiStartDate) : "—"}</td>
-                                  <td className="px-3 py-2.5 text-gray-600">{r.emiEndDate ? formatDate(r.emiEndDate) : "—"}</td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{r.tenureMonths ? `${r.tenureMonths} mo` : "—"}</td>
+                                  <td className="rounded-l-lg px-3 py-2.5 font-medium text-text-primary">{r.emiName || "—"}</td>
+                                  <td className="px-3 py-2.5 text-text-secondary">{r.bankName || "—"}</td>
+                                  <td className="px-3 py-2.5 font-mono text-xs text-text-secondary">{r.loanNumber || "—"}</td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(r.loanAmount)}</td>
+                                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-text-primary">{fmtCur(r.emiAmount)}</td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums text-accent-text">{fmtCur(r.monthlyFinanceCost)}</td>
+                                  <td className="px-3 py-2.5 text-text-secondary">{r.emiStartDate ? formatDate(r.emiStartDate) : "—"}</td>
+                                  <td className="px-3 py-2.5 text-text-secondary">{r.emiEndDate ? formatDate(r.emiEndDate) : "—"}</td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{r.tenureMonths ? `${r.tenureMonths} mo` : "—"}</td>
                                   <td className="rounded-r-lg px-3 py-2.5">
-                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                                      active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-caption-2-semibold ${
+                                      active ? "bg-success-surface-strong text-success-text" : "bg-fill-2 text-text-secondary"
                                     }`}>
                                       {active ? "Active" : "Completed"}
                                     </span>

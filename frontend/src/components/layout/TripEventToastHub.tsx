@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { notificationsApi } from "@/lib/api";
-import { Navigation, CheckCircle2, X, ArrowRight } from "lucide-react";
+import { RiNavigationLine as Navigation, RiCheckboxCircleLine as CheckCircle2, RiCloseLine as X, RiArrowRightLine as ArrowRight } from "@remixicon/react";
 
 type Toast = {
   id: number;
@@ -118,23 +118,23 @@ export function TripEventToastHub() {
               key={toast.id}
               className={`trip-toast pointer-events-auto w-80 overflow-hidden rounded-2xl border shadow-2xl ${
                 isAssigned
-                  ? "border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50"
-                  : "border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50"
+                  ? "border-accent-border bg-accent-surface "
+                  : "border-success-border "
               }`}
             >
               {/* Shrinking progress bar */}
-              <div className={`trip-toast-bar h-0.5 ${isAssigned ? "bg-blue-400" : "bg-emerald-500"}`} />
+              <div className={`trip-toast-bar h-0.5 ${isAssigned ? "bg-accent-solid" : "bg-success-solid"}`} />
 
               <div className="px-4 py-3">
                 {/* Title row */}
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isAssigned ? "bg-blue-100" : "bg-emerald-100"}`}>
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isAssigned ? "bg-accent-surface-strong" : "bg-success-surface-strong"}`}>
                       {isAssigned
-                        ? <Navigation  className="h-3.5 w-3.5 text-blue-600"    />
-                        : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                        ? <Navigation  className="h-3.5 w-3.5 text-accent-text"    />
+                        : <CheckCircle2 className="h-3.5 w-3.5 text-success-text" />}
                     </div>
-                    <span className={`text-xs font-bold uppercase tracking-wider ${isAssigned ? "text-blue-700" : "text-emerald-700"}`}>
+                    <span className={`text-caption-1-semibold ${isAssigned ? "text-accent-text" : "text-success-text"}`}>
                       {isAssigned ? "Trip Assigned" : "Trip Completed"}
                     </span>
                   </div>
@@ -142,26 +142,26 @@ export function TripEventToastHub() {
                     type="button"
                     aria-label="Dismiss"
                     onClick={() => dismiss(toast.id)}
-                    className="shrink-0 rounded-full p-0.5 text-gray-400 transition-colors hover:bg-black/10 hover:text-gray-600"
+                    className="shrink-0 rounded-full p-0.5 text-text-tertiary transition-colors hover:bg-scrim/10 hover:text-text-secondary"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
 
                 {/* Trip ID */}
-                <p className="mb-1 text-sm font-bold text-gray-900">{toast.tripId || "—"}</p>
+                <p className="mb-1 text-body-semibold text-text-primary">{toast.tripId || "—"}</p>
 
                 {/* Route */}
-                <div className="mb-2 flex items-center gap-1.5 text-xs text-gray-600">
+                <div className="mb-2 flex items-center gap-1.5 text-xs text-text-secondary">
                   <span className="max-w-[110px] truncate font-medium">{toast.origin || "—"}</span>
-                  <ArrowRight className="h-3 w-3 shrink-0 text-gray-400" />
+                  <ArrowRight className="h-3 w-3 shrink-0 text-text-tertiary" />
                   <span className="max-w-[110px] truncate font-medium">{toast.destination || "—"}</span>
                 </div>
 
                 {/* Actor */}
-                <p className="text-[11px] text-gray-500">
+                <p className="text-[11px] text-text-secondary">
                   {isAssigned ? "Assigned by" : "Completed by"}{" "}
-                  <span className="font-semibold text-gray-700">{toast.by || "—"}</span>
+                  <span className="font-semibold text-text-primary">{toast.by || "—"}</span>
                 </p>
               </div>
             </div>

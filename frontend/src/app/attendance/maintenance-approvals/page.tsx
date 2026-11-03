@@ -1,18 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle, XCircle, Clock, Wrench, User, FileText, Paperclip, Layers, Route, ClipboardList, Ban } from "lucide-react";
+import { RiCheckboxCircleLine as CheckCircle, RiCloseCircleLine as XCircle, RiTimeLine as Clock, RiToolsLine as Wrench, RiUserLine as User, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiStackLine as Layers, RiRouteLine as Route, RiFileList3Line as ClipboardList, RiForbidLine as Ban } from "@remixicon/react";
 import { maintenanceRequestsApi } from "@/lib/api";
 import type { MaintenanceRequest, MaintenanceRequestStatus } from "@/types/maintenance-request";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { confirmAction, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
 import { MaintenanceProofsDialog } from "@/components/maintenance/MaintenanceProofsDialog";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 type Filter = "Pending" | "Approved" | "Rejected" | "all";
 const TABS: Filter[] = ["Pending", "Approved", "Rejected", "all"];
 const TAB_LABEL: Record<Filter, string> = { Pending: "Pending", Approved: "Approved", Rejected: "Rejected", all: "All" };
@@ -22,24 +23,24 @@ const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionD
 function StatusBadge({ status }: { status: MaintenanceRequestStatus }) {
   if (status === "Approved")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-bold text-green-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-success-surface-strong px-2.5 py-0.5 text-caption-2-semibold text-success-text">
         <CheckCircle className="h-3 w-3" /> Approved
       </span>
     );
   if (status === "Rejected")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-danger-surface-strong px-2.5 py-0.5 text-caption-2-semibold text-danger-text">
         <XCircle className="h-3 w-3" /> Rejected
       </span>
     );
   if (status === "Cancelled")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-bold text-gray-600">
+      <span className="inline-flex items-center gap-1 rounded-full bg-fill-2 px-2.5 py-0.5 text-caption-2-semibold text-text-secondary">
         <Ban className="h-3 w-3" /> Withdrawn
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2.5 py-0.5 text-caption-2-semibold text-warning-text">
       <Clock className="h-3 w-3" /> Pending
     </span>
   );
@@ -49,8 +50,8 @@ function Detail({ label, value, wide }: { label: string; value: React.ReactNode;
   if (value === null || value === undefined || value === "") return null;
   return (
     <div className={`flex flex-col gap-0.5 ${wide ? "col-span-2" : ""}`}>
-      <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
-      <span className="whitespace-pre-line text-xs font-semibold text-gray-700">{value}</span>
+      <span className="text-[9px] font-semibold text-text-tertiary">{label}</span>
+      <span className="whitespace-pre-line text-caption-1-semibold text-text-primary">{value}</span>
     </div>
   );
 }
@@ -66,32 +67,32 @@ function RequestCard({
 }) {
   const fromTrip = req.source === "Trip Sheet";
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
+    <div className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-separator-border bg-fill-1 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-surface-strong text-accent-text">
             <Wrench className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-900">
+            <p className="text-body-semibold text-text-primary">
               {req.registrationNumber || req.truckIdStr}
-              <span className="ml-2 align-middle text-[11px] font-medium text-gray-400">{req.truckIdStr}</span>
+              <span className="ml-2 align-middle text-caption-2-medium text-text-tertiary">{req.truckIdStr}</span>
               <span
-                className={`ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold ${
-                  fromTrip ? "bg-purple-50 text-purple-700" : "bg-brand-navy/10 text-brand-navy"
+                className={`ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-caption-2-semibold ${
+                  fromTrip ? "bg-purple-surface text-purple-text" : "bg-accent-solid/10 text-accent-text-strong"
                 }`}
               >
                 {fromTrip ? <Route className="h-3 w-3" /> : <ClipboardList className="h-3 w-3" />}
                 {fromTrip ? `Trip Sheet${req.tripIdStr ? ` · ${req.tripIdStr}` : ""}` : "Maintenance form"}
               </span>
             </p>
-            <p className="mt-0.5 text-[11px] text-gray-400">
+            <p className="mt-0.5 text-[11px] text-text-tertiary">
               Submitted {req.createdAt ? formatDateTime(req.createdAt) : "—"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-lg font-bold tabular-nums text-gray-900">{rupees(req.cost)}</span>
+          <span className="text-title-3-semibold tabular-nums text-text-primary">{rupees(req.cost)}</span>
           <StatusBadge status={req.status} />
         </div>
       </div>
@@ -99,29 +100,29 @@ function RequestCard({
       <div className="grid grid-cols-1 gap-5 px-5 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            <div className="mb-1 flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary">
               <User className="h-3 w-3" /> Submitted By
             </div>
-            <p className="text-sm font-semibold text-gray-800">
+            <p className="text-body-semibold text-text-primary">
               {req.submittedByName}
-              {req.submittedByRole && <span className="ml-1.5 text-xs font-normal text-gray-400">{req.submittedByRole}</span>}
+              {req.submittedByRole && <span className="ml-1.5 text-caption-1-regular text-text-tertiary">{req.submittedByRole}</span>}
             </p>
           </div>
 
           <div className="flex flex-col gap-1">
-            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            <div className="mb-1 flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary">
               <Paperclip className="h-3 w-3" /> Proof of Payment
             </div>
             {req.proofCount > 0 ? (
               <button
                 type="button"
                 onClick={() => onProofs(req)}
-                className="flex w-fit items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                className="flex w-fit items-center gap-1 rounded-full border border-accent-border bg-accent-surface px-2.5 py-0.5 text-caption-1-semibold text-accent-text transition-colors hover:bg-accent-surface-strong"
               >
                 <Paperclip className="h-3 w-3" /> View {req.proofCount} file{req.proofCount === 1 ? "" : "s"}
               </button>
             ) : (
-              <p className="text-xs italic text-gray-400">
+              <p className="text-xs text-text-tertiary">
                 {req.status === "Pending" || req.status === "Cancelled" ? "None attached" : req.status === "Approved" ? "Moved to the record" : "—"}
               </p>
             )}
@@ -129,21 +130,21 @@ function RequestCard({
 
           {req.status !== "Pending" && (
             <div className="flex flex-col gap-1">
-              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              <div className="mb-1 flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary">
                 <CheckCircle className="h-3 w-3" /> Decision
               </div>
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-text-primary">
                 {req.status === "Cancelled" ? "Withdrawn" : req.status}
                 {req.decidedByName && <> by <span className="font-semibold">{req.decidedByName}</span></>}
-                {req.decidedAt && <span className="text-gray-400"> · {formatDateTime(req.decidedAt)}</span>}
+                {req.decidedAt && <span className="text-text-tertiary"> · {formatDateTime(req.decidedAt)}</span>}
               </p>
-              {req.rejectReason && <p className="mt-1 text-xs italic text-gray-500">&ldquo;{req.rejectReason}&rdquo;</p>}
+              {req.rejectReason && <p className="mt-1 text-xs text-text-secondary">&ldquo;{req.rejectReason}&rdquo;</p>}
             </div>
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-          <div className="mb-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+        <div className="rounded-xl border border-separator-border bg-fill-1 px-4 py-3">
+          <div className="mb-3 flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary">
             <Layers className="h-3 w-3" /> Record Details
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
@@ -168,12 +169,12 @@ function RequestCard({
       </div>
 
       {req.status === "Pending" && (
-        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/40 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-separator-border bg-fill-1 px-5 py-3">
           <button
             type="button"
             disabled={busy}
             onClick={() => onReject(req)}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary transition-colors hover:border-danger-border hover:bg-danger-surface-strong hover:text-danger-text disabled:opacity-50"
           >
             <XCircle className="h-4 w-4" /> Reject
           </button>
@@ -181,7 +182,7 @@ function RequestCard({
             type="button"
             disabled={busy}
             onClick={() => onApprove(req)}
-            className="flex items-center gap-1.5 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-success-solid px-5 py-2 text-body-semibold text-on-solid transition-colors hover:bg-success-solid-hover disabled:opacity-50"
           >
             <CheckCircle className="h-4 w-4" /> Approve &amp; Add to Record
           </button>
@@ -267,7 +268,7 @@ export default function MaintenanceApprovalsPage() {
   }
 
   if (!canDecide) {
-    return <p className="py-16 text-center text-sm text-gray-500">Only Admin and Accounts can review maintenance approvals.</p>;
+    return <p className="py-16 text-center text-sm text-text-secondary">Only Admin and Accounts can review maintenance approvals.</p>;
   }
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={1} />;
 
@@ -275,31 +276,31 @@ export default function MaintenanceApprovalsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
             <Wrench className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Maintenance Approvals</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Maintenance Approvals</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">
               New maintenance records reach the truck&apos;s record only after approval.
-              {pendingCount > 0 && <span className="ml-1 font-semibold text-amber-700">{pendingCount} waiting.</span>}
+              {pendingCount > 0 && <span className="ml-1 font-semibold text-warning-text">{pendingCount} waiting.</span>}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+        <div className="flex items-center gap-1 rounded-xl border border-separator-border bg-fill-1 p-1">
           {TABS.map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => { setLoading(true); setFilter(t); }}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                filter === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              className={`rounded-lg px-3 py-1.5 text-caption-1-semibold transition-colors ${
+                filter === t ? "bg-background-primary-default text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {TAB_LABEL[t]}
               {t === "Pending" && pendingCount > 0 && (
-                <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-px text-[10px] font-bold text-white">{pendingCount}</span>
+                <span className="ml-1.5 rounded-full bg-warning-solid px-1.5 py-px text-caption-2-semibold text-on-solid">{pendingCount}</span>
               )}
             </button>
           ))}
@@ -309,17 +310,7 @@ export default function MaintenanceApprovalsPage() {
       <PillSearch placeholder="Search by truck, type, vendor, invoice or submitter…" value={search} onChange={setSearch} />
 
       {shown.length === 0 ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-            <FileText className="h-5 w-5 text-gray-400" />
-          </div>
-          <p className="text-sm font-semibold text-gray-600">
-            {search ? "No requests match this search" : `No ${filter === "all" ? "" : filter.toLowerCase()} requests`}
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
-            Records from the maintenance form and trip-sheet repairs appear here for approval.
-          </p>
-        </div>
+        <EmptyState size="compact" illustration="not-found" title={search ? "No requests match this search" : `No ${filter === "all" ? "" : filter.toLowerCase()} requests`} description="Records from the maintenance form and trip-sheet repairs appear here for approval" className="rounded-2xl border border-separator-border bg-background-primary-default" />
       ) : (
         <div className="flex flex-col gap-4">
           {shown.map((r) => (
@@ -338,28 +329,28 @@ export default function MaintenanceApprovalsPage() {
       <Dialog open={rejecting !== null} onClose={() => setRejecting(null)} title="Reject maintenance record">
         {rejecting && (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-text-secondary">
               {rejecting.registrationNumber || rejecting.truckIdStr} · {rejecting.maintenanceType} · {rupees(rejecting.cost)}
-              <span className="block text-xs text-gray-400">
+              <span className="block text-xs text-text-tertiary">
                 Submitted by {rejecting.submittedByName} — they&apos;ll see this reason and can submit a corrected record.
               </span>
             </p>
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-gray-700">Reason <span className="text-red-500">*</span></span>
+              <span className="text-body-semibold text-text-primary">Reason <span className="text-danger-text">*</span></span>
               <textarea
                 autoFocus
                 rows={3}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="e.g. Cost doesn't match the invoice"
-                className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder-gray-400 focus:border-red-300 focus:bg-white focus:ring-2 focus:ring-red-100"
+                className="w-full resize-none rounded-xl border border-separator-border bg-fill-1 px-4 py-3 text-sm text-text-primary outline-none transition placeholder-text-placeholder focus:border-danger-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-danger-border"
               />
             </label>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRejecting(null)}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                className="rounded-lg border border-separator-border px-4 py-2 text-body-semibold text-text-secondary transition-colors hover:bg-fill-2"
               >
                 Cancel
               </button>
@@ -367,7 +358,7 @@ export default function MaintenanceApprovalsPage() {
                 type="button"
                 onClick={submitReject}
                 disabled={!rejectReason.trim() || busyId === rejecting.id}
-                className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                className="rounded-lg bg-danger-solid px-5 py-2 text-body-semibold text-on-solid transition-colors hover:bg-danger-solid-hover disabled:opacity-50"
               >
                 {busyId === rejecting.id ? "Rejecting…" : "Reject"}
               </button>

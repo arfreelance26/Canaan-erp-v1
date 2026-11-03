@@ -206,13 +206,13 @@ export function CustomerPricingFormDialog({
               autoComplete="off"
               className={[
                 inputClass,
-                customerError ? "border-red-400 focus:border-red-500" : "",
+                customerError ? "border-danger-border-strong focus:border-danger-solid" : "",
               ].join(" ")}
             />
             {dropdownOpen && (
-              <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+              <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-separator-border bg-background-primary-default shadow-lg">
                 {filteredCustomers.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-gray-400">No customers found</div>
+                  <div className="px-3 py-2 text-sm text-text-tertiary">No customers found</div>
                 ) : (
                   filteredCustomers.map((customer) => (
                     <button
@@ -223,8 +223,8 @@ export function CustomerPricingFormDialog({
                       className={[
                         "w-full px-3 py-2 text-left text-sm transition-colors",
                         form.customerId === customer.id
-                          ? "bg-blue-50 font-semibold text-blue-700"
-                          : "text-gray-700 hover:bg-gray-50",
+                          ? "bg-accent-surface font-semibold text-accent-text"
+                          : "text-text-primary hover:bg-fill-2",
                       ].join(" ")}
                     >
                       {customer.name}
@@ -235,7 +235,7 @@ export function CustomerPricingFormDialog({
             )}
           </div>
           {customerError && (
-            <p className="mt-1 text-xs text-red-500">Please select a customer from the list.</p>
+            <p className="mt-1 text-xs text-danger-text">Please select a customer from the list.</p>
           )}
         </Field>
 
@@ -245,7 +245,7 @@ export function CustomerPricingFormDialog({
             // Commission / Status are ever sent on save. Shown read-only so
             // it's clear the route itself can't be changed from here.
             <Field label="Route">
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="rounded-2xl border border-separator-border bg-fill-1 p-4">
                 <RouteDiagram
                   compact
                   originState={linkedDestination.originState}
@@ -255,9 +255,9 @@ export function CustomerPricingFormDialog({
                   approxDistanceKm={linkedDestination.approxDistanceKm}
                 />
                 {[linkedDestination.cargoClassification, linkedDestination.containerType, linkedDestination.weightInTons].filter(Boolean).length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                  <div className="mt-4 flex flex-wrap gap-1.5 border-t border-separator-border pt-3">
                     {[linkedDestination.cargoClassification, linkedDestination.containerType, linkedDestination.weightInTons].filter(Boolean).map((tag, i) => (
-                      <span key={`${i}-${tag}`} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                      <span key={`${i}-${tag}`} className="rounded-full bg-success-surface px-2.5 py-1 text-caption-2-semibold text-success-text">
                         {tag}
                       </span>
                     ))}
@@ -270,12 +270,12 @@ export function CustomerPricingFormDialog({
             // destination id — its old text label matched more than one
             // route, so pick which one this entry actually belongs to.
             <Field label="Confirm Route" required>
-              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="mb-2 rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning-text">
                 This pricing entry predates route linking and matches more than one destination
                 named &quot;{initialData.customerDestination}&quot;. Pick which route it&apos;s actually for.
               </p>
               {legacyCandidateRoutes.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+                <p className="rounded-lg border border-dashed border-separator-border bg-fill-1 p-4 text-center text-xs text-text-tertiary">
                   No matching destinations found — the original route may have been deleted.
                 </p>
               ) : (
@@ -290,10 +290,10 @@ export function CustomerPricingFormDialog({
                         type="button"
                         onClick={() => { setForm((prev) => ({ ...prev, customerDestinationId: d.id, customerDestination: value })); setRouteError(false); }}
                         className={[
-                          "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                          "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition duration-200",
                           selected
-                            ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
-                            : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                            ? "border-accent-solid bg-accent-surface/60 ring-2 ring-accent-solid/30 shadow-md"
+                            : "border-separator-border bg-background-primary-default hover:border-accent-border hover:bg-accent-surface-strong/20 hover:shadow-md",
                         ].join(" ")}
                       >
                         <RouteDiagram
@@ -305,9 +305,9 @@ export function CustomerPricingFormDialog({
                           approxDistanceKm={d.approxDistanceKm}
                         />
                         {tags.length > 0 && (
-                          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-separator-border pt-3">
                             {tags.map((tag, i) => (
-                              <span key={`${i}-${tag}`} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                              <span key={`${i}-${tag}`} className="rounded-full bg-success-surface px-2.5 py-1 text-caption-2-semibold text-success-text">
                                 {tag}
                               </span>
                             ))}
@@ -319,17 +319,17 @@ export function CustomerPricingFormDialog({
                 </div>
               )}
               {routeError && (
-                <p className="mt-2 text-xs text-red-500">Please select which route this entry is for.</p>
+                <p className="mt-2 text-xs text-danger-text">Please select which route this entry is for.</p>
               )}
             </Field>
           )
         ) : (
           <Field label="Available Routes" required>
-            <span className="mb-2 block text-xs text-gray-400">
+            <span className="mb-2 block text-xs text-text-tertiary">
               Only routes without a Hire Amount set yet are shown. Select one card.
             </span>
             {unlinkedLegacyPricing.length > 0 && (
-              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="mb-2 rounded-lg border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning-text">
                 {unlinkedLegacyPricing.length} existing pricing {unlinkedLegacyPricing.length === 1 ? "entry" : "entries"} for
                 this customer ({unlinkedLegacyPricing.map((p) => `"${p.customerDestination}"`).join(", ")}) {unlinkedLegacyPricing.length === 1 ? "hasn't" : "haven't"} been
                 matched to a specific route yet. Edit {unlinkedLegacyPricing.length === 1 ? "it" : "them"} first to confirm
@@ -337,11 +337,11 @@ export function CustomerPricingFormDialog({
               </p>
             )}
             {!form.customerId ? (
-              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              <p className="rounded-lg border border-dashed border-separator-border bg-fill-1 p-4 text-center text-xs text-text-tertiary">
                 Select a customer first
               </p>
             ) : availableRoutes.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              <p className="rounded-lg border border-dashed border-separator-border bg-fill-1 p-4 text-center text-xs text-text-tertiary">
                 No unpriced routes for this customer
               </p>
             ) : (
@@ -356,10 +356,10 @@ export function CustomerPricingFormDialog({
                       type="button"
                       onClick={() => { setForm((prev) => ({ ...prev, customerDestinationId: d.id, customerDestination: value })); setRouteError(false); }}
                       className={[
-                        "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                        "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition duration-200",
                         selected
-                          ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
-                          : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                          ? "border-accent-solid bg-accent-surface/60 ring-2 ring-accent-solid/30 shadow-md"
+                          : "border-separator-border bg-background-primary-default hover:border-accent-border hover:bg-accent-surface-strong/20 hover:shadow-md",
                       ].join(" ")}
                     >
                       <RouteDiagram
@@ -371,11 +371,11 @@ export function CustomerPricingFormDialog({
                         approxDistanceKm={d.approxDistanceKm}
                       />
                       {tags.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                        <div className="mt-4 flex flex-wrap gap-1.5 border-t border-separator-border pt-3">
                           {tags.map((tag, i) => (
                             <span
                               key={`${i}-${tag}`}
-                              className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
+                              className="rounded-full bg-success-surface px-2.5 py-1 text-caption-2-semibold text-success-text"
                             >
                               {tag}
                             </span>
@@ -388,7 +388,7 @@ export function CustomerPricingFormDialog({
               </div>
             )}
             {routeError && (
-              <p className="mt-2 text-xs text-red-500">Please select a route.</p>
+              <p className="mt-2 text-xs text-danger-text">Please select a route.</p>
             )}
           </Field>
         )}
@@ -424,13 +424,13 @@ export function CustomerPricingFormDialog({
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95"
+            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover"
           >
             {initialData ? "Save Changes" : "Add Pricing"}
           </button>
