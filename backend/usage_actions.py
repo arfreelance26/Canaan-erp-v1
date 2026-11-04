@@ -14,7 +14,8 @@ against the session tracking this same page already shows.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select, union_all, literal, func, cast, String
+from sqlalchemy import select, union_all, literal, func, cast
+from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Session
 
 from database import Base
@@ -39,6 +40,19 @@ def _discover_action_tables():
 ACTION_TABLES = _discover_action_tables()
 
 
+# One collation for every text column in the union. MySQL refuses a UNION
+# whose branches carry different collations ("Illegal mix of collations for
+# operation 'UNION'"), and the tables don't always agree: a table created later
+# takes the database's default collation, which can differ from the tables
+# that came in from an older dump or server (e.g. utf8mb4_0900_ai_ci vs
+# utf8mb4_unicode_ci). CAST ... CHARACTER SET utf8mb4 also covers a utf8mb3 table.
+_UNION_COLLATION = "utf8mb4_unicode_ci"
+
+
+def _as_text(expr, length: int):
+    return cast(expr, mysql.CHAR(length, charset="utf8mb4")).collate(_UNION_COLLATION)
+
+
 def _rows_select(cls):
     # event is a different Enum type per table — UNION ALL infers the combined
     # column's type from whichever table's Enum lands first, then tries to
@@ -47,10 +61,10 @@ def _rows_select(cls):
     # string, decoded the same way regardless of source table.
     t = cls.__table__
     return select(
-        literal(cls.__tablename__).label("source"),
-        cast(t.c.event, String(100)).label("event"),
-        t.c.actor_name.label("actor_name"),
-        t.c.actor_role.label("actor_role"),
+        _as_text(literal(cls.__tablename__), 64).label("source"),
+        _as_text(t.c.event, 100).label("event"),
+        _as_text(t.c.actor_name, 150).label("actor_name"),
+        _as_text(t.c.actor_role, 100).label("actor_role"),
         t.c.created_at.label("created_at"),
     )
 

@@ -14,7 +14,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime, inDateRange } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PagedTbody } from "@/components/ui/PagedTbody";
@@ -160,17 +160,17 @@ export default function DeletedTripsPage() {
     }
   }
 
+  // The date range beside View only scopes that export — the table lists every deleted trip.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const dated = requests.filter((r) => inDateRange(r.approvedAt, exportFrom, exportTo));
-    if (!q) return dated;
-    return dated.filter(
+    if (!q) return requests;
+    return requests.filter(
       (r) =>
         r.requestedByName.toLowerCase().includes(q) ||
         r.resourceName.toLowerCase().includes(q) ||
         (r.approvedByName ?? "").toLowerCase().includes(q)
     );
-  }, [requests, search, exportFrom, exportTo]);
+  }, [requests, search]);
 
   if (!isAllowed) return null;
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={5} />;

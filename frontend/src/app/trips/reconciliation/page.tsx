@@ -23,7 +23,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime, inDateRange } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 
 const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
   "Booking Created": Plus,
@@ -585,14 +585,9 @@ export default function TripReconciliationPage() {
   // identity to drive the lazy closure/sheet fetch below. Status uses the trip's
   // own `hasSheet` flag (from the list endpoint) rather than the lazily-fetched
   // `sheets` map, so counts/filters stay correct without fetching every sheet.
-  const datedTrips = useMemo(() => trips.filter((t) => inDateRange(
-    // Same date as the View report; a sheet not received yet has only its trip date.
-    t.hasSheet && t.tripSheetDate ? t.tripSheetDate : t.tripSheetReceivedAt ?? t.scheduledDate,
-    dateFrom,
-    dateTo,
-  )), [trips, dateFrom, dateTo]);
-
-  const filteredTrips = useMemo(() => datedTrips
+  // The date range beside the View button is for that report only — the table
+  // and its status counts always cover every trip.
+  const filteredTrips = useMemo(() => trips
     .filter((t) => {
       if (statusFilter === "Pending Receive" && t.tripSheetReceived) return false;
       if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || t.hasSheet)) return false;
@@ -634,7 +629,7 @@ export default function TripReconciliationPage() {
         return 2;
       };
       return priority(a) - priority(b);
-    }), [datedTrips, statusFilter, approvedSubFilter, searchQuery, requestRaisedIds, requestApprovedIds, requestApprovedUsedIds, requestRejectedIds, lastRequestedAtByTripId, customerById]);
+    }), [trips, statusFilter, approvedSubFilter, searchQuery, requestRaisedIds, requestApprovedIds, requestApprovedUsedIds, requestRejectedIds, lastRequestedAtByTripId, customerById]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -690,18 +685,18 @@ export default function TripReconciliationPage() {
   }
 
   const counts = {
-    All:                datedTrips.length,
-    "Pending Receive":  datedTrips.filter((t) => !t.tripSheetReceived).length,
-    "Pending Sheet Entry": datedTrips.filter((t) => t.tripSheetReceived && !t.hasSheet).length,
-    "Sheet Entered":    datedTrips.filter((t) => t.hasSheet).length,
-    "Rejected":         datedTrips.filter((t) => t.verificationStatus === "rejected").length,
-    "Request Raised":   datedTrips.filter((t) => requestRaisedIds.has(t.id)).length,
-    "Request Approved": datedTrips.filter((t) => requestApprovedIds.has(t.id)).length,
-    "Request Rejected": datedTrips.filter((t) => requestRejectedIds.has(t.id)).length,
+    All:                trips.length,
+    "Pending Receive":  trips.filter((t) => !t.tripSheetReceived).length,
+    "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !t.hasSheet).length,
+    "Sheet Entered":    trips.filter((t) => t.hasSheet).length,
+    "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
+    "Request Raised":   trips.filter((t) => requestRaisedIds.has(t.id)).length,
+    "Request Approved": trips.filter((t) => requestApprovedIds.has(t.id)).length,
+    "Request Rejected": trips.filter((t) => requestRejectedIds.has(t.id)).length,
   };
   const approvedSubCounts = {
-    Completed: datedTrips.filter((t) => requestApprovedIds.has(t.id) && requestApprovedUsedIds.has(t.id)).length,
-    Pending:   datedTrips.filter((t) => requestApprovedIds.has(t.id) && !requestApprovedUsedIds.has(t.id)).length,
+    Completed: trips.filter((t) => requestApprovedIds.has(t.id) && requestApprovedUsedIds.has(t.id)).length,
+    Pending:   trips.filter((t) => requestApprovedIds.has(t.id) && !requestApprovedUsedIds.has(t.id)).length,
   };
 
   return (

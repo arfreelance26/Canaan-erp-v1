@@ -182,21 +182,10 @@ export default function TripHistoryPage() {
   const truckById    = useMemo(() => new Map(trucks.map((t) => [t.truckId, t])), [trucks]);
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
 
-  // The date range filters the screen exactly as it filters the View export
-  // (exports.py: scheduled date, inclusive; either end may be open). With a
-  // range set, a trip without a scheduled date is left out — as in the file.
-  const datedTrips = useMemo(() => {
-    if (!exportFrom && !exportTo) return trips;
-    return trips.filter((t) => {
-      const d = t.scheduledDate?.slice(0, 10);
-      if (!d) return false;
-      return (!exportFrom || d >= exportFrom) && (!exportTo || d <= exportTo);
-    });
-  }, [trips, exportFrom, exportTo]);
-
   // Filtering + pagination are memoised so the current page's trip slice has a
-  // stable identity to drive the lazy closure/sheet fetch below.
-  const filteredTrips = useMemo(() => datedTrips
+  // stable identity to drive the lazy closure/sheet fetch below. The date range
+  // beside View only scopes that export (exports.py) — the table lists every trip.
+  const filteredTrips = useMemo(() => trips
     .filter((t) => {
       if (statusFilter === "Assigned")  return t.status === "Assigned";
       if (statusFilter === "Current")   return CURRENT_STATUSES.has(t.status);
@@ -211,7 +200,7 @@ export default function TripHistoryPage() {
       const aInv = (a as any).isInvoiced === true ? 1 : 0;
       const bInv = (b as any).isInvoiced === true ? 1 : 0;
       return aInv - bInv;
-    }), [datedTrips, statusFilter, searchQuery, trucks, drivers]);
+    }), [trips, statusFilter, searchQuery, trucks, drivers]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -338,15 +327,14 @@ export default function TripHistoryPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={12} />;
 
-  // Card counts follow the date range too, so they match the list below.
   const counts = {
-    All:       datedTrips.length,
-    Assigned:  datedTrips.filter((t) => t.status === "Assigned").length,
-    Current:   datedTrips.filter((t) => CURRENT_STATUSES.has(t.status)).length,
-    Completed: datedTrips.filter((t) => (t as any).hasClosure === true && t.status !== "Cancelled").length,
-    Invoiced:  datedTrips.filter((t) => (t as any).isInvoiced === true).length,
-    "Waived Invoice": datedTrips.filter((t) => (t as any).invoiceWaived === true && (t as any).isInvoiced !== true).length,
-    Cancelled: datedTrips.filter((t) => t.status === "Cancelled").length,
+    All:       trips.length,
+    Assigned:  trips.filter((t) => t.status === "Assigned").length,
+    Current:   trips.filter((t) => CURRENT_STATUSES.has(t.status)).length,
+    Completed: trips.filter((t) => (t as any).hasClosure === true && t.status !== "Cancelled").length,
+    Invoiced:  trips.filter((t) => (t as any).isInvoiced === true).length,
+    "Waived Invoice": trips.filter((t) => (t as any).invoiceWaived === true && (t as any).isInvoiced !== true).length,
+    Cancelled: trips.filter((t) => t.status === "Cancelled").length,
   };
 
   return (
@@ -375,7 +363,7 @@ export default function TripHistoryPage() {
 )}
       </div>
 
-      {/* Toolbar: search on the left, date range (filters the list and the View export) + View on the right */}
+      {/* Toolbar: search on the left, date range (for the View export only) + View on the right */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch
           placeholder="Search by truck no., driver, trip ID…"
@@ -386,8 +374,8 @@ export default function TripHistoryPage() {
           <DateRangePill
             from={exportFrom}
             to={exportTo}
-            onFromChange={(v) => { setExportFrom(v); setPage(1); }}
-            onToChange={(v) => { setExportTo(v); setPage(1); }}
+            onFromChange={setExportFrom}
+            onToChange={setExportTo}
           />
           {/* View follows the summary card currently selected (All / Assigned / Current / …), the dates and the search */}
           <DownloadExcelButton
@@ -449,24 +437,7 @@ export default function TripHistoryPage() {
           {statusFilter !== "All" && (
             <> — filtered by <span className="font-semibold text-text-primary">{statusFilter}</span></>
           )}
-          {(exportFrom || exportTo) && (
-            <>
-              {" · "}
-              <span className="font-semibold text-text-primary">
-                {exportFrom ? fmtDate(exportFrom) : "start"} to {exportTo ? fmtDate(exportTo) : "today"}
-              </span>
-            </>
-          )}
         </span>
-        {(exportFrom || exportTo) && (
-          <button
-            type="button"
-            onClick={() => { setExportFrom(""); setExportTo(""); setPage(1); }}
-            className="ml-1 rounded-full border border-border-button-default bg-background-primary-default px-2 py-0.5 text-xs text-text-secondary hover:bg-fill-3"
-          >
-            Clear dates
-          </button>
-        )}
         {!isAuditor && statusFilter !== "All" && (
           <button
             type="button"

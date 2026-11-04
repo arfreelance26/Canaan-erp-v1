@@ -679,9 +679,11 @@ export default function TripVerificationPage() {
     return !(fromMs && ms < fromMs) && !(toMs && ms > toMs);
   }
 
+  // The date range beside the View button only filters that report (see the
+  // View modal, which uses inReportRange) — the table always lists every trip.
   const allFiltered = useMemo(
-    () => trips.filter((t) => inReportRange(t) && tripMatchesSearch(t, searchQuery, trucks, drivers, customers)),
-    [trips, searchQuery, trucks, drivers, customers, dateFrom, dateTo, invoiceData, invoicedIds],
+    () => trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers)),
+    [trips, searchQuery, trucks, drivers, customers],
   );
 
   const filteredTrips = useMemo(() => allFiltered

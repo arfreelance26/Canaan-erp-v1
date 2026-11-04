@@ -117,16 +117,16 @@
   --color-neutral-950: oklch(0.145 0.01 265);
 }
 
-/* Page ground a step below the cards (BoardUI defaults both to white), so
- * panels separate from the page in light mode the way they do in dark.
- * `:root:not(.dark)` — a plain :root here would also beat BoardUI's .dark
+/* Light-mode overrides. `:root:not(.dark)` — a plain :root here would also beat BoardUI's .dark
  * values (same specificity, later in the cascade). */
 :root:not(.dark) {
   /* Old solid buttons: bg-blue-600 #1b2b5e, hover blue-700 #152248. */
   --gradient-button-primary-default: linear-gradient(180deg, #1b2b5e 0%, #1b2b5e 100%);
   --gradient-button-primary-hover:   linear-gradient(180deg, #152248 0%, #152248 100%);
   --gradient-button-primary-active:  linear-gradient(180deg, #0f1a38 0%, #0f1a38 100%);
-  --color-background-full: var(--color-neutral-100);
+  /* White page ground in light mode, as before the redesign; cards keep their
+     hairline border to separate from it. */
+  --color-background-full: var(--color-white);
   --color-separator-border: var(--color-neutral-200);
   /* Text roles readable on white for a work-all-day app: secondary ≈ 7:1,
      tertiary ≈ 4.5:1 (BoardUI's tertiary neutral-400 is ~2.3:1). */

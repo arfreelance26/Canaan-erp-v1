@@ -18,3 +18,9 @@
     0 1px 2px color-mix(in oklab, var(--color-neutral-950) 8%, transparent);
 }
 
+
+/* SortableGrid: the grabbing hand everywhere while a card is being dragged. */
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+}

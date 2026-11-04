@@ -185,6 +185,29 @@ def test_usage_heartbeat_and_reports(api, api_as, staff):
     api.get(f"/usage/detail/{sid}")
 
 
+def test_usage_detail_survives_tables_with_mixed_collations(api, staff, db):
+    """The detail page merges every *_edit_events table with UNION ALL. A
+    database whose tables don't all share one collation (old tables from a
+    dump, newer ones from create_all) made MySQL refuse that UNION -> 503."""
+    from sqlalchemy import text
+    import usage_actions
+    table = usage_actions.ACTION_TABLES[0].__tablename__
+    col = db.execute(text(
+        "SELECT COLUMN_TYPE, IS_NULLABLE, COLLATION_NAME FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = 'actor_name'"), {"t": table}).one()
+    nullable = "NULL" if col.IS_NULLABLE == "YES" else "NOT NULL"
+    # Not a _bin collation: MySQL lets a _bin side win a mix, which would hide the bug.
+    other = "utf8mb4_general_ci" if col.COLLATION_NAME != "utf8mb4_general_ci" else "utf8mb4_unicode_ci"
+    db.execute(text(f"ALTER TABLE `{table}` MODIFY actor_name {col.COLUMN_TYPE} COLLATE {other} {nullable}"))
+    db.commit()
+    try:
+        res = api.get(f"/usage/detail/{staff['Accounts'].id}")
+        assert res["staff_id"] == staff["Accounts"].id
+    finally:
+        db.execute(text(f"ALTER TABLE `{table}` MODIFY actor_name {col.COLUMN_TYPE} COLLATE {col.COLLATION_NAME} {nullable}"))
+        db.commit()
+
+
 def test_activity_batch_and_timeline(api, api_as, staff):
     api_as("Accounts").post("/activity/batch", json={"events": [{"kind": "view", "route": "/trips/history"}]})
     api_as("Accounts").post("/activity/batch", json={"events": [{"kind": "hack", "route": "/x"}]}, expect=422)
