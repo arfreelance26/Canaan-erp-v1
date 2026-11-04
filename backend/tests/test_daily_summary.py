@@ -37,6 +37,43 @@ def test_pending_invoices_match_the_dashboard(api, db):
     assert metrics(db)["Trips waiting to be invoiced"] == pending
 
 
+def _open_for_invoicing(db):
+    T = models.Trip
+    return [t for t in db.query(T).filter(T.status == "Completed", T.deleted_at.is_(None), T.invoice_waived.is_(False)).all()
+            if not t.is_invoiced]
+
+
+def test_waiting_to_be_invoiced_matches_verification_page(db):
+    """Only trips with a sheet, not waived or deleted — Verification & Invoicing's
+    Pending + Rejected + Verified. Completed trips without a sheet are counted
+    separately, as waiting for a trip sheet."""
+    m = metrics(db)
+    trips = _open_for_invoicing(db)
+    assert m["Trips waiting to be invoiced"] == sum(1 for t in trips if t.sheet is not None)
+    assert m["Trips waiting for a trip sheet"] == sum(1 for t in trips if t.sheet is None)
+
+
+def test_waived_and_deleted_trips_are_not_waiting(db):
+    open_trips = _open_for_invoicing(db)
+    if len(open_trips) < 2:
+        open_trips = [t for t in db.query(models.Trip).filter(models.Trip.deleted_at.is_(None)).limit(2)]
+        for t in open_trips:
+            t.status, t.is_invoiced = "Completed", False
+        db.commit()
+    waived, deleted = open_trips[:2]
+    def waiting(m):
+        return m["Trips waiting to be invoiced"] + m["Trips waiting for a trip sheet"]
+    before = waiting(metrics(db))
+    try:
+        waived.invoice_waived = True
+        deleted.deleted_at = datetime.now()
+        assert waiting(metrics(db)) == before - 2
+    finally:
+        waived.invoice_waived = False
+        deleted.deleted_at = None
+        db.commit()
+
+
 def test_staff_work_matches_the_work_report(api, db):
     report = api.client.get("/activity/work-report", params={"day": YESTERDAY.isoformat()}, headers=api.headers)
     total = sum(p["work_count"] for p in report.json()["staff"]) if report.status_code == 200 else 0

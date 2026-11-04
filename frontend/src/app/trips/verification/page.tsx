@@ -21,7 +21,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/feedback";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { todayIst, formatDateTime } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 
@@ -151,8 +151,8 @@ export default function TripVerificationPage() {
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<"All" | "Tax Invoice" | "Bill of Supply" | "Transport Memo">("All");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
-  const [dateFrom, setDateFrom] = useState(todayIst());
-  const [dateTo, setDateTo] = useState(todayIst());
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
@@ -1315,7 +1315,11 @@ export default function TripVerificationPage() {
 
       {showReportModal && (() => {
         const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-        const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
+        // The range starts empty (every date); either end can be picked alone.
+        const rangeLabel = !dateFrom && !dateTo ? "All dates"
+          : !dateTo ? `From ${fmtDate(dateFrom)}`
+          : !dateFrom ? `Up to ${fmtDate(dateTo)}`
+          : dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
         const pdfTrips = trips.filter((t) => {
           // Status filter
           if (modalStatusFilter === "Pending" && (verifiedIds.has(t.id) || rejectedIds.has(t.id) || invoicedIds.has(t.id) || waivedIds.has(t.id))) return false;

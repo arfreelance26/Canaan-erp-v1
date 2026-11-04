@@ -9,7 +9,7 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { RiEyeLine as Eye, RiCheckboxCircleLine as CheckCircle2, RiCheckboxBlankCircleLine as Circle, RiDownloadLine as Download, RiThumbUpLine as ThumbsUp, RiThumbDownLine as ThumbsDown, RiAlertLine as AlertTriangle, RiArrowRightCircleLine as ArrowRightCircle, RiInboxLine as Inbox, RiFileList3Line as ClipboardList, RiCloseLine as X, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
-import { formatDate, formatDateTime, todayIst } from "@/lib/format-date";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/feedback";
@@ -82,8 +82,8 @@ export default function SheetCollectionPage() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   // Date range (Delivered On) — scopes the PDF export only. Defaults to today.
-  const [dateFrom, setDateFrom] = useState(todayIst());
-  const [dateTo, setDateTo] = useState(todayIst());
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [showReportModal, setShowReportModal] = useState(false);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<TripEditEventRow[]>([]);
@@ -1050,7 +1050,11 @@ export default function SheetCollectionPage() {
 
       {showReportModal && (() => {
         const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-        const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
+        // The range starts empty (every date); either end can be picked alone.
+        const rangeLabel = !dateFrom && !dateTo ? "All dates"
+          : !dateTo ? `From ${fmtDate(dateFrom)}`
+          : !dateFrom ? `Up to ${fmtDate(dateTo)}`
+          : dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
         const pdfTrips = trips.filter((t) => {
           if (modalStatusFilter === "Pending" && t.tripSheetCollected) return false;
           if (modalStatusFilter === "Delivered" && !t.tripSheetCollected) return false;

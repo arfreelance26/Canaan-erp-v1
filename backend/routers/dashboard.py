@@ -13,11 +13,27 @@ CURRENT_TRIP_STATUSES = {"Started", "Loaded", "On-Transit", "Reached", "Unloaded
 EXPIRING_SOON_DAYS = 30
 
 
+def _completed_not_invoiced(db: Session):
+    """Completed trips still open for invoicing: not invoiced, not waived (a
+    waived trip is never invoiced) and not deleted."""
+    T = models.Trip
+    return db.query(T).filter(
+        T.status == "Completed", T.deleted_at.is_(None), T.invoice_waived.is_(False),
+        or_(T.is_invoiced.is_(False), T.is_invoiced.is_(None)))
+
+
 def pending_invoice_query(db: Session):
-    """Completed trips not invoiced yet — the Trip Status card's Pending Invoice,
-    also counted by the Admin morning summary (daily_summary.py)."""
-    return db.query(models.Trip).filter(
-        models.Trip.status == "Completed", or_(models.Trip.is_invoiced.is_(False), models.Trip.is_invoiced.is_(None)))
+    """Trips waiting to be invoiced — the ones Verification & Invoicing lists as
+    Pending, Rejected or Verified: completed, with a trip sheet, not invoiced or
+    waived. The Trip Status card's Pending Invoice, also counted by the Admin
+    morning summary (daily_summary.py)."""
+    return _completed_not_invoiced(db).filter(models.Trip.sheet.has())
+
+
+def awaiting_sheet_query(db: Session):
+    """Completed trips with no trip sheet yet: not invoiceable until one is
+    entered (Trip Reconciliation), so they aren't "waiting to be invoiced"."""
+    return _completed_not_invoiced(db).filter(~models.Trip.sheet.has())
 
 
 def _compliance_status(expiry_date) -> str:

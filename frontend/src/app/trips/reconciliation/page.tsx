@@ -50,7 +50,6 @@ const EDIT_EVENT_COLOR: Record<TripEditEventRow["event"], string> = {
 };
 import { useNotifications } from "@/context/NotificationContext";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
-import { todayIst } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { GlassSelect } from "@/components/ui/GlassSelect";
@@ -114,8 +113,8 @@ export default function TripReconciliationPage() {
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
-  const [dateFrom, setDateFrom] = useState(todayIst());
-  const [dateTo, setDateTo] = useState(todayIst());
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Edit approval state (Staff only)
   const [editRequestOpen, setEditRequestOpen] = useState(false);
@@ -167,7 +166,6 @@ export default function TripReconciliationPage() {
     // the ones who approve/reject them); everyone else sees only their own.
     (canSeeAllEditRequests ? editApprovalsApi.list() : editApprovalsApi.getMine())
       .then(setMyRequests).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
@@ -200,7 +198,9 @@ export default function TripReconciliationPage() {
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
-  const customerById = new Map(customers.map((c) => [c.id, c]));
+  // Memoised: the filtered table below depends on it, and a new Map every
+  // render would rebuild that list (and skip the React Compiler) each time.
+  const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
 
   function getTripSheetApproval(trip: Trip) {
     return myActiveApprovals.find(
@@ -1309,7 +1309,11 @@ export default function TripReconciliationPage() {
 
       {showReportModal && (() => {
         const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-        const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
+        // The range starts empty (every date); either end can be picked alone.
+        const rangeLabel = !dateFrom && !dateTo ? "All dates"
+          : !dateTo ? `From ${fmtDate(dateFrom)}`
+          : !dateFrom ? `Up to ${fmtDate(dateTo)}`
+          : dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
         const dateFilteredTrips = receivedTrips.filter((t) => {
           if (!fromMs && !toMs) return true;
           // Date filter reference depends on status:

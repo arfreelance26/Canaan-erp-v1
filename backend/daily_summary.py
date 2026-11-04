@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 import models
 import work_report
 from routers.compliance_records import DOCS
-from routers.dashboard import ACTIVE_TRIP_STATUSES, pending_invoice_query
+from routers.dashboard import ACTIVE_TRIP_STATUSES, awaiting_sheet_query, pending_invoice_query
 
 log = logging.getLogger("canaan.app")
 
@@ -191,6 +191,9 @@ def _invoices(db: Session, day: date, today: date, previous: dict):
     prev = previous.get("Trips waiting to be invoiced")
     change = "" if prev is None or prev == len(pending) else f" ({'up' if len(pending) > prev else 'down'} from {prev})"
     lines.append(_line(f"**Waiting to be invoiced:** {_plural(len(pending), 'trip')}{change}", "/trips/verification"))
+    no_sheet = awaiting_sheet_query(db).count()
+    if no_sheet:
+        lines.append(_line(f"**Waiting for a trip sheet:** {_plural(no_sheet, 'completed trip')}", "/trips/reconciliation"))
     from routers.party_halt import rows as party_halt_rows, totals as party_halt_totals, OPEN_STATUSES
     halts = party_halt_rows(db)
     halt_totals = party_halt_totals(halts)
@@ -213,6 +216,7 @@ def _invoices(db: Session, day: date, today: date, previous: dict):
         attention.append(_line(f"**{_plural(len(missed), 'invoice')} left out party halt** worth {_money(sum(r['amount'] for r in missed))} "
                                f"({', '.join(r['trip_id'] for r in missed[:3])}{'…' if len(missed) > 3 else ''}).", "/finance/customer-detention"))
     return lines, attention, {"Invoices generated": invoices, "Trips waiting to be invoiced": len(pending),
+                              "Trips waiting for a trip sheet": no_sheet,
                               "Party halt to recover": round(halt_totals["outstanding_amount"])}
 
 
