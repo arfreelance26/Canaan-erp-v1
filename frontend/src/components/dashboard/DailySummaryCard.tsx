@@ -279,7 +279,7 @@ export function DailySummaryCard() {
             getId={(sec) => sec.key}
             storageKey={user ? `canaan.dashboard.sections.v1.${user.id}` : undefined}
             label="recap cards"
-            className="grid auto-rows-[20rem] gap-3 md:grid-cols-2 xl:grid-cols-3"
+            className="grid auto-rows-[14rem] gap-3 md:grid-cols-2 xl:grid-cols-3"
             renderItem={(s, { dragging }) => {
               const style = SECTION_STYLE[s.key] ?? { icon: ClipboardList, tone: "bg-fill-2 text-text-secondary" };
               const Icon = style.icon;
