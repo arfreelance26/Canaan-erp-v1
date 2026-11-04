@@ -49,7 +49,7 @@ export function PrivacyNoticeButton() {
 
   return (
     <>
-      <button
+      <button data-tour="privacy"
         type="button"
         aria-label="Privacy & monitoring notice"
         title="Privacy & monitoring notice"

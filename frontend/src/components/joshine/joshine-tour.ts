@@ -4,7 +4,7 @@ import { createElement, useSyncExternalStore } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { DriveStep, Driver } from "driver.js";
 import type { JoshineExpression, JoshineSettings } from "@/lib/joshine";
-import { findTourButton, resolveTourTarget, stepIsForRole, type Tour, type TourStep } from "@/lib/tours";
+import { findTourButton, resolveTourTarget, stepIsForRole, TOUR_SIDEBAR_EVENT, type Tour, type TourStep } from "@/lib/tours";
 import { JoshineFace } from "./JoshineFace";
 
 /**
@@ -101,12 +101,12 @@ export async function startTour(tour: Tour, joshine: JoshineSettings, opts: { us
   // Split into parts at each `click` step.
   const parts: TourStep[][] = [];
   for (const step of tour.steps.filter((st) => stepIsForRole(st, opts.role))) {
-    if (step.click || parts.length === 0) parts.push([]);
+    if (step.click || step.part || parts.length === 0) parts.push([]);
     parts[parts.length - 1].push(step);
   }
   const multi = parts.length > 1;
 
-  const runPart = (index: number) => {
+  const runPart = (index: number): void => {
     // Only steps whose element is on screen for this person right now; steps
     // with no element are Joshine talking in the middle.
     const resolved = parts[index]
@@ -147,7 +147,9 @@ export async function startTour(tour: Tour, joshine: JoshineSettings, opts: { us
       popoverOffset: 12,
       popoverClass: "joshine-tour",
       showProgress: resolved.length > 1,
-      progressText: multi ? `Part ${index + 1} of ${parts.length} · {{current}} of {{total}}` : "{{current}} of {{total}}",
+      progressText: multi
+        ? `Part ${index + 1} of ${parts.length}${parts[index][0].part ? ` · ${parts[index][0].part}` : ""} · {{current}} of {{total}}`
+        : "{{current}} of {{total}}",
       nextBtnText: "Next",
       prevBtnText: "Back",
       doneBtnText: "Done",
@@ -184,20 +186,29 @@ export async function startTour(tour: Tour, joshine: JoshineSettings, opts: { us
     d.drive();
   };
 
-  // Click the next part's tab, give the page a moment to draw it, carry on.
-  const switchTo = (index: number) => {
-    const label = parts[index][0].click!;
+  // Next part: click its tab first if it has one (and give the page a moment
+  // to draw it); a plain new part just carries on.
+  const switchTo = (index: number): void => {
+    const label = parts[index][0].click;
+    if (!label) return runPart(index);
     const tab = findTourButton(label);
     if (!tab) return finish();
     (tab as HTMLElement).click();
     window.setTimeout(() => runPart(index), 350);
   };
 
-  const finish = () => {
+  const finish = (): void => {
+    if (tour.hold === "sidebar") window.dispatchEvent(new CustomEvent(TOUR_SIDEBAR_EVENT, { detail: false }));
     setState({ active: false, expression: null });
     markTourSeen(opts.userId, tour.id);
     current = null;
   };
 
-  runPart(0);
+  // Open the menu first if the tour points into it, and let it slide open.
+  if (tour.hold === "sidebar") {
+    window.dispatchEvent(new CustomEvent(TOUR_SIDEBAR_EVENT, { detail: true }));
+    window.setTimeout(() => runPart(0), 380);
+  } else {
+    runPart(0);
+  }
 }

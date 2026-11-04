@@ -124,7 +124,7 @@ export function AlertsButton() {
 
   return (
     <>
-      <button
+      <button data-tour="invite"
         type="button"
         aria-label="Invite"
         title="Invite a user or group"

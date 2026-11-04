@@ -155,9 +155,40 @@ for (const m of guidesBody.matchAll(/^ {2}"(\/[^"]*)": \{\n([\s\S]*?)^ {2}\},/gm
 }
 for (const href of sidebarHrefs) if (!guideRoutes.includes(href)) fail(href, "sidebar page with no tour in lib/page-tours.ts");
 
-// App tour
-const tours = read(join(SRC, "lib", "tours.ts"));
-for (const m of tours.matchAll(/target: "([^"]+)"/g)) if (!tourIds.has(m[1])) fail("app tour", `no data-tour="${m[1]}" in the code`);
+// App tour (lib/app-tour.ts): built per role from the menu. Its fixed
+// targets must exist; menu links and section headings are tagged by the
+// Sidebar itself (nav:/href, nav-section:Title).
+const appTour = read(join(SRC, "lib", "app-tour.ts"));
+for (const line of appTour.split("\n")) {
+  if (/\b(target|roles|notRoles): /.test(line)) checkLine(line, "app tour", null, null);
+}
+const sidebarSrc = read(join(SRC, "components", "layout", "Sidebar.tsx"));
+if (!sidebarSrc.includes("data-tour={`nav:${item.href}`}")) fail("app tour", "the sidebar no longer tags its links (nav:/href)");
+if (!sidebarSrc.includes("data-tour={`nav-section:${section.title}`}")) fail("app tour", "the sidebar no longer tags its section headings");
+
+// Every page a role can open needs a description for the app tour.
+const guideBlocks = Object.fromEntries(
+  [...guidesBody.matchAll(/^ {2}"(\/[^"]*)": \{\n([\s\S]*?)^ {2}\},/gm)].map((m) => [m[1], m[2]]),
+);
+for (const href of sidebarHrefs) {
+  const b = guideBlocks[href];
+  if (b && !/\babout: "[^"]/.test(b) && !/\btour: \[/.test(b)) fail(href, "no description for the app tour (about is empty and there's no tour)");
+}
+
+// Role notes: real roles, on pages those roles can open.
+const notesBody = appTour.slice(appTour.indexOf("const ROLE_NOTES"), appTour.indexOf("/** A page's one-line description"));
+const CM_ROLES = ["Commercial Manager", "Assistant Commercial Manager"];
+for (const m of notesBody.matchAll(/^ {2}"(\/[^"]*)": \[\n([\s\S]*?)^ {2}\],/gm)) {
+  const [, href, block] = m;
+  if (!sidebarHrefs.includes(href)) fail(`app tour note ${href}`, "not a page in the menu");
+  for (const r of block.matchAll(/roles: (\[[^\]]*\]|CM)/g)) {
+    const roles = r[1] === "CM" ? CM_ROLES : [...r[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    for (const role of roles) {
+      if (!ROLES.includes(role)) fail(`app tour note ${href}`, `unknown role "${role}"`);
+      else if (!canOpen(role, href)) fail(`app tour note ${href}`, `role "${role}" can't open this page, so the note is never heard`);
+    }
+  }
+}
 
 // Form tours
 const formPath = join(SRC, "lib", "form-tours.ts");

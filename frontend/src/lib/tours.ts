@@ -1,5 +1,4 @@
 import type { JoshineExpression } from "@/lib/joshine";
-import { SHORTCUTS } from "@/lib/shortcuts";
 
 /**
  * Guided tours, led by Joshine (components/joshine/joshine-tour.ts runs them
@@ -27,6 +26,9 @@ export type TourStep = {
    *  view, e.g. a "Truck Profitability" tab. Only for tabs and view switches,
    *  never anything that saves. Starts a new part of the tour. */
   click?: string;
+  /** Starts a new part of the tour with this name ("Trip and Driver
+   *  Management"), shown in the progress line. No clicking involved. */
+  part?: string;
   /** A field by its label, or a section by its heading, by visible text
    *  ("Driver", "Trip Expenses"): in the open form if there is one
    *  (lib/form-tours.ts), otherwise in the page. */
@@ -56,7 +58,17 @@ export function stepIsForRole(step: TourStep, role: string | undefined): boolean
   return true;
 }
 
-export type Tour = { id: string; title: string; steps: TourStep[] };
+export type Tour = {
+  id: string;
+  title: string;
+  steps: TourStep[];
+  /** "sidebar": open the menu (the drawer on phones) for the tour and put it
+   *  back afterwards (AppShell listens for TOUR_SIDEBAR_EVENT). */
+  hold?: "sidebar";
+};
+
+/** Fired with `true` when a tour needs the menu open, `false` when done. */
+export const TOUR_SIDEBAR_EVENT = "canaan:tour-sidebar";
 
 /** CSS selector for a data-tour id. */
 export const tourSelector = (id: string) => `[data-tour="${id}"]`;
@@ -108,71 +120,6 @@ export function findTourButton(labelText: string): Element | null {
   return pick(buttons.filter((b) => text(b) === label)) ?? pick(buttons.filter((b) => text(b).includes(label)));
 }
 
-/** The app as a whole: offered once on a person's first visit. */
-export const APP_TOUR: Tour = {
-  id: "app",
-  title: "Getting around",
-  steps: [
-    {
-      title: "Hi, I'm {name}",
-      text: "I'll show you around Canaan Global in under a minute. Use the arrow keys or the buttons, and Esc to stop at any time.",
-      expression: "happy",
-    },
-    {
-      target: "nav",
-      title: "Every module, one menu",
-      text: "Trips, resources, maintenance, attendance, finance and insights live here. You only see what your role can open.",
-      expression: "curious",
-      side: "right",
-    },
-    {
-      target: "search",
-      title: "Find anything",
-      text: "Jump to any page, or find a trip, truck, driver, customer or staff member. Press ⌘K, Ctrl+K or / from anywhere.",
-      expression: "sparkle",
-      side: "bottom",
-      align: "end",
-    },
-    {
-      target: "network",
-      title: "Connection",
-      text: "How fast the server is answering right now. If pages feel slow, check here first.",
-      expression: "focused",
-      side: "bottom",
-    },
-    {
-      target: "display",
-      title: "Your display",
-      text: `Light or dark theme and text size, saved for you. Press ${SHORTCUTS.theme.key} to switch the theme.`,
-      expression: "wink",
-      side: "bottom",
-      align: "end",
-    },
-    {
-      target: "notifications",
-      title: "Notifications",
-      text: "Approvals and alerts meant for you arrive here.",
-      expression: "surprised",
-      side: "bottom",
-      align: "end",
-    },
-    {
-      target: "profile",
-      title: "You",
-      text: `Your profile, meetings, to-do and notes. Press ${SHORTCUTS.todo.key} for to-do and ${SHORTCUTS.notes.key} for notes on any page.`,
-      expression: "love",
-      side: "bottom",
-      align: "end",
-    },
-    {
-      target: "joshine",
-      title: "And that's me",
-      text: "Click me to change how I look, or to ask for a tour of the page you're on. More help is coming soon.",
-      expression: "happy",
-      side: "left",
-      align: "end",
-    },
-  ],
-};
+// The app tour is built per role in lib/app-tour.ts.
 
 export { pageTourFor } from "@/lib/page-tours";

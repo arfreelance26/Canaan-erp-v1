@@ -3,6 +3,7 @@
 import { CelebrationPreviewBar } from "./CelebrationPreviewBar";
 import { JoshinePet } from "@/components/joshine/JoshinePet";
 import { useState, useEffect, useRef } from "react";
+import { TOUR_SIDEBAR_EVENT } from "@/lib/tours";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -32,6 +33,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  // Joshine's app tour points at the menu: it opens the sidebar (the drawer
+  // on phones) and holds it open, then puts it back as it was.
+  const [tourHold, setTourHold] = useState(false);
+  const beforeTour = useRef({ collapsed: true, mobile: false });
+  useEffect(() => {
+    const onHold = (e: Event) => {
+      const hold = (e as CustomEvent<boolean>).detail;
+      const phone = window.matchMedia("(max-width: 767px)").matches;
+      if (hold) {
+        setCollapsed((c) => {
+          beforeTour.current.collapsed = c;
+          return false;
+        });
+        setMobileMenuOpen((m) => {
+          beforeTour.current.mobile = m;
+          return phone ? true : m;
+        });
+      } else {
+        setCollapsed(beforeTour.current.collapsed);
+        setMobileMenuOpen(beforeTour.current.mobile);
+      }
+      setTourHold(hold);
+    };
+    window.addEventListener(TOUR_SIDEBAR_EVENT, onHold);
+    return () => window.removeEventListener(TOUR_SIDEBAR_EVENT, onHold);
+  }, []);
   // One entrance per route: the page content condenses into place (lib/motion).
   const mainRef = useRef<HTMLDivElement>(null);
   useEnter(mainRef, pathname);
@@ -91,10 +118,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // An expanded sidebar folds itself away after 4s. The clock only runs while the
   // pointer is off it, so it never closes under someone who is still using it.
   useEffect(() => {
-    if (collapsed || sidebarHovered) return;
+    if (collapsed || sidebarHovered || tourHold) return;
     const id = window.setTimeout(() => setCollapsed(true), SIDEBAR_AUTO_COLLAPSE_MS);
     return () => window.clearTimeout(id);
-  }, [collapsed, sidebarHovered]);
+  }, [collapsed, sidebarHovered, tourHold]);
 
   useEffect(() => {
     if (pathname?.startsWith("/connect/chat")) {

@@ -10,7 +10,8 @@ import { JoshineFace } from "./JoshineFace";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/base/buttons/button";
-import { APP_TOUR, pageTourFor, type Tour } from "@/lib/tours";
+import { pageTourFor, type Tour } from "@/lib/tours";
+import { APP_TOUR_ID, appTourFor } from "@/lib/app-tour";
 import { formTourFor } from "@/lib/form-tours";
 import { FORM_TOUR_OPENED, FORM_TOUR_START } from "@/components/ui/Dialog";
 import { hasSeenTour, markTourSeen, pageOffersOff, startTour, turnOffPageOffers, useTourState } from "./joshine-tour";
@@ -45,6 +46,9 @@ export function JoshinePet() {
   const tour = useTourState();
   const pathname = usePathname();
   const pageTour = useMemo(() => pageTourFor(pathname), [pathname]);
+  // The app tour is built for this person's role: every page they can open.
+  const appTour = useMemo(() => appTourFor(user?.softwareDesignation), [user?.softwareDesignation]);
+  const myPagesTour = useMemo(() => appTourFor(user?.softwareDesignation, { pagesOnly: true }), [user?.softwareDesignation]);
   // The tour Joshine is offering from the corner, if any.
   const [offer, setOffer] = useState<Tour | null>(null);
 
@@ -99,15 +103,15 @@ export function JoshinePet() {
   useEffect(() => {
     setOffer(null);
     if (!user) return;
-    const next = !hasSeenTour(user.id, APP_TOUR.id)
-      ? APP_TOUR
+    const next = !hasSeenTour(user.id, APP_TOUR_ID)
+      ? appTour
       : pageTour && !pageOffersOff(user.id) && !hasSeenTour(user.id, pageTour.id)
         ? pageTour
         : null;
     if (!next) return;
-    const t = window.setTimeout(() => setOffer(next), next === APP_TOUR ? 2500 : 1500);
+    const t = window.setTimeout(() => setOffer(next), next === appTour ? 2500 : 1500);
     return () => window.clearTimeout(t);
-  }, [user, pageTour]);
+  }, [user, pageTour, appTour]);
 
   // The open form's tour, if it has one (Dialog `tour`). Offered the first
   // time each form opens; the ? in the form's header runs it any time.
@@ -201,7 +205,8 @@ export function JoshinePet() {
           onClose={() => setOpen(false)}
           tours={[
             ...(pageTour ? [{ label: "This page", onStart: () => runTour(pageTour) }] : []),
-            { label: pageTour ? "The app" : "Tour the app", onStart: () => runTour(APP_TOUR) },
+            { label: pageTour ? "The app" : "Tour the app", onStart: () => runTour(appTour) },
+            { label: "Just my pages", onStart: () => runTour(myPagesTour) },
           ]}
           onTuck={() => {
             setOpen(false);
@@ -232,10 +237,10 @@ export function JoshinePet() {
           className={cx("animate-pop-in fixed right-5", offer.id.startsWith("form:") ? "z-popover" : "z-pet",
             " w-[min(300px,calc(100vw-2.5rem))] origin-bottom-right rounded-3xl border border-border-button-default bg-background-primary-default p-4 shadow-sidebar")}
         >
-          {offer === APP_TOUR ? (
+          {offer.id === APP_TOUR_ID ? (
             <>
               <p className="text-headline-semibold text-text-primary">Hi, I&apos;m {settings.name || "Joshine"}</p>
-              <p className="mt-1 text-body-regular text-text-secondary">New here? I can show you around in under a minute.</p>
+              <p className="mt-1 text-body-regular text-text-secondary">I can walk you through every page you can open, and the bar along the top. Stop any time with Esc.</p>
             </>
           ) : offer.id.startsWith("form:") ? (
             <>
@@ -249,7 +254,7 @@ export function JoshinePet() {
             </>
           )}
           <div className="mt-3 flex items-center justify-end gap-2">
-            {offer !== APP_TOUR && (
+            {offer.id !== APP_TOUR_ID && (
               <button
                 type="button"
                 onClick={stopPageOffers}

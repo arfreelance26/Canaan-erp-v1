@@ -60,6 +60,10 @@ export function DashboardHero({ eyebrow, role, title, description, actions, illu
         className,
       )}
     >
+      {/* A faint dot grid, strongest behind the truck and fading out before
+          the greeting, so the card isn't a flat pale box (styles/brand.css). */}
+      <div aria-hidden className="hero-dots pointer-events-none absolute inset-0" />
+
       {/* Soft tonal wash behind the illustration — accent surface only. */}
       <div
         aria-hidden

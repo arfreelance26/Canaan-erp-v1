@@ -269,7 +269,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
               </span>
               {dashDecor === "founding" && <YearsBadge years={founding.years} />}
             </div>
-            <button
+            <button data-tour="sidebar-toggle"
               type="button"
               onClick={onToggle}
               aria-label="Collapse sidebar"
@@ -295,7 +295,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
             {/* Groups are split by a hairline in both states: short and centred when collapsed, full width when open. */}
             {i > 0 && <div className={cn("mb-4 h-px bg-separator-border", collapsed ? "mx-auto mb-3 w-6" : "mx-3")} />}
             {collapsed ? null : (
-              <p className="px-3 pb-1.5 text-caption-1-medium text-text-tertiary">{section.title}</p>
+              <p data-tour={`nav-section:${section.title}`} className="px-3 pb-1.5 text-caption-1-medium text-text-tertiary">{section.title}</p>
             )}
 
             <ul className={cn("flex flex-col", collapsed ? "gap-0.5" : "gap-1")}>
@@ -309,6 +309,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      data-tour={`nav:${item.href}`}
                       title={collapsed ? item.label : undefined}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
@@ -359,7 +360,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                 <span className="truncate text-body-medium text-text-primary">{user?.name ?? "—"}</span>
                 <span className="truncate text-caption-1-regular text-text-tertiary">{user?.softwareDesignation ?? ""}</span>
               </div>
-              <button
+              <button data-tour="logout"
                 type="button"
                 aria-label="Log out"
                 title="Log out"

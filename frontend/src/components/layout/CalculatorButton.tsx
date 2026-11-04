@@ -254,7 +254,7 @@ export function CalculatorButton() {
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <button data-tour="calculator"
         type="button"
         aria-label="Calculator"
         onClick={() => setOpen((v) => !v)}
