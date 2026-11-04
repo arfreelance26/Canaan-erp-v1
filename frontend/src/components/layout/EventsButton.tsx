@@ -15,6 +15,7 @@ import { showError, showToast, confirmDelete, confirmAction } from "@/lib/feedba
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { WorkspaceTile } from "./WorkspaceTile";
+import { SHORTCUTS, useShortcutPanel } from "@/lib/shortcuts";
 type Tab = "user" | "group";
 type View = "list" | "create" | "history";
 
@@ -54,8 +55,10 @@ EventTimeTrigger.displayName = "EventTimeTrigger";
  * EventReminderListener (mounted in AppShell) for the live "starting now"
  * push this feeds into.
  */
-/** `variant="tile"` draws the My profile card instead of the round icon; the dialog is the same. */
-export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" } = {}) {
+/** `variant="tile"` draws the My profile card instead of the round icon;
+ *  `variant="panel"` draws nothing but the dialog — the app-wide copy the M
+ *  shortcut opens (KeyboardShortcuts), which only loads meetings while open. */
+export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" | "panel" } = {}) {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
 
@@ -107,9 +110,18 @@ export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" }
     });
   };
 
+  // The hidden panel copy stays idle (no requests) until M opens it.
+  const idle = variant === "panel" && !open;
+  const idleRef = useRef(idle);
   useEffect(() => {
-    refresh();
-  }, []);
+    idleRef.current = idle;
+  });
+  useEffect(() => {
+    if (!idle) refresh();
+  }, [idle]);
+
+  // M opens and closes this dialog from anywhere (lib/shortcuts.ts).
+  useShortcutPanel("meetings", () => (open ? closeAndReset() : setOpen(true)), { fallback: variant === "panel" });
 
   // The event_created/cancelled/completed pushes below never reach browsers in
   // production (cPanel/Passenger can't carry WebSockets), so the badge and
@@ -120,7 +132,7 @@ export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" }
   });
   useEffect(() => {
     const tick = () => {
-      if (!document.hidden) refreshRef.current();
+      if (!document.hidden && !idleRef.current) refreshRef.current();
     };
     const id = window.setInterval(tick, 60_000);
     window.addEventListener("focus", tick);
@@ -134,9 +146,10 @@ export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" }
     if (view === "history") refreshHistory();
   }, [view]);
 
-  useWebSocketEvent("event_created", refresh);
-  useWebSocketEvent("event_cancelled", refresh);
+  useWebSocketEvent("event_created", () => !idleRef.current && refresh());
+  useWebSocketEvent("event_cancelled", () => !idleRef.current && refresh());
   useWebSocketEvent("event_completed", () => {
+    if (idleRef.current) return;
     refresh();
     if (historyLoaded) refreshHistory();
   });
@@ -246,10 +259,11 @@ export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" }
 
   return (
     <>
-      {variant === "tile" ? (
+      {variant === "panel" ? null : variant === "tile" ? (
         <WorkspaceTile
           icon={CalendarClock}
           title="Meetings"
+          shortcut={SHORTCUTS.meetings.key}
           summary={events.length > 0 ? `${events.length} upcoming · next ${formatWhen(events[0]?.startsAt ?? null)}` : isAdmin ? "Nothing scheduled · schedule a meeting" : "Nothing scheduled"}
           count={events.length}
           onClick={() => setOpen(true)}

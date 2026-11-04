@@ -106,16 +106,24 @@ export function SheetTrackingCard({
         })}
       </div>
 
-      {/* Date filters — compact pills, the app's standard picker without the gold frame */}
+      {/* Date filters — compact pills holding the app's date picker in its frameless "bare" form */}
       <div className="flex flex-wrap items-center gap-2">
         {dates.map((d) => (
           <div
             key={d.label}
-            className="flex h-8 items-center gap-1.5 rounded-full border border-separator-border bg-background-primary-default pl-3 pr-2 shadow-sm transition-shadow hover:shadow-md [&_.border-gold-solid]:!border-0 [&_.border-gold-solid]:!bg-transparent [&_.border-gold-solid]:!px-1 [&_.border-gold-solid]:!py-1 [&_.border-gold-solid]:!shadow-none [&_.border-brand-gold_svg]:!text-text-tertiary [&_input]:!text-xs [&_input]:!normal-case [&_input]:!font-medium [&_input]:!text-text-primary [&_input::placeholder]:!font-normal [&_input::placeholder]:!text-text-tertiary"
+            className="flex h-8 items-center gap-1 rounded-full border border-separator-border bg-background-primary-default pl-3 pr-1.5 shadow-xs transition-colors hover:border-border-button-hover"
           >
             <span className="whitespace-nowrap text-caption-2-semibold text-text-secondary">{d.label}</span>
-            <div className="w-[92px]">
-              <DatePickerInput value={d.value} onChange={d.onChange} placeholder="" dateFormat="dd MMM yyyy" clearable={false} />
+            <div className="w-[104px] [&_button>span]:text-caption-1-medium">
+              <DatePickerInput
+                variant="bare"
+                value={d.value}
+                onChange={d.onChange}
+                placeholder="Any date"
+                aria-label={d.label}
+                dateFormat="dd MMM yyyy"
+                clearable={false}
+              />
             </div>
             {d.value && (
               <button

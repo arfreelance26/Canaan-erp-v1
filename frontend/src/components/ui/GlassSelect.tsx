@@ -55,12 +55,17 @@ export function GlassSelect({
       const dropdownHeight = 240; // approx max-h-60
       
       const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
-      
+      // A pill can be narrower than its longest option; the list never is.
+      const width = pill || size === "sm" ? Math.max(rect.width, 208) : rect.width;
+      // Keep the list on screen: a trigger near the right edge gets its list
+      // lined up with its right side instead of running past the viewport.
+      const viewportWidth = document.documentElement.clientWidth;
+      const left = rect.left + width > viewportWidth - 8 ? Math.max(8, rect.right - width) : rect.left;
+
       setDropdownStyle({
         position: 'fixed',
-        left: rect.left,
-        // A pill can be narrower than its longest option; the list never is.
-        width: pill || size === "sm" ? Math.max(rect.width, 208) : rect.width,
+        left,
+        width,
         ...(openUpwards 
              ? { bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(spaceAbove - 20, 300) }
              : { top: rect.bottom + 8, maxHeight: Math.min(spaceBelow - 20, 300) })

@@ -79,7 +79,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
   },
   "/personal/profile": {
     title: "My profile",
-    about: "Your details and photo, plus your own meetings, to-do and notes. Press T for to-do and N for notes from any page.",
+    about: "Your details and photo, plus your own meetings, to-do and notes. Press M for meetings, T for to-do and N for notes from any page.",
     expression: "love",
   },
 
