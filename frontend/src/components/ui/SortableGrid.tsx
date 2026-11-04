@@ -43,6 +43,7 @@ export function SortableGrid<T>({
   renderItem,
   className,
   label,
+  tour,
 }: {
   items: T[];
   getId: (item: T) => string;
@@ -52,6 +53,8 @@ export function SortableGrid<T>({
   className?: string;
   /** What the cards are, for screen readers ("tickets"). */
   label?: string;
+  /** Guided-tour anchor (data-tour) for the grid. */
+  tour?: string;
 }) {
   const [order, setOrder] = useSavedOrder(storageKey);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -112,7 +115,7 @@ export function SortableGrid<T>({
     >
       {/* No live reshuffle (cards differ in height): the target is highlighted instead. */}
       <SortableContext items={ids} strategy={() => null}>
-        <div className={className}>
+        <div data-tour={tour} className={className}>
           {ids.map((id) => (
             <SortableCard key={id} id={id} source={id === activeId} target={id === target}>
               {renderItem(byId.get(id)!, { dragging: false })}

@@ -49,7 +49,7 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Pay ${type} - ${personName}`}>
+    <Dialog tour="payment-form" open={open} onClose={onClose} title={`Pay ${type} - ${personName}`}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="Amount" required>
           <DecimalInput type="number"

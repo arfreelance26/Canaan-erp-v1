@@ -153,7 +153,7 @@ export function CustomerDestinationFormDialog({
   }
 
   return (
-    <Dialog
+    <Dialog tour="destination-form"
       open={open}
       onClose={onClose}
       title={initialData ? "Edit Customer Destination" : "Add Customer Destination"}

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/context/AuthContext";
-import { DailySummaryCard } from "@/components/dashboard/DailySummaryCard";
 import { FleetManagerDashboard } from "@/components/dashboard/FleetManagerDashboard";
 import { TyreManagerDashboard } from "@/components/dashboard/TyreManagerDashboard";
 import { FinanceManagerDashboard } from "@/components/dashboard/FinanceManagerDashboard";
@@ -570,8 +569,6 @@ function AdminDashboard() {
         }
       />
 
-      <DailySummaryCard />
-
       {/* ── Current Trips ────────────────────────────────────────────────── */}
       <CurrentTripsCard />
 
@@ -653,7 +650,7 @@ function AdminDashboard() {
       {(() => {
         const updatedToday = inDateRange(fuelRate.updatedAt, today, today);
         return (
-          <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-separator-border bg-background-primary-default px-5 py-3.5 shadow-sm">
+          <div data-tour="fuel-rate" className="flex flex-wrap items-center gap-4 rounded-2xl border border-separator-border bg-background-primary-default px-5 py-3.5 shadow-sm">
             <span className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
               updatedToday ? "bg-success-surface text-success-text" : "bg-warning-surface text-warning-text"
@@ -775,7 +772,7 @@ function AdminDashboard() {
 
       {/* ── Section 1b: Audit ────────────────────────────────────────────── */}
       <div>
-        <h2 className="mb-3 text-body-semibold text-text-tertiary">Audit</h2>
+        <h2 data-tour="audit-strip" className="mb-3 text-body-semibold text-text-tertiary">Audit</h2>
         <FleetStatusPanel
           segments={[
             flaggedUnderReviewCount > 0
@@ -861,7 +858,7 @@ function AdminDashboard() {
 
         return (
           <div>
-            <h2 className="mb-3 text-body-semibold text-text-tertiary">Trip Sheet Tracking</h2>
+            <h2 data-tour="sheet-tracking" className="mb-3 text-body-semibold text-text-tertiary">Trip Sheet Tracking</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
               {/* Delivered by Yard Supervisor */}
@@ -934,7 +931,7 @@ function AdminDashboard() {
       {/* ── Edit Approval Requests ───────────────────────────────────────── */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-body-semibold text-text-tertiary">Edit Approval Requests</h2>
+          <h2 data-tour="edit-requests" className="text-body-semibold text-text-tertiary">Edit Approval Requests</h2>
           <Link
             href="/attendance/edit-approvals"
             className="group flex h-8 items-center gap-1.5 rounded-full border border-purple-border bg-background-primary-default px-4 text-caption-1-semibold text-purple-text shadow-sm transition duration-300 hover:border-purple-border-strong hover:bg-purple-surface-strong hover:shadow-md"
@@ -1027,7 +1024,7 @@ function AdminDashboard() {
         return (
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-body-semibold text-text-tertiary">Booking Horizon</h2>
+              <h2 data-tour="booking-horizon" className="text-body-semibold text-text-tertiary">Booking Horizon</h2>
               {latestDate && (
                 <span className="flex items-center gap-2 rounded-full border border-separator-border bg-background-primary-default px-3.5 py-1.5 text-xs text-text-secondary shadow-sm">
                   <CalendarDays className="h-3.5 w-3.5 text-purple-text" />

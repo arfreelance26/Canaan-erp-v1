@@ -156,7 +156,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
     "flex items-center gap-1.5 text-caption-1-medium text-danger-text hover:text-danger-text transition-colors";
 
   return (
-    <Dialog
+    <Dialog tour="staff-form"
       open={open}
       onClose={onClose}
       title={initialData ? "Edit Staff" : "Add Staff"}

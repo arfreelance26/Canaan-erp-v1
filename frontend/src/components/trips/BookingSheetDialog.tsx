@@ -201,7 +201,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
       : tf.containerNumber ?? "";
 
   return (
-    <Dialog
+    <Dialog tour={readOnly ? undefined : "booking-sheet"}
       open={open}
       onClose={onClose}
       title={readOnly ? `View Booking Sheet — ${trip.tripId}` : `Edit Booking Sheet — ${trip.tripId}`}

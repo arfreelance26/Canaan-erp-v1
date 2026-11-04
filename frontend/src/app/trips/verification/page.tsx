@@ -819,7 +819,7 @@ export default function TripVerificationPage() {
       </div>
 
       {/* Filter cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+      <div data-tour="verify-stats" className="grid grid-cols-2 gap-3 sm:grid-cols-6">
         {FILTER_CARDS.map(({ key, label, count, color }) => (
           <button
             key={key}
@@ -834,7 +834,7 @@ export default function TripVerificationPage() {
       </div>
 
       {/* Workflow steps legend + invoice type sub-filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
+      <div data-tour="verify-workflow" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
         <div className="flex flex-wrap items-center gap-3">
           <span className="font-semibold text-text-secondary">Workflow:</span>
           <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-warning-text" /> Pending → verify trip data</span>

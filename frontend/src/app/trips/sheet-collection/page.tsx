@@ -575,7 +575,7 @@ export default function SheetCollectionPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div data-tour="sheet-stats" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <button
           type="button"
           onClick={() => { setStatusFilter("All"); setPage(1); }}
@@ -616,7 +616,7 @@ export default function SheetCollectionPage() {
       </div>
 
       {/* Workflow legend */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
+      <div data-tour="sheet-workflow" className="flex flex-wrap items-center gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
         <span className="font-semibold text-text-secondary">Workflow:</span>
         <span className="flex items-center gap-1"><Circle className="h-3.5 w-3.5 text-warning-text" /> Trip closed → pending sheet delivery</span>
         <span className="text-text-tertiary">›</span>

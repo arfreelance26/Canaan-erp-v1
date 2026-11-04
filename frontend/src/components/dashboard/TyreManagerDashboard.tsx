@@ -252,7 +252,7 @@ export function TyreManagerDashboard() {
 
       {/* Quick Access */}
       <div>
-        <h2 className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
+        <h2 data-tour="quick-access" className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
         <div className="grid grid-cols-3 gap-3 sm:max-w-md">
           {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
             <Link key={href} href={href}

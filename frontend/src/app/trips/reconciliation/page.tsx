@@ -760,7 +760,7 @@ export default function TripReconciliationPage() {
       </div>
 
       {/* Status filter count cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+      <div data-tour="recon-stats" className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Rejected", "Request Raised", "Request Approved", "Request Rejected"] as const).map((f) => {
           const colors: Record<string, string> = {
             "All":                  "border-separator-border bg-background-primary-default text-text-primary",
@@ -826,7 +826,7 @@ export default function TripReconciliationPage() {
       )}
 
       {/* Workflow legend */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
+      <div data-tour="recon-workflow" className="flex flex-wrap items-center gap-3 rounded-xl border border-separator-border bg-fill-1 px-4 py-2.5 text-xs text-text-secondary">
         <span className="font-semibold text-text-secondary">Workflow:</span>
         <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5 text-warning-text" /> Sheet delivered by Yard → pending receive</span>
         <span className="text-text-tertiary">›</span>

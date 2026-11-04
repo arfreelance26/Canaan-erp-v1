@@ -515,7 +515,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const endKmChecks = ro ? [] : (kmCheck?.warnings ?? []).filter((w) => w.field === "end");
 
   return (
-    <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-4xl">
+    <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-4xl" tour={ro ? undefined : "trip-sheet"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {/* ── 1. Trip Information ── */}
         <p className={sh}>Trip Information</p>

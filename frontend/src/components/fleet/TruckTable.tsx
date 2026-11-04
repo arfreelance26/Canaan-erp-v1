@@ -116,7 +116,7 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div data-tour="truck-cards" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {trucks.map((truck) => (
         <div
           key={truck.truckId}

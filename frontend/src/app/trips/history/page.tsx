@@ -392,7 +392,7 @@ export default function TripHistoryPage() {
       </div>
 
       {/* Summary count cards — Auditor only gets the three audit-relevant ones */}
-      <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${isAuditor ? "" : "md:grid-cols-7"}`}>
+      <div data-tour="history-stats" className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${isAuditor ? "" : "md:grid-cols-7"}`}>
         {(isAuditor
           ? (["Invoiced", "Waived Invoice", "Completed"] as const)
           : (["All", "Assigned", "Current", "Completed", "Invoiced", "Waived Invoice", "Cancelled"] as const)

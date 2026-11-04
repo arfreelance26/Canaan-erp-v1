@@ -161,7 +161,7 @@ SWITCHES = {
     "season": (settings_store.festive_season_enabled, settings_store.set_festive_season_enabled),
     "founding": (settings_store.founding_day_enabled, settings_store.set_founding_day_enabled),
 }
-AUDIT_EVENTS = ("celebrations.switch", "celebrations.messages", "settings.festive_season", "settings.founding_day")
+AUDIT_EVENTS = ("celebrations.switch", "celebrations.messages", "celebrations.festival", "settings.festive_season", "settings.founding_day")
 
 
 def _upcoming(db: Session, today: date, days: int = 90) -> list[dict]:
@@ -212,6 +212,7 @@ def overview(db: Session = Depends(get_db)):
         "defaults": settings_store.DEFAULT_CELEBRATION_MESSAGES,
         "max_message": settings_store.CELEBRATION_MESSAGE_MAX,
         "upcoming": _upcoming(db, today),
+        "festivals": settings_store.greeting_festivals(db),
         "history": [
             {"event": h.event, "actor": h.actor_name, "detail": h.detail, "at": h.created_at.isoformat() if h.created_at else None}
             for h in history
@@ -264,3 +265,90 @@ def set_messages(
         actor_role=user.role, detail="edited: " + ", ".join(sorted(changes)) if changes else "no changes",
     )
     return settings_store.celebration_messages(db)
+
+
+class FestivalIn(BaseModel):
+    key: str
+    enabled: bool
+    dates: list[date] = []
+
+
+@router.put("/festivals")
+def set_festival(
+    payload: FestivalIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: TokenUser = Depends(require_roles()),
+):
+    """Admin: switch a festival greeting on/off and set its dates (they move
+    every year, so each year's date is entered here)."""
+    if payload.key not in settings_store.FESTIVALS:
+        raise HTTPException(400, "Unknown festival.")
+    saved = settings_store.set_greeting_festival(db, payload.key, payload.enabled, [d.isoformat() for d in payload.dates])
+    record_audit(
+        "celebrations.festival", request=request, actor_id=user.id, actor_name=user.name, actor_role=user.role,
+        detail=f"{payload.key}={'on' if payload.enabled else 'off'}; dates: {', '.join(saved['dates']) or 'none'}",
+    )
+    return saved
+
+
+# ── Joshine's greeting (every user) ──────────────────────────────────────────
+# A visit that started this long ago still counts as "now": the activity log
+# records this visit's own page loads, so the previous visit is the latest
+# activity before this gap.
+VISIT_GAP = timedelta(minutes=30)
+
+
+@router.get("/greeting")
+def greeting_context(
+    preview: str | None = None,
+    preview_birthday: bool = False,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """What Joshine needs to greet the caller (lib/greetings.ts picks the
+    words): when they were last here, and whether today is their birthday,
+    their work anniversary or a festival. Only the caller's own dates."""
+    today = _today_for(current_user, preview)
+    now = datetime.utcnow()
+    E = models.ActivityEvent
+    last = None
+    if current_user.id is not None:
+        last = (
+            db.query(E.created_at)
+            .filter(E.user_id == current_user.id, E.created_at < now - VISIT_GAP)
+            .order_by(E.created_at.desc())
+            .first()
+        )
+    last_seen = last[0].replace(tzinfo=ZoneInfo("UTC")).astimezone(IST) if last else None
+
+    staff = db.get(models.Staff, current_user.id) if current_user.id is not None else None
+    birthday = bool(staff and settings_store.birthdays_enabled(db) and _is_birthday(staff.date_of_birth, today))
+    if preview_birthday and current_user.role == "Admin":
+        birthday = True
+    work_years = None
+    if staff and staff.date_of_joining and (staff.date_of_joining.month, staff.date_of_joining.day) == (today.month, today.day):
+        years = today.year - staff.date_of_joining.year
+        work_years = years if years >= 1 else None
+
+    festival = None
+    for key, f in settings_store.greeting_festivals(db).items():
+        if f["enabled"] and today.isoformat() in f["dates"]:
+            festival = {"key": key, "name": f["name"]}
+            break
+    if festival is None and settings_store.festive_season_enabled(db):
+        if (today.month, today.day) in ((12, 24), (12, 25)):
+            festival = {"key": "christmas", "name": "Christmas"}
+        elif (today.month, today.day) == (1, 1):
+            festival = {"key": "newyear", "name": "New Year"}
+
+    return {
+        "today": today.isoformat(),
+        "last_seen": last_seen.isoformat() if last_seen else None,
+        "away_days": (today - last_seen.date()).days if last_seen else None,
+        "first_visit": last is None,
+        "birthday": birthday,
+        "work_years": work_years,
+        "festival": festival,
+    }
+

@@ -148,6 +148,7 @@ NOT_WORK = frozenset({
     "POST /branches",
     "DELETE /branches/{branch_id}",
     "PUT /branches/{branch_id}",
+    "PUT /celebrations/festivals",
     "PUT /celebrations/messages",
     "PUT /celebrations/switch",
     "DELETE /cfs-yard/{entry_id}",

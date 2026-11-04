@@ -501,7 +501,7 @@ export function GenerateCombinedInvoiceDialog({
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} title={`${mode === "edit" ? "Edit" : "Generate"} Combined Invoice — ${trips.length} Trips`} className="max-w-6xl">
+    <Dialog tour="combined-invoice" open={open} onClose={onClose} title={`${mode === "edit" ? "Edit" : "Generate"} Combined Invoice — ${trips.length} Trips`} className="max-w-6xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
         <div className="rounded-lg border border-purple-border bg-purple-surface px-4 py-2.5 text-xs text-purple-text">

@@ -337,6 +337,7 @@ export function MaintenanceRecordFormDialog({
       open={open}
       onClose={onClose}
       title={truck ? `${title} — ${truck.registrationNumber}` : title}
+      tour="maintenance-record"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {isEdit && requireReason && (

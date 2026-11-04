@@ -39,7 +39,7 @@ export function ComplianceAlertBanner({
   const truckCount = new Set(main.map((i) => i.truckId)).size;
 
   return (
-    <div className={cn(
+    <div data-tour="compliance-banner" className={cn(
       "overflow-hidden rounded-2xl border bg-background-primary-default shadow-sm",
       hasExpired ? "border-danger-border/80" : "border-warning-border/80"
     )}>

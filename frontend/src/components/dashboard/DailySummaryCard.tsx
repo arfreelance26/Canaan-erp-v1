@@ -163,7 +163,7 @@ export function DailySummaryCard() {
             <Sunrise className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-title-3-semibold tracking-tight text-text-primary">{greeting()}, {firstName}</h2>
+            <h2 data-tour="recap-greeting" className="text-title-3-semibold tracking-tight text-text-primary">{greeting()}, {firstName}</h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
               <span className="text-text-secondary">Your recap for</span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-warning-border bg-warning-surface px-2.5 py-1 font-semibold text-warning-text-strong">
@@ -188,7 +188,7 @@ export function DailySummaryCard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-full bg-fill-2 p-0.5 text-caption-1-semibold">
+          <div data-tour="recap-mode" className="flex rounded-full bg-fill-2 p-0.5 text-caption-1-semibold">
             <button
               type="button"
               onClick={() => setLive(null)}
@@ -206,7 +206,7 @@ export function DailySummaryCard() {
               {live ? "Refresh" : "Live"}
             </button>
           </div>
-          <button
+          <button data-tour="recap-collapse"
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? "Collapse" : "Expand"}
@@ -219,10 +219,10 @@ export function DailySummaryCard() {
 
       {open && (
         <div className="flex flex-col gap-5 p-5">
-          <p className="text-sm text-text-primary">{shown.headline}</p>
+          <p data-tour="recap-headline" className="text-sm text-text-primary">{shown.headline}</p>
 
           {live && (
-            <p className={cn(
+            <p data-tour="recap-changes" className={cn(
               "flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg px-3.5 py-2 text-xs",
               changes.length ? "bg-accent-surface text-accent-text-strong" : "bg-fill-1 text-text-secondary",
             )}>
@@ -235,7 +235,7 @@ export function DailySummaryCard() {
 
           {/* Key figures */}
           {tiles.length > 0 && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <div data-tour="recap-figures" className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
               {tiles.map((t) => {
                 const value = shown.metrics[t.key];
                 return (
@@ -263,6 +263,7 @@ export function DailySummaryCard() {
                 getId={(t) => t.id}
                 storageKey={user ? `canaan.dashboard.tickets.v1.${user.id}` : undefined}
                 label="tickets"
+                tour="recap-attention"
                 className="grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-4"
                 renderItem={(t, { dragging }) => (
                   <AttentionTicket meta={ticketMeta(t.line)} href={t.line.href ?? null} dragging={dragging}>
@@ -279,6 +280,7 @@ export function DailySummaryCard() {
             getId={(sec) => sec.key}
             storageKey={user ? `canaan.dashboard.sections.v1.${user.id}` : undefined}
             label="recap cards"
+            tour="recap-sections"
             className="grid auto-rows-[14rem] gap-3 md:grid-cols-2 xl:grid-cols-3"
             renderItem={(s, { dragging }) => {
               const style = SECTION_STYLE[s.key] ?? { icon: ClipboardList, tone: "bg-fill-2 text-text-secondary" };
@@ -305,7 +307,7 @@ export function DailySummaryCard() {
 
           {/* Today */}
           {shown.today.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-purple-surface/70 px-4 py-3">
+            <div data-tour="recap-today" className="flex flex-wrap items-center gap-2 rounded-xl bg-purple-surface/70 px-4 py-3">
               <span className="mr-1 flex items-center gap-2 text-body-semibold text-purple-text-strong">
                 <CalendarDays className="h-4 w-4" /> Today, {shown.todayLabel}
               </span>

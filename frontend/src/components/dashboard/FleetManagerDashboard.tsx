@@ -270,7 +270,7 @@ export function FleetManagerDashboard() {
 
       {/* Trip Sheet Tracking */}
       <div>
-        <h2 className="mb-3 text-body-semibold text-text-tertiary">Trip Sheet Tracking</h2>
+        <h2 data-tour="sheet-tracking" className="mb-3 text-body-semibold text-text-tertiary">Trip Sheet Tracking</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
           {/* Delivered by Yard Supervisor */}
@@ -343,7 +343,7 @@ export function FleetManagerDashboard() {
 
       {/* Quick Links */}
       <div>
-        <h2 className="mb-3 text-body-semibold text-text-secondary">Quick Access</h2>
+        <h2 data-tour="quick-access" className="mb-3 text-body-semibold text-text-secondary">Quick Access</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
             <Link

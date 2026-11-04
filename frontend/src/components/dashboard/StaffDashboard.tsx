@@ -254,7 +254,7 @@ export function StaffDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-body-semibold text-text-primary">Pending Receive</h2>
+                <h2 data-tour="pending-receive" className="text-body-semibold text-text-primary">Pending Receive</h2>
                 {!loading && pendingReceive.length > 0 && (
                   <span className="rounded-full bg-warning-surface text-warning-text px-2 py-0.5 text-caption-2-semibold tabular-nums">{pendingReceive.length}</span>
                 )}
@@ -298,7 +298,7 @@ export function StaffDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-body-semibold text-text-primary">Pending Entry</h2>
+                <h2 data-tour="pending-entry" className="text-body-semibold text-text-primary">Pending Entry</h2>
                 {!loading && pendingEntry.length > 0 && (
                   <span className="rounded-full bg-accent-surface text-accent-text px-2 py-0.5 text-caption-2-semibold tabular-nums">{pendingEntry.length}</span>
                 )}

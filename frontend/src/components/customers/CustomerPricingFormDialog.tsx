@@ -191,7 +191,7 @@ export function CustomerPricingFormDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Customer Pricing" : "Add Customer Pricing"}>
+    <Dialog tour="pricing-form" open={open} onClose={onClose} title={initialData ? "Edit Customer Pricing" : "Add Customer Pricing"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
         {/* Customer Name — searchable combobox */}

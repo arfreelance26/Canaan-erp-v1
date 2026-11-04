@@ -60,7 +60,7 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Customer" : "Add Customer"}>
+    <Dialog tour="customer-form" open={open} onClose={onClose} title={initialData ? "Edit Customer" : "Add Customer"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Profile picture — saved with the customer, so it goes through the same edit process. */}
         <ProfileAvatarPicker

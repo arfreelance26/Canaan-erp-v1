@@ -162,7 +162,7 @@ export function VerifyTripDialog({
       : "";
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Verify Trip — ${trip.tripId}`} className="max-w-4xl">
+    <Dialog open={open} onClose={onClose} title={`Verify Trip — ${trip.tripId}`} className="max-w-4xl" tour={readOnly ? undefined : "verify-trip"}>
       <div className="flex flex-col gap-4">
 
         {/* Status banner */}

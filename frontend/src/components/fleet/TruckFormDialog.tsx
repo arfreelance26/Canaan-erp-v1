@@ -185,7 +185,7 @@ export function TruckFormDialog({
   const truckId = initialData?.truckId ?? nextTruckId ?? "Loading…";
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Truck" : "Add Truck"}>
+    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Truck" : "Add Truck"} tour={initialData ? undefined : "add-truck"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="rounded-lg border border-separator-border p-4">
           <p className={`${sectionHeadingClass} mb-4`}>Vehicle Images</p>

@@ -118,7 +118,7 @@ function Segment({ segment }: { segment: FleetStatusSegment }) {
 
 export function FleetStatusPanel({ segments }: { segments: FleetStatusSegment[] }) {
   return (
-    <div
+    <div data-tour="fleet-status"
       className="grid gap-px overflow-hidden rounded-2xl border border-separator-border bg-fill-3 shadow-sm"
       style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}
     >

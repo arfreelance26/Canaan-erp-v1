@@ -130,7 +130,7 @@ export function LaneMapCard({ trips }: { trips: Trip[] }) {
             <Route className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-body-semibold text-text-primary">Lane Map</h2>
+            <h2 data-tour="lane-map" className="text-body-semibold text-text-primary">Lane Map</h2>
             <p className="text-xs text-text-secondary">Where your trucks actually run</p>
           </div>
         </div>

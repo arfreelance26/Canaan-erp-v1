@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:tours": "node scripts/check-tours.mjs",
     "postinstall": "patch-package",
     "electron:compile": "tsc -p tsconfig.electron.json",
     "electron:dev": "NODE_ENV=development npm run electron:compile && electron .",

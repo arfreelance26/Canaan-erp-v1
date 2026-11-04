@@ -968,7 +968,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                               onClick={() => {
                                 dismissSummaryAlert(alert.serverId);
                                 setIsNotifOpen(false);
-                                router.push("/");
+                                router.push("/overview/recap-report");
                               }}
                               className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-warning-surface-strong/60"
                             >

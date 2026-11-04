@@ -127,7 +127,7 @@ export function TripTrendChart({ trips }: Props) {
     <section className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default">
       <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-5">
         <div className="flex flex-col gap-1">
-          <h2 className="text-headline-medium text-text-primary">Trip trend</h2>
+          <h2 data-tour="trip-trend" className="text-headline-medium text-text-primary">Trip trend</h2>
           <p className="text-body-regular text-text-secondary">Trips scheduled and completed</p>
         </div>
         <Segmented label="Time range" value={range} onChange={setRange} options={RANGES} />

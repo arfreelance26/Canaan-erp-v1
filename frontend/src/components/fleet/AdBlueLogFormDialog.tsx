@@ -136,7 +136,7 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={log ? "Edit AdBlue Log" : "Enter AdBlue Log"}>
+    <Dialog tour="adblue-log" open={open} onClose={onClose} title={log ? "Edit AdBlue Log" : "Enter AdBlue Log"}>
       <div className="mb-6 flex items-center gap-3 rounded-lg border border-separator-border bg-fill-1 p-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-surface-strong/50 text-accent-text">
           <Droplets className="h-5 w-5" />

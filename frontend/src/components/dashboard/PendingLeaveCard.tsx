@@ -22,7 +22,7 @@ export function PendingLeaveCard({ requests, pendingCount }: { requests: LeaveRe
             <CalendarOff className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-body-semibold text-text-primary">Pending Leave Requests</h2>
+            <h2 data-tour="pending-leave" className="text-body-semibold text-text-primary">Pending Leave Requests</h2>
             <p className="text-xs text-text-secondary">
               {pendingCount === 0 ? "Nothing waiting for you" : `${pendingCount} waiting for approval`}
             </p>

@@ -416,7 +416,7 @@ export default function MarkAttendancePage() {
         <div className="flex flex-col gap-4">
 
           {/* Monthly attendance */}
-          <div className={`overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm transition-opacity ${summaryLoading ? "opacity-60" : ""}`}>
+          <div data-tour="attendance-month" className={`overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm transition-opacity ${summaryLoading ? "opacity-60" : ""}`}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-separator-border bg-accent-surface/70 px-5 py-3.5">
               <div className="flex items-center gap-3">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-surface-strong text-accent-text">
@@ -493,7 +493,7 @@ export default function MarkAttendancePage() {
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-surface-strong text-accent-text">
                   <Clock className="h-4 w-4" />
                 </span>
-                <h2 className="text-body-semibold text-text-primary">Attendance history</h2>
+                <h2 data-tour="attendance-history" className="text-body-semibold text-text-primary">Attendance history</h2>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
@@ -607,7 +607,7 @@ export default function MarkAttendancePage() {
         </div>
 
         {/* ── RIGHT COLUMN: Today card (sticky) ── */}
-        <div className="sticky top-4 flex flex-col overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+        <div data-tour="attendance-today" className="sticky top-4 flex flex-col overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
 
           {/* Person */}
           <div className="flex items-center gap-3 border-b border-separator-border bg-accent-surface/70 px-5 py-4">

@@ -5604,6 +5604,19 @@ export type CelebrationsOverview = {
   maxMessage: number;
   upcoming: { date: string; days: number; kind: "birthday" | "season" | "founding"; title: string; detail: string }[];
   history: { event: string; actor: string | null; detail: string | null; at: string | null }[];
+  festivals: Record<FestivalKey, Festival>;
+};
+export type FestivalKey = "pongal" | "deepavali" | "ayudha_pooja";
+export type Festival = { name: string; enabled: boolean; dates: string[] };
+/** What Joshine's greeting needs to know about the signed-in person today. */
+export type GreetingContext = {
+  today: string;
+  lastSeen: string | null;
+  awayDays: number | null;
+  firstVisit: boolean;
+  birthday: boolean;
+  workYears: number | null;
+  festival: { key: string; name: string } | null;
 };
 /** Celebrations Management (Admin). */
 export const celebrationsApi = {
@@ -5616,11 +5629,25 @@ export const celebrationsApi = {
       maxMessage: Number(r.max_message ?? 250),
       upcoming: r.upcoming ?? [],
       history: r.history ?? [],
+      festivals: r.festivals ?? {},
     }) as CelebrationsOverview),
   setSwitch: (key: CelebrationKey, enabled: boolean) =>
     rawReq<{ key: string; enabled: boolean }>("/celebrations/switch", { method: "PUT", body: JSON.stringify({ key, enabled }) }),
   setMessages: (messages: Partial<CelebrationMessages>) =>
     rawReq<CelebrationMessages>("/celebrations/messages", { method: "PUT", body: JSON.stringify(messages) }),
+  setFestival: (key: FestivalKey, enabled: boolean, dates: string[]) =>
+    rawReq<Festival>("/celebrations/festivals", { method: "PUT", body: JSON.stringify({ key, enabled, dates }) }),
+  /** Every user: last visit, birthday, work anniversary and festival, for Joshine's greeting. */
+  greeting: () =>
+    rawReq<B>(`/celebrations/greeting${previewQuery()}`).then((r) => ({
+      today: String(r.today ?? ""),
+      lastSeen: (r.last_seen as string | null) ?? null,
+      awayDays: typeof r.away_days === "number" ? r.away_days : null,
+      firstVisit: Boolean(r.first_visit),
+      birthday: Boolean(r.birthday),
+      workYears: typeof r.work_years === "number" ? r.work_years : null,
+      festival: (r.festival as GreetingContext["festival"]) ?? null,
+    }) as GreetingContext),
 };
 
 export const remindersApi = {

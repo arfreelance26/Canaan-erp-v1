@@ -133,7 +133,7 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Submit Leave Request">
+    <Dialog open={open} onClose={onClose} title="Submit Leave Request" tour="leave-request">
       <form onSubmit={handleSubmit} className="space-y-4">
         
         {isAdmin ? (

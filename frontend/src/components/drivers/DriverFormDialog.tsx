@@ -134,7 +134,7 @@ export function DriverFormDialog({
   const driverId = initialData?.driverId ?? nextDriverId ?? "Loading…";
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Driver" : "Add Driver"}>
+    <Dialog tour="driver-form" open={open} onClose={onClose} title={initialData ? "Edit Driver" : "Add Driver"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="Driver ID" required>
           <input

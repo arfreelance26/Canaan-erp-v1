@@ -153,7 +153,7 @@ function DistanceBand({ stats, configuredKmPerDay }: { stats?: TruckRunStats; co
     `÷ ${stats.months.toFixed(1)} months (${formatDate(stats.firstTripDate)} → ${formatDate(stats.dataUntil)}). Daily = Monthly ÷ 26 working days.`;
 
   return (
-    <div title={howWorkedOut} className="grid cursor-help grid-cols-3 divide-x divide-separator-border border-b border-separator-border bg-background-primary-default">
+    <div data-tour="rcc-distance" title={howWorkedOut} className="grid cursor-help grid-cols-3 divide-x divide-separator-border border-b border-separator-border bg-background-primary-default">
       <DistanceTile label="Monthly Distance" sub="avg per month">
         {km(stats.monthlyAvg)} <span className="text-caption-2-medium text-text-tertiary">km</span>
       </DistanceTile>
@@ -481,7 +481,7 @@ function TruckCostCard({
   ].filter((c): c is { label: string; value: number; color: string } => typeof c.value === "number" && c.value > 0);
 
   return (
-    <div className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm overflow-hidden">
+    <div data-tour="rcc-truck-card" className="rounded-2xl border border-separator-border bg-background-primary-default shadow-sm overflow-hidden">
       {/* Card header */}
       <div className="flex items-center gap-4 border-b border-separator-border bg-fill-1 px-5 py-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-surface-strong text-accent-text">
@@ -506,7 +506,7 @@ function TruckCostCard({
       <DistanceBand stats={runStats} configuredKmPerDay={isBasicMode ? kmPerDay : undefined} />
 
       {/* Metrics grid — 4 columns, wraps across rows */}
-      <div className="grid grid-cols-4 border-t border-l border-separator-border bg-fill-1">
+      <div data-tour="rcc-figures" className="grid grid-cols-4 border-t border-l border-separator-border bg-fill-1">
         {TRUCK_METRICS.map(({ label, key, calculated }) => {
           // Base Fuel Cost is Advanced-mode only — skip rendering in other modes
           if (key === "baseFuelCost" && !isAdvancedMode) return null;
@@ -832,7 +832,7 @@ function TruckCostCard({
       </div>
 
       {/* Total Cost Per Km footer */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-separator-border bg-fill-1 px-5 py-3">
+      <div data-tour="rcc-total" className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-separator-border bg-fill-1 px-5 py-3">
         <div className="min-w-[260px] flex-1">
           <div className="flex items-center justify-between gap-3">
             <p className="text-caption-2-semibold text-text-secondary">Total running cost per km</p>
@@ -2634,10 +2634,10 @@ export default function RunningCostCalculatorPage() {
       </div>
 
       {/* Mode banner */}
-      <div className={`flex items-center gap-3 rounded-xl border px-5 py-3 transition-colors duration-300 ${MODE_STYLE[mode].banner}`}>
+      <div data-rcc-mode={mode} className={`flex items-center gap-3 rounded-xl border px-5 py-3 transition-colors duration-300 ${MODE_STYLE[mode].banner}`}>
         <span className={`h-2 w-2 rounded-full ${MODE_STYLE[mode].dot}`} />
         <p className={`text-body-medium ${MODE_STYLE[mode].text}`}>
-          Currently in <span className="font-semibold">{mode} Mode</span> for Calculation
+          Currently in <span data-tour="rcc-mode-banner" className="font-semibold">{mode} Mode</span> for Calculation
         </p>
       </div>
 
@@ -2752,7 +2752,7 @@ export default function RunningCostCalculatorPage() {
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-surface text-accent-text">
                   <CircleDot className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-body-semibold text-text-primary">Tyre Details</h2>
+                <h2 data-tour="rcc-tyre-details" className="flex-1 text-body-semibold text-text-primary">Tyre Details</h2>
                 <ChevronDown
                   className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${tyreCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
@@ -2837,7 +2837,7 @@ export default function RunningCostCalculatorPage() {
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-surface text-success-text">
                   <Gauge className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-body-semibold text-text-primary">Truck Run Details</h2>
+                <h2 data-tour="rcc-run-details" className="flex-1 text-body-semibold text-text-primary">Truck Run Details</h2>
                 <ChevronDown
                   className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${runCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
@@ -2907,7 +2907,7 @@ export default function RunningCostCalculatorPage() {
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warning-surface text-warning-text">
                   <Fuel className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-body-semibold text-text-primary">Fuel Details</h2>
+                <h2 data-tour="rcc-fuel-details" className="flex-1 text-body-semibold text-text-primary">Fuel Details</h2>
                 <ChevronDown
                   className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${fuelCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
@@ -2941,7 +2941,7 @@ export default function RunningCostCalculatorPage() {
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-surface text-success-text">
                   <CircleDot className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-body-semibold text-text-primary">Tyre Cost Configuration</h2>
+                <h2 data-tour="rcc-tyre-config" className="flex-1 text-body-semibold text-text-primary">Tyre Cost Configuration</h2>
                 <ChevronDown
                   className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${tyreCostConfigCardOpen ? "rotate-180" : "rotate-0"}`}
                 />
@@ -3060,7 +3060,7 @@ export default function RunningCostCalculatorPage() {
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-surface text-teal-text">
                   <Droplets className="h-4 w-4" />
                 </div>
-                <h2 className="flex-1 text-body-semibold text-text-primary">AdBlue Details</h2>
+                <h2 data-tour="rcc-adblue-details" className="flex-1 text-body-semibold text-text-primary">AdBlue Details</h2>
                 <ChevronDown
                   className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ${adblueCardOpen ? "rotate-180" : "rotate-0"}`}
                 />

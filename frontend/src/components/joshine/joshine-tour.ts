@@ -4,7 +4,7 @@ import { createElement, useSyncExternalStore } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { DriveStep, Driver } from "driver.js";
 import type { JoshineExpression, JoshineSettings } from "@/lib/joshine";
-import { resolveTourTarget, type Tour } from "@/lib/tours";
+import { findTourButton, resolveTourTarget, stepIsForRole, type Tour, type TourStep } from "@/lib/tours";
 import { JoshineFace } from "./JoshineFace";
 
 /**
@@ -86,71 +86,118 @@ function unmountFace() {
   faceRoot = null;
 }
 
-/** Starts `tour`; resolves once it's on screen. A running tour is replaced. */
-export async function startTour(tour: Tour, joshine: JoshineSettings, opts: { userId?: UserId } = {}) {
+/** Starts `tour`; resolves once it's on screen. A running tour is replaced.
+ *
+ * A step with `click` starts a new part: when the person presses Next, the
+ * button named there is clicked (a tab, so only the view changes), and the
+ * next part's steps are looked up on the screen as it is then. */
+export async function startTour(tour: Tour, joshine: JoshineSettings, opts: { userId?: UserId; role?: string } = {}) {
   const { driver } = await import("driver.js");
   current?.destroy();
 
   const name = joshine.name || "Joshine";
   const say = (s: string) => s.replaceAll("{name}", name);
 
-  // Only steps whose element is on screen for this person right now; steps
-  // with no element are Joshine talking in the middle.
-  const resolved = tour.steps
-    .map((step) => ({ step, el: resolveTourTarget(step) }))
-    .filter(({ el }) => el !== null);
-  if (resolved.length === 0) return;
+  // Split into parts at each `click` step.
+  const parts: TourStep[][] = [];
+  for (const step of tour.steps.filter((st) => stepIsForRole(st, opts.role))) {
+    if (step.click || parts.length === 0) parts.push([]);
+    parts[parts.length - 1].push(step);
+  }
+  const multi = parts.length > 1;
 
-  const driveSteps: DriveStep[] = resolved.map(({ step: s, el }) => ({
-    element: el ?? undefined,
-    data: { expression: s.expression ?? "calm" },
-    popover: {
-      title: say(s.title),
-      description: say(s.text),
-      side: s.side,
-      align: s.align,
-    },
-  }));
+  const runPart = (index: number) => {
+    // Only steps whose element is on screen for this person right now; steps
+    // with no element are Joshine talking in the middle.
+    const resolved = parts[index]
+      .map((step) => ({ step, el: resolveTourTarget(step) }))
+      .filter(({ el }) => el !== null);
+    const hasNext = index + 1 < parts.length;
+    if (resolved.length === 0) {
+      if (hasNext) return switchTo(index + 1);
+      return finish();
+    }
 
-  const d = driver({
-    steps: driveSteps,
-    animate: true,
-    smoothScroll: true,
-    allowClose: true,
-    allowKeyboardControl: true,
-    overlayClickBehavior: "close",
-    overlayColor: "var(--color-scrim)",
-    overlayOpacity: 0.45,
-    stagePadding: 6,
-    stageRadius: 14,
-    popoverOffset: 12,
-    popoverClass: "joshine-tour",
-    showProgress: resolved.length > 1,
-    progressText: "{{current}} of {{total}}",
-    nextBtnText: "Next",
-    prevBtnText: "Back",
-    doneBtnText: "Done",
-    closeBtnLabel: "End tour",
-    onPopoverRender: (popover, { driver: drv }) => {
-      const step = drv.getActiveStep();
-      const expression = (step?.data?.expression ?? "calm") as JoshineExpression;
-      setState({ active: true, expression });
-      // Joshine's face beside the title, in the person's own look.
-      unmountFace();
-      const holder = document.createElement("span");
-      holder.className = "joshine-tour-face";
-      holder.setAttribute("aria-hidden", "true");
-      popover.wrapper.insertBefore(holder, popover.title);
-      faceRoot = createRoot(holder);
-      faceRoot.render(createElement(JoshineFace, { shape: joshine.shape, color: joshine.color, expression, size: 44, lively: joshine.lively }));
-    },
-    onDestroyed: () => {
-      unmountFace();
-      setState({ active: false, expression: null });
-      markTourSeen(opts.userId, tour.id);
-      current = null;
-    },
-  });
-  current = d;
-  d.drive();
+    const driveSteps: DriveStep[] = resolved.map(({ step: s, el }, i) => ({
+      element: el ?? undefined,
+      data: { expression: s.expression ?? "calm" },
+      popover: {
+        title: say(s.title),
+        description: say(s.text),
+        side: s.side,
+        align: s.align,
+        // A later part can't step back into the view before it.
+        ...(index > 0 && i === 0 ? { showButtons: ["next", "close"] as ("next" | "close")[] } : {}),
+        ...(hasNext && i === resolved.length - 1 ? { doneBtnText: "Next" } : {}),
+      },
+    }));
+
+    let chaining = false;
+    const d = driver({
+      steps: driveSteps,
+      animate: true,
+      smoothScroll: true,
+      allowClose: true,
+      allowKeyboardControl: true,
+      overlayClickBehavior: "close",
+      overlayColor: "var(--color-scrim)",
+      overlayOpacity: 0.45,
+      stagePadding: 6,
+      stageRadius: 14,
+      popoverOffset: 12,
+      popoverClass: "joshine-tour",
+      showProgress: resolved.length > 1,
+      progressText: multi ? `Part ${index + 1} of ${parts.length} · {{current}} of {{total}}` : "{{current}} of {{total}}",
+      nextBtnText: "Next",
+      prevBtnText: "Back",
+      doneBtnText: "Done",
+      closeBtnLabel: "End tour",
+      onNextClick: (_el, _step, { driver: drv }) => {
+        if (hasNext && drv.isLastStep()) {
+          chaining = true;
+          drv.destroy();
+          switchTo(index + 1);
+          return;
+        }
+        drv.moveNext();
+      },
+      onPopoverRender: (popover, { driver: drv }) => {
+        const step = drv.getActiveStep();
+        const expression = (step?.data?.expression ?? "calm") as JoshineExpression;
+        setState({ active: true, expression });
+        // Joshine's face beside the title, in the person's own look.
+        unmountFace();
+        const holder = document.createElement("span");
+        holder.className = "joshine-tour-face";
+        holder.setAttribute("aria-hidden", "true");
+        popover.wrapper.insertBefore(holder, popover.title);
+        faceRoot = createRoot(holder);
+        faceRoot.render(createElement(JoshineFace, { shape: joshine.shape, color: joshine.color, expression, size: 44, lively: joshine.lively }));
+      },
+      onDestroyed: () => {
+        unmountFace();
+        if (chaining) return;
+        finish();
+      },
+    });
+    current = d;
+    d.drive();
+  };
+
+  // Click the next part's tab, give the page a moment to draw it, carry on.
+  const switchTo = (index: number) => {
+    const label = parts[index][0].click!;
+    const tab = findTourButton(label);
+    if (!tab) return finish();
+    (tab as HTMLElement).click();
+    window.setTimeout(() => runPart(index), 350);
+  };
+
+  const finish = () => {
+    setState({ active: false, expression: null });
+    markTourSeen(opts.userId, tour.id);
+    current = null;
+  };
+
+  runPart(0);
 }

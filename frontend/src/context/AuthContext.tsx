@@ -10,7 +10,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { disconnectRealtime } from "@/lib/realtime";
 import { cacheClear } from "@/lib/api-cache";
-import { markGreetingPending } from "@/lib/greetings";
+import { greetingUserKey, markLoginGreeting } from "@/lib/greetings";
 
 export type AuthUser = {
   id: number | null;
@@ -116,7 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     // Drop any cached data from a previous session, so this user never sees another user's snapshot.
     cacheClear();
-    markGreetingPending();
+    // Every login gets Joshine's hello on the first page (lib/greetings.ts).
+    markLoginGreeting(greetingUserKey(authUser));
     setUser(authUser);
     // All roles land on their dashboard at "/".
     router.replace("/");

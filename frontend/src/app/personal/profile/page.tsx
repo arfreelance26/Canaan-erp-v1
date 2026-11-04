@@ -196,7 +196,7 @@ export default function ProfilePage() {
 
       {/* Your workspace — the personal tools that used to sit in the Topbar */}
       <section data-enter className="flex flex-col gap-3">
-        <h2 className="text-title-3-semibold text-text-primary">Your workspace</h2>
+        <h2 data-tour="workspace" className="text-title-3-semibold text-text-primary">Your workspace</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <EventsButton variant="tile" />
           <TodoButton variant="tile" />

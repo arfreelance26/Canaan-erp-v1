@@ -187,7 +187,7 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
   }, [destinations, initialData, pricedRouteDestinationIds]);
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Final Pricing" : "Add Final Customer Pricing"} className="max-w-2xl">
+    <Dialog tour="final-pricing-form" open={open} onClose={onClose} title={initialData ? "Edit Final Pricing" : "Add Final Customer Pricing"} className="max-w-2xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-1">
 
         <Field label="Customer Name" required>

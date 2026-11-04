@@ -238,7 +238,7 @@ export function FinanceManagerDashboard() {
 
       {/* Quick Links */}
       <div>
-        <h2 className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
+        <h2 data-tour="quick-access" className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
             <Link key={href} href={href}
@@ -256,7 +256,7 @@ export function FinanceManagerDashboard() {
         <CardContent className="p-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <h2 className="text-body-semibold text-text-primary">Trips Pending Invoice</h2>
+              <h2 data-tour="pending-invoice" className="text-body-semibold text-text-primary">Trips Pending Invoice</h2>
               {!loading && (
                 <span className="rounded-full bg-accent-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-accent-text">
                   {pendingFinalization.length}
@@ -311,7 +311,7 @@ export function FinanceManagerDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-body-semibold text-text-primary">Compliance Alerts</h2>
+                <h2 data-tour="compliance-alerts" className="text-body-semibold text-text-primary">Compliance Alerts</h2>
                 {!loading && (
                   <span className={`rounded-full px-2 py-0.5 text-caption-2-semibold tabular-nums ${
                     complianceAlerts.some((a) => a.status === "Expired") ? "bg-danger-surface text-danger-text" : "bg-warning-surface text-warning-text"
@@ -362,7 +362,7 @@ export function FinanceManagerDashboard() {
         <Card>
           <CardContent className="p-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <h2 className="text-body-semibold text-text-primary">Recurring Payments Due Soon</h2>
+              <h2 data-tour="recurring-due" className="text-body-semibold text-text-primary">Recurring Payments Due Soon</h2>
               {!loading && dueSoonRecurring.length > 0 && (
                 <span className="rounded-full bg-accent-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-accent-text">
                   {dueSoonRecurring.length}

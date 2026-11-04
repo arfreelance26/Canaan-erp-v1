@@ -557,7 +557,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} title={`${savedInvoice ? "Edit" : "Generate"} Invoice — ${trip.tripId}`} className="max-w-6xl">
+    <Dialog open={open} onClose={onClose} title={`${savedInvoice ? "Edit" : "Generate"} Invoice — ${trip.tripId}`} className="max-w-6xl" tour="generate-invoice">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
         {/* Invoice Type + Tax Details */}

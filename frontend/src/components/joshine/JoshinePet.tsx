@@ -11,7 +11,13 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/base/buttons/button";
 import { APP_TOUR, pageTourFor, type Tour } from "@/lib/tours";
+import { formTourFor } from "@/lib/form-tours";
+import { FORM_TOUR_OPENED, FORM_TOUR_START } from "@/components/ui/Dialog";
 import { hasSeenTour, markTourSeen, pageOffersOff, startTour, turnOffPageOffers, useTourState } from "./joshine-tour";
+import { JoshineGreeting } from "./JoshineGreeting";
+import { celebrationsApi } from "@/lib/api";
+import { greetingUserKey, markGreeted, pickGreeting, resetVisitGreeting, shouldGreet, type Greeting } from "@/lib/greetings";
+import { PREVIEW_EVENT } from "@/lib/celebration-preview";
 
 // The creator (colour picker, slider…) loads when Joshine is first clicked.
 const JoshineCreator = dynamic(() => import("./JoshineCreator").then((m) => m.JoshineCreator));
@@ -25,6 +31,9 @@ const JoshineCreator = dynamic(() => import("./JoshineCreator").then((m) => m.Jo
  * offers the app tour on a person's first visit, then each page's tour the
  * first time they open that page (until they say "Don't offer page tours").
  * Its panel offers both any time, and during a tour its face follows each step.
+ *
+ * And Joshine says hello: once per visit (lib/greetings.ts picks the line)
+ * a speech bubble beside it, with its face to match, fading after 8 seconds.
  */
 export function JoshinePet() {
   const { user } = useAuth();
@@ -41,6 +50,50 @@ export function JoshinePet() {
 
   useEffect(() => () => window.clearTimeout(moodTimer.current), []);
 
+  // Hello after every login, and after a 30-minute break. Asks the server
+  // about last visit / birthday / festival; without an answer it still greets
+  // by the time of day. "Greeted" is recorded only once the bubble is shown,
+  // so a cancelled run (React runs effects twice in development) can't use it up.
+  const [greeting, setGreeting] = useState<Greeting | null>(null);
+  // Hovering Joshine: she smiles, blushes, bobs and leans toward the cursor.
+  const [hovered, setHovered] = useState(false);
+  const [tilt, setTilt] = useState(0);
+  const calm = prefersReducedMotion();
+  // Admin previewing a day on Celebrations Management gets that day's hello.
+  const [previewTick, setPreviewTick] = useState(0);
+  useEffect(() => {
+    const onPreview = () => {
+      if (user) resetVisitGreeting(greetingUserKey(user));
+      setPreviewTick((n) => n + 1);
+    };
+    window.addEventListener(PREVIEW_EVENT, onPreview);
+    return () => window.removeEventListener(PREVIEW_EVENT, onPreview);
+  }, [user]);
+  useEffect(() => {
+    if (!user) return;
+    const userKey = greetingUserKey(user);
+    if (!shouldGreet(userKey)) return;
+    let cancelled = false;
+    const context = Promise.race([
+      celebrationsApi.greeting().catch(() => null),
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 4000)),
+    ]);
+    // Let the page settle first, so the hello isn't lost in the loading.
+    const wait = new Promise((resolve) => window.setTimeout(resolve, 1200));
+    void Promise.all([context, wait]).then(([ctx]) => {
+      if (cancelled || !shouldGreet(userKey)) return;
+      markGreeted(userKey);
+      const g = pickGreeting(userKey, user.name ?? "", ctx);
+      setGreeting(g);
+      // A curious little hop as the thought starts; its face settles on the line's.
+      react("curious", [0.92, 1.08]);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Once per signed-in person (and again for Admin's celebration preview).
+  }, [user?.id, previewTick]);
+
   // Offer, once each: the app tour on the first visit, then each page's tour
   // the first time that page is opened. Waits for the page to settle.
   useEffect(() => {
@@ -56,11 +109,42 @@ export function JoshinePet() {
     return () => window.clearTimeout(t);
   }, [user, pageTour]);
 
+  // The open form's tour, if it has one (Dialog `tour`). Offered the first
+  // time each form opens; the ? in the form's header runs it any time.
+  const [formTour, setFormTour] = useState<Tour | null>(null);
+  useEffect(() => {
+    const onOpened = (e: Event) => setFormTour(formTourFor((e as CustomEvent<string | null>).detail));
+    const onStart = (e: Event) => {
+      const t = formTourFor((e as CustomEvent<string>).detail);
+      if (t) runTourRef.current(t);
+    };
+    window.addEventListener(FORM_TOUR_OPENED, onOpened);
+    window.addEventListener(FORM_TOUR_START, onStart);
+    return () => {
+      window.removeEventListener(FORM_TOUR_OPENED, onOpened);
+      window.removeEventListener(FORM_TOUR_START, onStart);
+    };
+  }, []);
+  useEffect(() => {
+    if (!user || !formTour || pageOffersOff(user.id) || hasSeenTour(user.id, formTour.id)) return;
+    const t = window.setTimeout(() => setOffer(formTour), 700);
+    return () => window.clearTimeout(t);
+  }, [user, formTour]);
+  // A form closing takes its offer with it.
+  useEffect(() => {
+    if (!formTour) setOffer((o) => (o?.id.startsWith("form:") ? null : o));
+  }, [formTour]);
+
+  const runTourRef = useRef<(t: Tour) => void>(() => {});
+  useEffect(() => {
+    runTourRef.current = runTour;
+  });
+
   function runTour(t: Tour) {
     setOpen(false);
     setOffer(null);
     if (settings.tucked) update({ tucked: false });
-    void startTour(t, settings, { userId: user?.id });
+    void startTour(t, settings, { userId: user?.id, role: user?.softwareDesignation });
   }
 
   function declineOffer() {
@@ -127,17 +211,36 @@ export function JoshinePet() {
       )}
 
       {/* First-visit offer, said by Joshine from the corner. */}
-      {offer && !open && !tour.active && !settings.tucked && (
+      {/* Hello, beside Joshine (also when tucked: it peeks up to say it). */}
+      {greeting && !open && !tour.active && (
+        <JoshineGreeting
+          greeting={greeting}
+          name={user.name ?? ""}
+          color={settings.color}
+          petSize={settings.size}
+          tucked={settings.tucked}
+          onDone={() => setGreeting(null)}
+        />
+      )}
+
+      {/* A tour offer waits until the greeting has gone. */}
+      {offer && !greeting && !open && !tour.active && !settings.tucked && (
         <div
           role="dialog"
           aria-label={`${settings.name || "Joshine"} offers a tour of ${offer.title}`}
           style={{ bottom: settings.size + 28 }}
-          className="animate-pop-in fixed right-5 z-pet w-[min(300px,calc(100vw-2.5rem))] origin-bottom-right rounded-3xl border border-border-button-default bg-background-primary-default p-4 shadow-sidebar"
+          className={cx("animate-pop-in fixed right-5", offer.id.startsWith("form:") ? "z-popover" : "z-pet",
+            " w-[min(300px,calc(100vw-2.5rem))] origin-bottom-right rounded-3xl border border-border-button-default bg-background-primary-default p-4 shadow-sidebar")}
         >
           {offer === APP_TOUR ? (
             <>
               <p className="text-headline-semibold text-text-primary">Hi, I&apos;m {settings.name || "Joshine"}</p>
               <p className="mt-1 text-body-regular text-text-secondary">New here? I can show you around in under a minute.</p>
+            </>
+          ) : offer.id.startsWith("form:") ? (
+            <>
+              <p className="text-headline-semibold text-text-primary">First time filling in {offer.title}?</p>
+              <p className="mt-1 text-body-regular text-text-secondary">I can show you what each part is for. I won&apos;t change anything.</p>
             </>
           ) : (
             <>
@@ -168,7 +271,7 @@ export function JoshinePet() {
       <div
         className={cx(
           "group fixed bottom-4 right-5 z-pet transition-transform duration-500 ease-out",
-          settings.tucked && "translate-y-[58%]",
+          settings.tucked && (hovered ? "translate-y-[36%]" : "translate-y-[58%]"),
         )}
       >
         {/* Name tag on hover */}
@@ -181,7 +284,21 @@ export function JoshinePet() {
         <button
           type="button"
           onClick={onClick}
-          onPointerEnter={() => !settings.tucked && !open && react("curious", [1.04, 0.97])}
+          onPointerEnter={() => {
+            if (open) return;
+            setHovered(true);
+            react(settings.tucked ? "curious" : "happy", [1.08, 0.93]);
+          }}
+          onPointerMove={(e) => {
+            if (calm || settings.tucked) return;
+            const box = e.currentTarget.getBoundingClientRect();
+            const x = (e.clientX - box.left) / box.width - 0.5;
+            setTilt(Math.round(x * 14));
+          }}
+          onPointerLeave={() => {
+            setHovered(false);
+            setTilt(0);
+          }}
           aria-label={settings.tucked ? `Bring ${settings.name || "Joshine"} back` : `${settings.name || "Joshine"}, customise`}
           aria-expanded={open}
           data-icon-motion="off"
@@ -189,11 +306,15 @@ export function JoshinePet() {
           className="block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
         >
           <span ref={bodyRef} className="block origin-bottom">
-            <span className={cx("block origin-bottom", settings.lively && "joshine-breathe")}>
+            <span
+              className={cx("block origin-bottom", settings.lively && (hovered && !calm ? "joshine-bob" : "joshine-breathe"))}
+              style={{ transform: `rotate(${tilt}deg)`, transition: "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}
+            >
               <JoshineFace
                 shape={settings.shape}
                 color={settings.color}
-                expression={mood ?? tour.expression ?? (settings.tucked ? "sleepy" : settings.expression)}
+                expression={mood ?? tour.expression ?? (hovered ? (settings.tucked ? "curious" : "happy") : null) ?? greeting?.expression ?? (settings.tucked ? "sleepy" : settings.expression)}
+                blush={hovered && !settings.tucked}
                 size={settings.size}
                 lively={settings.lively && !settings.tucked}
                 className="drop-shadow-[0_6px_8px_color-mix(in_srgb,var(--color-scrim)_22%,transparent)]"

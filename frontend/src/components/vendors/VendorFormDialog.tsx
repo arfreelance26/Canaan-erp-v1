@@ -67,7 +67,7 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Vendor" : "Add Vendor"}>
+    <Dialog tour="vendor-form" open={open} onClose={onClose} title={initialData ? "Edit Vendor" : "Add Vendor"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Profile picture — saved with the vendor, so it goes through the same edit process. */}
         <ProfileAvatarPicker

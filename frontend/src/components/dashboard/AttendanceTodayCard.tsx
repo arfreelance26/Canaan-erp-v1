@@ -84,7 +84,7 @@ export function AttendanceTodayCard({
             <UserCheck className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-body-semibold text-text-primary">Attendance Today</h2>
+            <h2 data-tour="attendance-today-card" className="text-body-semibold text-text-primary">Attendance Today</h2>
             <p className="text-xs text-text-secondary">{dateLabel}</p>
           </div>
         </div>

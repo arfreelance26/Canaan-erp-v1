@@ -113,7 +113,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Enter Fuel Log">
+    <Dialog tour="fuel-log" open={open} onClose={onClose} title="Enter Fuel Log">
         <div className="flex items-center gap-3 mb-6 bg-fill-1 p-3 rounded-lg border border-separator-border">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent-surface-strong/50 text-accent-text">
             <Fuel className="w-5 h-5" />

@@ -180,7 +180,7 @@ export function FleetConstellationCard({
             <TruckIcon className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-body-semibold text-text-primary">Fleet Constellation</h2>
+            <h2 data-tour="fleet-constellation" className="text-body-semibold text-text-primary">Fleet Constellation</h2>
             <p className="text-xs text-text-secondary">Every truck at a glance — hover for details</p>
           </div>
         </div>

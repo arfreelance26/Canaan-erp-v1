@@ -484,7 +484,7 @@ function TripProfitabilityTab({
   return (
     <div className="flex flex-col gap-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-7">
+      <div data-tour="pl-trip-cards" className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-7">
         <StatCard label="Total Trips"      value={String(totals.trips)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trips" value={`${totals.profitable} / ${judged}`}
           sub={judged ? `${totals.profitablePct}% · after all costs${totals.unjudged ? ` · ${totals.unjudged} can't be worked out (no Cost/KM or no km)` : ""}` : `No cost-per-km set (${mode})`}
@@ -548,7 +548,7 @@ function TripProfitabilityTab({
           </div>
         ) : (
           <div className="overflow-auto max-h-[70vh]">
-            <table className="w-full min-w-[1260px] text-sm">
+            <table data-tour="pl-trip-table" className="w-full min-w-[1260px] text-sm">
               <thead className="sticky top-0 z-10 bg-fill-1 border-b border-separator-border">
                 <tr>
                   <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary whitespace-nowrap">Trip ID</th>
@@ -1061,7 +1061,7 @@ function TruckProfitabilityTab({
     <div className="flex flex-col gap-5">
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div data-tour="pl-truck-cards" className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Total Trucks" value={String(totals.trucks)} sub={idle ? `${idle} idle (no trips)` : "All ran trips"}
           icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trucks" value={`${profitable} / ${totals.trucks}`}
@@ -1086,7 +1086,7 @@ function TruckProfitabilityTab({
 
       {/* Period / data warnings */}
       {(startsBeforeData || endsInFuture || incompleteCount > 0) && (
-        <div className="flex flex-col gap-1.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-xs text-warning-text-strong">
+        <div data-tour="pl-warnings" className="flex flex-col gap-1.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-xs text-warning-text-strong">
           {startsBeforeData && (
             <p className="flex items-start gap-1.5"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Trips are only recorded from {fmtDate(firstTripDate!)} — EMI and other costs before that date have no recorded trips to pay for them, so this period looks worse than it is. Pick a period starting on or after {fmtDate(firstTripDate!)} for a fair view.</p>
@@ -1137,7 +1137,7 @@ function TruckProfitabilityTab({
           </div>
         ) : (
           <div className="overflow-auto max-h-[70vh]">
-            <table className="w-full min-w-[1280px] text-sm">
+            <table data-tour="pl-truck-table" className="w-full min-w-[1280px] text-sm">
               <thead className="sticky top-0 z-10 bg-fill-1 border-b border-separator-border">
                 <tr>
                   <th className="px-2 py-3" />
@@ -1498,7 +1498,7 @@ export default function PLSummaryPage() {
       )}
 
       {computed === null && !loading && (
-        <div className="rounded-xl border border-dashed border-border-button-default bg-fill-1 p-14 text-center">
+        <div data-tour="pl-empty" className="rounded-xl border border-dashed border-border-button-default bg-fill-1 p-14 text-center">
           <BarChart3 className="mx-auto mb-3 h-10 w-10 text-text-tertiary" />
           <p className="text-body-semibold text-text-secondary">Select a period to load profitability data</p>
           <p className="mt-2 text-xs text-text-tertiary max-w-sm mx-auto leading-relaxed">

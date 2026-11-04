@@ -158,7 +158,7 @@ export function TripSheetCoordinatorDashboard() {
 
       {/* Quick Access */}
       <div>
-        <h2 className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
+        <h2 data-tour="quick-access" className="mb-3 text-body-semibold text-text-tertiary">Quick Access</h2>
         <div className="grid grid-cols-1 gap-3 sm:max-w-xs">
           {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
             <Link key={href} href={href}
@@ -181,7 +181,7 @@ export function TripSheetCoordinatorDashboard() {
           <CardContent className="p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-body-semibold text-text-primary">Awaiting Collection</h2>
+                <h2 data-tour="awaiting-collection" className="text-body-semibold text-text-primary">Awaiting Collection</h2>
                 {!loading && pending.length > 0 && (
                   <span className="rounded-full bg-warning-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-warning-text">{pending.length}</span>
                 )}
@@ -232,7 +232,7 @@ export function TripSheetCoordinatorDashboard() {
         <Card>
           <CardContent className="p-5">
             <div className="mb-3 flex items-center gap-2.5">
-              <h2 className="text-body-semibold text-text-primary">Recently Delivered</h2>
+              <h2 data-tour="recently-delivered" className="text-body-semibold text-text-primary">Recently Delivered</h2>
               {!loading && deliveredToday.length > 0 && (
                 <span className="rounded-full bg-success-surface px-2 py-0.5 text-caption-2-semibold tabular-nums text-success-text">
                   {deliveredToday.length} today

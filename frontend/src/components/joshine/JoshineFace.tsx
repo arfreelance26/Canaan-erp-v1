@@ -91,6 +91,9 @@ const EYES: Record<JoshineExpression, ReactNode> = {
   dots: <><circle cx={L} cy={Y} r={16} fill={INK} /><circle cx={L + 5} cy={Y - 5} r={5} fill={SHINE} /><circle cx={R} cy={Y} r={16} fill={INK} /><circle cx={R + 5} cy={Y - 5} r={5} fill={SHINE} /></>,
 };
 
+// Rosy cheeks, shown while Joshine is being hovered or petted.
+const BLUSH = "#ff7a98";
+
 // How far the eyes travel toward the cursor, in viewBox units.
 const REACH_X = 20;
 const REACH_Y = 12;
@@ -104,10 +107,12 @@ type Props = {
   lively?: boolean;
   /** Draw the body only (shape tiles). */
   bodyOnly?: boolean;
+  /** Rosy cheeks under the eyes (fade in and out). */
+  blush?: boolean;
   className?: string;
 };
 
-export function JoshineFace({ shape, expression, color, size, lively = false, bodyOnly = false, className }: Props) {
+export function JoshineFace({ shape, expression, color, size, lively = false, bodyOnly = false, blush = false, className }: Props) {
   const id = useId().replace(/:/g, "");
   const svgRef = useRef<SVGSVGElement>(null);
   const lookRef = useRef<SVGGElement>(null);
@@ -198,6 +203,11 @@ export function JoshineFace({ shape, expression, color, size, lively = false, bo
       <path d={d} fill={`url(#${id}-light)`} />
       {!bodyOnly && (
         <g ref={lookRef}>
+          {/* Cheeks sit just outside and below the eyes; they don't blink. */}
+          <g style={{ opacity: blush ? 0.55 : 0, transition: "opacity 260ms ease-out" }}>
+            <ellipse cx={L - 30} cy={Y + 56} rx={28} ry={15} fill={BLUSH} />
+            <ellipse cx={R + 30} cy={Y + 56} rx={28} ry={15} fill={BLUSH} />
+          </g>
           <g ref={eyesRef} style={{ transformBox: "fill-box", transformOrigin: "center" }}>
             {EYES[expression]}
           </g>

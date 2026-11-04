@@ -1479,6 +1479,7 @@ export function TripFormDialog({
       onClose={onClose}
       title={initialData ? "Edit Trip" : "Assign Trip"}
       className="max-w-4xl"
+      tour="assign-trip"
       sidePanel={
         form.customerId && form.destination
           ? <CustomerInsightsPanel customerId={form.customerId} route={form.destination} routeId={activeRouteId} />
