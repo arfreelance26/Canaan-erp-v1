@@ -423,7 +423,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     steps: [
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every maintenance record added, edited or deleted, and by whom.", expression: "curious", side: "bottom", align: "end" },
     ],
-    table: "One truck per row. Update Record adds a repair or service; it goes to Maintenance Approvals and joins the truck's record once Admin or Accounts approves it. View Record shows the truck's history, and Full Status its overall condition.",
+    table: "One truck per row. Update Record adds a repair or service; it goes to Maintenance Approvals and joins the truck's record once Admin or Accounts approves it. Scheduled Records holds jobs saved before their cost was known (the number shows how many wait), View Record its history, and Full Status its overall condition.",
   },
   "/maintenance/compliance": {
     title: "Compliance & Renewals",
@@ -873,13 +873,14 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
   },
   "/admin/celebrations": {
     title: "Celebrations Management",
-    about: "Birthdays, Christmas, New Year and Founding Day cards on the dashboard: switch each on or off for everyone, edit its text, and preview any day.",
+    about: "Birthdays, Christmas, New Year and Founding Day cards on the dashboard, and Joshine's tea time: switch each on or off for everyone, edit its text, and preview any day.",
     steps: [
       { button: "Preview on the Dashboard", title: "Preview", text: "See exactly how the dashboard will look on a chosen day. Exit preview when you're done; nobody else sees it.", expression: "love", side: "bottom" },
       { field: "Upcoming · next 90 days", title: "Coming up", text: "Birthdays and celebrations in the next 90 days.", expression: "happy", side: "bottom" },
       { field: "Card text", title: "Card text", text: "Edit the words on each card: birthday, Christmas, New Year and Founding Day.", expression: "love", side: "bottom" },
       { field: "Preview any day", title: "Preview any day", text: "Pick a date (or your own birthday) and see the dashboard as it will look then.", expression: "curious", side: "bottom" },
       { field: "Change history", title: "Change history", text: "Every change to the cards, and who made it.", expression: "calm", side: "top" },
+      { field: "Tea Time", title: "Tea time", text: "At 11 AM and 4 PM Joshine reminds everyone it's tea time. Switch it off here for everyone; each person can also turn it off for themselves in Joshine's settings. The buttons show it on your screen now.", expression: "happy", side: "bottom" },
       { field: "Festival greetings", title: "Festival greetings", text: "Pongal, Deepavali and Ayudha Pooja move every year: add each year's date here and switch each on or off. On that day Joshine greets everyone for it.", expression: "sparkle", side: "bottom" },
     ],
     expression: "love",

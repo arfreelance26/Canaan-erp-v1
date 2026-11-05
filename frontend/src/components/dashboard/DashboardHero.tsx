@@ -7,6 +7,7 @@ import { Illustration } from "@/components/illustrations/Illustration";
 import { HERO_TRUCK, TruckScene } from "@/components/illustrations/TruckScene";
 import type { IllustrationName } from "@/components/illustrations/assets";
 import { useAuth } from "@/context/AuthContext";
+import { callName } from "@/lib/call-name";
 
 /** The fleet truck photo every dashboard hero shows by default. */
 export { HERO_TRUCK } from "@/components/illustrations/TruckScene";
@@ -48,7 +49,7 @@ export function DashboardHero({ eyebrow, role, title, description, actions, illu
   const { user } = useAuth();
   const date = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
   const line = eyebrow ?? (role ? `${date} · ${role}` : date);
-  const heading = title ?? `${greetingFor(new Date())}, ${(user?.name ?? "").split(" ")[0] || "there"}`;
+  const heading = title ?? `${greetingFor(new Date())}, ${callName(user?.name, user?.preferredName) || "there"}`;
   const photo = image ?? (illustration ? undefined : HERO_TRUCK);
 
   return (

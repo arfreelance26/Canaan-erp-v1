@@ -208,6 +208,20 @@ def set_founding_day_enabled(db: Session, enabled: bool) -> None:
     _set(db, FOUNDING_DAY_KEY, "true" if enabled else "false")
 
 
+TEA_TIME_KEY = "tea_time_enabled"
+
+
+def tea_time_enabled(db: Session) -> bool:
+    """Joshine's "Tea time, right?" at 11 AM and 4 PM, for everyone. On unless
+    an Admin turned it off (each person can also turn it off for themselves)."""
+    v = _get(db, TEA_TIME_KEY)
+    return True if v is None else v.strip().lower() in _TRUE
+
+
+def set_tea_time_enabled(db: Session, enabled: bool) -> None:
+    _set(db, TEA_TIME_KEY, "true" if enabled else "false")
+
+
 BIRTHDAYS_KEY = "birthdays_enabled"
 
 

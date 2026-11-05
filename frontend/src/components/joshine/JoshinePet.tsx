@@ -17,8 +17,10 @@ import { FORM_TOUR_OPENED, FORM_TOUR_START } from "@/components/ui/Dialog";
 import { hasSeenTour, markTourSeen, pageOffersOff, startTour, turnOffPageOffers, useTourState } from "./joshine-tour";
 import { JoshineGreeting } from "./JoshineGreeting";
 import { celebrationsApi } from "@/lib/api";
-import { greetingUserKey, markGreeted, pickGreeting, resetVisitGreeting, shouldGreet, type Greeting } from "@/lib/greetings";
+import { claimTeaTime, greetingUserKey, markGreeted, pickGreeting, resetVisitGreeting, shouldGreet, teaTimeDue, teaTimeGreeting, type Greeting } from "@/lib/greetings";
 import { PREVIEW_EVENT } from "@/lib/celebration-preview";
+import { callName } from "@/lib/call-name";
+import { GUM_FACE, JoshineGum, useGumBubble } from "./JoshineGum";
 
 // The creator (colour picker, slider…) loads when Joshine is first clicked.
 const JoshineCreator = dynamic(() => import("./JoshineCreator").then((m) => m.JoshineCreator));
@@ -35,7 +37,27 @@ const JoshineCreator = dynamic(() => import("./JoshineCreator").then((m) => m.Jo
  *
  * And Joshine says hello: once per visit (lib/greetings.ts picks the line)
  * a speech bubble beside it, with its face to match, fading after 8 seconds.
+ *
+ * Now and then, at random, it blows a chewing-gum bubble (JoshineGum.tsx).
+ *
+ * It never sits in the way: when the mouse heads for the corner and there's
+ * something clickable under Joshine, it ducks down to a peek until the mouse
+ * moves away; and the page keeps room at the bottom for it (--joshine-space,
+ * AppShell's padding), so the last rows and buttons scroll clear of it.
  */
+
+// What counts as "something clickable" under Joshine.
+const INTERACTIVE = [
+  "button", "a[href]", "input", "select", "textarea", "label", "summary",
+  '[role="button"]', '[role="link"]', '[role="tab"]', '[role="checkbox"]', '[role="switch"]',
+  '[role="option"]', '[role="menuitem"]', "tbody tr",
+].join(", ");
+// How close the mouse gets before Joshine ducks, and how long it waits to come back.
+const DUCK_REACH = 120;
+const DUCK_RETURN_MS = 1000;
+// Joshine's spot: right-5 (20px), bottom-4 (16px).
+const PET_RIGHT = 20;
+const PET_BOTTOM = 16;
 export function JoshinePet() {
   const { user } = useAuth();
   const { settings, update, reset } = useJoshine(user?.id);
@@ -87,7 +109,7 @@ export function JoshinePet() {
     void Promise.all([context, wait]).then(([ctx]) => {
       if (cancelled || !shouldGreet(userKey)) return;
       markGreeted(userKey);
-      const g = pickGreeting(userKey, user.name ?? "", ctx);
+      const g = pickGreeting(userKey, callName(user.name, user.preferredName), ctx);
       setGreeting(g);
       // A curious little hop as the thought starts; its face settles on the line's.
       react("curious", [0.92, 1.08]);
@@ -97,6 +119,48 @@ export function JoshinePet() {
     };
     // Once per signed-in person (and again for Admin's celebration preview).
   }, [user?.id, previewTick]);
+
+  // Tea time at 11 AM and 4 PM (India): "Tea time, right Manuel?". Waits
+  // while Joshine is busy or the tab is hidden, up to 10 minutes late.
+  const busyRef = useRef(false);
+  useEffect(() => {
+    busyRef.current = Boolean(greeting) || open || tour.active;
+  });
+  useEffect(() => {
+    if (!user || !settings.teaTime) return;
+    const userKey = greetingUserKey(user);
+    let asking = false;
+    const check = () => {
+      if (asking || busyRef.current || document.hidden) return;
+      const due = teaTimeDue(userKey);
+      if (!due) return;
+      // Admin may have switched it off for everyone (Celebrations Management).
+      asking = true;
+      void celebrationsApi.teaTime().catch(() => true).then((on) => {
+        asking = false;
+        if (busyRef.current || !teaTimeDue(userKey)) return;
+        claimTeaTime(userKey, due.slot);
+        if (!on) return;
+        setGreeting(teaTimeGreeting(userKey, callName(user.name, user.preferredName), due.slot, due.late));
+        react("sparkle", [0.9, 1.1]);
+      });
+    };
+    // Try it: window.dispatchEvent(new CustomEvent("joshine:tea", { detail: "16" }))
+    const onDemand = (e: Event) => {
+      const slot = (e as CustomEvent<unknown>).detail === "16" ? "16" : "11";
+      setGreeting(teaTimeGreeting(userKey, callName(user.name, user.preferredName), slot, false));
+      react("sparkle", [0.9, 1.1]);
+    };
+    check();
+    const id = window.setInterval(check, 10_000);
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("joshine:tea", onDemand);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("joshine:tea", onDemand);
+    };
+  }, [user?.id, user?.name, user?.preferredName, settings.teaTime]);
 
   // Offer, once each: the app tour on the first visit, then each page's tour
   // the first time that page is opened. Waits for the page to settle.
@@ -192,6 +256,103 @@ export function JoshinePet() {
     react(open ? "calm" : "happy", [1.1, 0.9]);
   }
 
+  // Ducking out of the way (see the top of this file).
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [ducked, setDucked] = useState(false);
+  const canDuck = Boolean(user) && !settings.tucked && !open && !tour.active;
+  useEffect(() => {
+    if (!canDuck) {
+      setDucked(false);
+      return;
+    }
+    const size = settings.size;
+    // Where Joshine normally sits, whether or not it's ducked right now.
+    const home = () => {
+      const right = window.innerWidth - PET_RIGHT;
+      const bottom = window.innerHeight - PET_BOTTOM;
+      return { left: right - size, top: bottom - size, right, bottom };
+    };
+    // Is anything clickable under that spot? (Looks through Joshine.)
+    let checkedAt = 0;
+    let covers = false;
+    const coversSomething = () => {
+      const now = Date.now();
+      if (now - checkedAt < 400) return covers;
+      checkedAt = now;
+      const h = home();
+      covers = [[0.5, 0.5], [0.2, 0.25], [0.8, 0.25], [0.2, 0.8], [0.8, 0.8]].some(([fx, fy]) => {
+        const x = h.left + (h.right - h.left) * fx;
+        const y = h.top + (h.bottom - h.top) * fy;
+        for (const el of document.elementsFromPoint(x, y)) {
+          if (wrapRef.current?.contains(el) || el.closest("[data-joshine]")) continue;
+          // The first thing under Joshine decides (a modal's scrim isn't clickable).
+          return Boolean(el.closest(INTERACTIVE));
+        }
+        return false;
+      });
+      return covers;
+    };
+
+    let isDucked = false;
+    let returnTimer = 0;
+    let raf = 0;
+    const set = (v: boolean) => {
+      if (v === isDucked) return;
+      isDucked = v;
+      setDucked(v);
+    };
+    const comeBackSoon = () => {
+      if (!isDucked || returnTimer) return;
+      returnTimer = window.setTimeout(() => {
+        returnTimer = 0;
+        set(false);
+      }, DUCK_RETURN_MS);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (raf) return;
+      const { clientX: x, clientY: y } = e;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const h = home();
+        const dx = Math.max(h.left - x, 0, x - h.right);
+        const dy = Math.max(h.top - y, 0, y - h.bottom);
+        const near = Math.hypot(dx, dy) <= DUCK_REACH;
+        const onJoshine = dx === 0 && dy === 0;
+        if (!near) {
+          comeBackSoon();
+          return;
+        }
+        window.clearTimeout(returnTimer);
+        returnTimer = 0;
+        // Heading for the corner (not for Joshine itself) with something to click there.
+        if (!isDucked && !onJoshine && coversSomething()) set(true);
+      });
+    };
+    const onLeaveWindow = () => comeBackSoon();
+    window.addEventListener("pointermove", onMove, { passive: true });
+    document.documentElement.addEventListener("pointerleave", onLeaveWindow);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      document.documentElement.removeEventListener("pointerleave", onLeaveWindow);
+      window.clearTimeout(returnTimer);
+      cancelAnimationFrame(raf);
+    };
+  }, [canDuck, settings.size]);
+
+  // Room at the bottom of every page for Joshine (AppShell's padding).
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!user) return;
+    const space = settings.tucked ? Math.round(settings.size * 0.42) + PET_BOTTOM + 8 : settings.size + PET_BOTTOM + 12;
+    root.style.setProperty("--joshine-space", `${space}px`);
+    return () => {
+      root.style.removeProperty("--joshine-space");
+    };
+  }, [user, settings.size, settings.tucked]);
+
+  // The gum bubble waits while Joshine is busy with anything else.
+  const { run: gumRun, phase: gum } = useGumBubble(Boolean(user) && settings.lively && !settings.tucked && !ducked && !open && !greeting && !offer && !tour.active);
+
   if (!user) return null;
 
   return (
@@ -220,10 +381,10 @@ export function JoshinePet() {
       {greeting && !open && !tour.active && (
         <JoshineGreeting
           greeting={greeting}
-          name={user.name ?? ""}
+          name={callName(user.name, user.preferredName)}
           color={settings.color}
           petSize={settings.size}
-          tucked={settings.tucked}
+          tucked={settings.tucked || ducked}
           onDone={() => setGreeting(null)}
         />
       )}
@@ -274,13 +435,17 @@ export function JoshinePet() {
       )}
 
       <div
+        ref={wrapRef}
+        data-joshine
         className={cx(
-          "group fixed bottom-4 right-5 z-pet transition-transform duration-500 ease-out",
-          settings.tucked && (hovered ? "translate-y-[36%]" : "translate-y-[58%]"),
+          "group fixed bottom-4 right-5 z-pet transition-transform ease-out",
+          // Ducking is quick; coming back up (and tucking) is gentler.
+          ducked ? "duration-200" : "duration-500",
+          (settings.tucked || ducked) && (hovered ? "translate-y-[36%]" : "translate-y-[58%]"),
         )}
       >
         {/* Name tag on hover */}
-        {!settings.tucked && !open && (
+        {!settings.tucked && !ducked && !open && (
           <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-separator-border bg-background-primary-default px-2.5 py-1 text-body-regular text-text-primary opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100">
             {settings.name || "Joshine"}
             <span className="text-text-tertiary"> · {settings.label}</span>
@@ -312,18 +477,19 @@ export function JoshinePet() {
         >
           <span ref={bodyRef} className="block origin-bottom">
             <span
-              className={cx("block origin-bottom", settings.lively && (hovered && !calm ? "joshine-bob" : "joshine-breathe"))}
+              className={cx("relative block origin-bottom", gum === "shake" ? "gum-shake" : settings.lively && (hovered && !calm ? "joshine-bob" : "joshine-breathe"))}
               style={{ transform: `rotate(${tilt}deg)`, transition: "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}
             >
               <JoshineFace
                 shape={settings.shape}
                 color={settings.color}
-                expression={mood ?? tour.expression ?? (hovered ? (settings.tucked ? "curious" : "happy") : null) ?? greeting?.expression ?? (settings.tucked ? "sleepy" : settings.expression)}
-                blush={hovered && !settings.tucked}
+                expression={mood ?? tour.expression ?? (gum ? GUM_FACE[gum] : null) ?? (hovered ? (settings.tucked || ducked ? "curious" : "happy") : null) ?? (ducked ? "dots" : null) ?? greeting?.expression ?? (settings.tucked ? "sleepy" : settings.expression)}
+                blush={(hovered && !settings.tucked && !ducked) || gum === "sheepish"}
                 size={settings.size}
                 lively={settings.lively && !settings.tucked}
                 className="drop-shadow-[0_6px_8px_color-mix(in_srgb,var(--color-scrim)_22%,transparent)]"
               />
+              <JoshineGum run={gumRun} phase={gum} size={settings.size} />
             </span>
           </span>
         </button>

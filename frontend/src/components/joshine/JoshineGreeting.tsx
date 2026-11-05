@@ -1,11 +1,14 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import { RiCupLine } from "@remixicon/react";
 import type { Greeting } from "@/lib/greetings";
 import { cx } from "@/utils/cx";
 
 /** How long the thought stays before it sinks back into Joshine. */
 export const GREETING_MS = 8000;
+/** Tea time stays a little longer. */
+const TEA_MS = 10000;
 /** How long the sinking-back takes before the bubble is gone. */
 const LEAVE_MS = 520;
 
@@ -50,7 +53,7 @@ export function JoshineGreeting({ greeting, name, color, petSize, tucked, onDone
   });
 
   // The 8 seconds start once the thought has formed; hovering pauses them.
-  const remaining = useRef(GREETING_MS + 900);
+  const remaining = useRef((greeting.kind === "tea" ? TEA_MS : GREETING_MS) + 900);
   useEffect(() => {
     if (held || leaving) return;
     const started = Date.now();
@@ -89,7 +92,8 @@ export function JoshineGreeting({ greeting, name, color, petSize, tucked, onDone
 
   // The line, word by word; the first name gets Joshine's colour.
   const words = greeting.text.split(" ");
-  const firstName = name.trim().split(/\s+/)[0] ?? "";
+  // Each word of the name they're called by ("Jeba Sam" is two).
+  const nameWords = new Set(name.trim().split(/\s+/).filter(Boolean));
   const special = greeting.kind === "birthday" || greeting.kind === "anniversary" || greeting.kind === "festival";
   const sparkles = special
     ? [
@@ -141,17 +145,26 @@ export function JoshineGreeting({ greeting, name, color, petSize, tucked, onDone
           <span aria-hidden className="absolute -left-2.5 top-1/2 size-9 -translate-y-1/2 rounded-full" style={{ backgroundColor: fill }} />
           <span aria-hidden className="absolute -bottom-2 left-[30%] size-8 rounded-full" style={{ backgroundColor: fill }} />
 
-          <span className="relative block rounded-[26px] px-5 pb-3.5 pt-4" style={{ backgroundColor: fill }}>
+          <span className={cx("relative block rounded-[26px] px-5 pb-3.5 pt-4", greeting.kind === "tea" && "flex items-end gap-3")} style={{ backgroundColor: fill }}>
+            {/* Tea time: a cup with steam curling up from it. */}
+            {greeting.kind === "tea" && (
+              <span aria-hidden className="tea-cup relative mb-0.5 shrink-0" style={{ color: nameColor }}>
+                <span className="tea-steam absolute -top-3 left-[30%] h-3 w-1 rounded-full" style={{ backgroundColor: nameColor }} />
+                <span className="tea-steam tea-steam-2 absolute -top-3.5 left-[55%] h-3 w-1 rounded-full" style={{ backgroundColor: nameColor }} />
+                <RiCupLine className="size-7" />
+              </span>
+            )}
             <span className="block text-title-3-semibold tracking-tight text-text-primary [text-wrap:balance]">
               {words.map((w, i) => {
-                const isName = !!firstName && w.replace(/[.,?]$/, "") === firstName;
+                const bare = w.replace(/[.,?!]+$/, "");
+                const isName = nameWords.has(bare);
                 return (
                   <Fragment key={i}>
                     <span className="thought-word inline-block" style={{ animationDelay: `${620 + i * 70}ms` }}>
                       {isName ? (
                         <>
-                          <span style={{ color: nameColor }}>{firstName}</span>
-                          {w.slice(firstName.length)}
+                          <span style={{ color: nameColor }}>{bare}</span>
+                          {w.slice(bare.length)}
                         </>
                       ) : (
                         w

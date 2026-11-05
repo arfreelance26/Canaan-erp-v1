@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RepairLinesTable } from "@/components/maintenance/RepairLines";
 import { RiCheckboxCircleLine as CheckCircle, RiCloseCircleLine as XCircle, RiTimeLine as Clock, RiToolsLine as Wrench, RiUserLine as User, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiStackLine as Layers, RiRouteLine as Route, RiFileList3Line as ClipboardList, RiForbidLine as Ban } from "@remixicon/react";
 import { maintenanceRequestsApi } from "@/lib/api";
 import type { MaintenanceRequest, MaintenanceRequestStatus } from "@/types/maintenance-request";
@@ -156,17 +157,15 @@ function RequestCard({
             <Detail label="Start Date" value={req.date ? formatDate(req.date) : ""} />
             <Detail label="End Date" value={req.maintenanceEndDate ? formatDate(req.maintenanceEndDate) : ""} />
             <Detail label="Odometer" value={`${req.odometer.toLocaleString("en-IN")} km`} />
-            <Detail label="Cost" value={rupees(req.cost)} />
-            <Detail label="Location" value={req.maintenanceLocation} />
-            <Detail
-              label="Maintenance By"
-              value={req.maintenanceBy ? `${req.maintenanceBy}${req.maintenanceByType ? ` (${req.maintenanceByType})` : ""}` : ""}
-            />
-            <Detail label="Invoice Number" value={req.invoiceNumber} />
-            <Detail label="Invoice Date" value={req.invoiceDate ? formatDate(req.invoiceDate) : ""} />
+            <Detail label="Total Cost" value={rupees(req.cost)} />
             <Detail label="Remind At" value={req.remindAtOdometer ? `${req.remindAtOdometer.toLocaleString("en-IN")} km` : ""} />
             <Detail label="Compliant" value={req.compliant} wide />
             <Detail label="Remarks" value={req.description} wide />
+          </div>
+          {/* Each repair with its own cost, place, who did it and invoice. */}
+          <div className="mt-4">
+            <p className="mb-2 text-caption-2-semibold text-text-tertiary">Repairs ({req.repairLines.length})</p>
+            <RepairLinesTable lines={req.repairLines} />
           </div>
         </div>
       </div>

@@ -19,7 +19,7 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow, DriverAttendanceRemark, StaffSelfSummary } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
-import type { MaintenanceRecord, MaintenanceProof } from "@/types/truck-maintenance";
+import type { MaintenanceRecord, MaintenanceProof, RepairLine } from "@/types/truck-maintenance";
 import type { MaintenanceRequest, MaintenanceRequestProof } from "@/types/maintenance-request";
 import type { TyreInventoryItem, TyreData, TyreRemarkPreset, TyreRemarkScenario, RetreadMoveInput, VendorRetread } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
@@ -683,6 +683,7 @@ export function toStaff(b: B): Staff {
     identityImageUrl: b.identity_image_url ? fileUrl("staff", String(b.id), "identity") : null,
     staffId: b.staff_id ?? "",
     name: b.name ?? "",
+    preferredName: b.preferred_name ?? "",
     department: b.department ?? "",
     designation: b.designation ?? "",
     softwareDesignation: b.software_designation || "Trip Sheet Register",
@@ -717,6 +718,7 @@ function fromStaff(f: Staff, password?: string) {
   return {
     staff_id: f.staffId,
     name: f.name,
+    preferred_name: f.preferredName?.trim() || null,
     department: f.department || null,
     designation: f.designation || null,
     software_designation: f.softwareDesignation,
@@ -1302,8 +1304,41 @@ function toLeaveRequest(b: B): LeaveRequest {
  * Admin's direct edit and as an Edit Request's proposed changes, which the
  * backend applies through the same validation once approved.
  */
-export function maintenanceRecordChanges(record: MaintenanceRecord): Record<string, unknown> {
+/** A repair line from the backend's shape (record repair_lines / request items). */
+export function toRepairLine(b: B): RepairLine {
   return {
+    repairType: b.repair_type ?? "",
+    cost: b.cost != null ? String(b.cost) : "",
+    maintenanceLocation: b.maintenance_location ?? "",
+    maintenanceByType: b.maintenance_by_type === "Vendor" || b.maintenance_by_type === "Individual" ? b.maintenance_by_type : null,
+    vendorId: b.vendor_id != null ? String(b.vendor_id) : null,
+    maintenanceBy: b.maintenance_by ?? "",
+    invoiceNumber: b.invoice_number ?? "",
+    invoiceDate: b.invoice_date ?? "",
+  };
+}
+
+function fromRepairLine(l: RepairLine) {
+  const byVendor = l.maintenanceByType === "Vendor";
+  return {
+    repair_type: l.repairType,
+    // Blank only on a scheduled job (its cost comes later); the form requires it otherwise.
+    cost: l.cost.trim() === "" ? null : parseFloat(l.cost) || 0,
+    maintenance_location: l.maintenanceLocation.trim() || null,
+    maintenance_by_type: byVendor ? (l.vendorId ? "Vendor" : null) : l.maintenanceBy.trim() ? "Individual" : null,
+    vendor_id: byVendor && l.vendorId ? parseInt(l.vendorId) : null,
+    maintenance_by: byVendor ? null : l.maintenanceBy.trim() || null,
+    invoice_number: l.invoiceNumber.trim() || null,
+    invoice_date: l.invoiceDate || null,
+  };
+}
+
+export function maintenanceRecordChanges(record: MaintenanceRecord): Record<string, unknown> {
+  // With repair cards, they carry the cost, place, vendor and invoice; the
+  // backend works out the record's total and fills its own fields from them.
+  const lines = record.repairLines?.length ? record.repairLines : null;
+  return {
+    ...(lines ? { items: lines.map(fromRepairLine) } : {}),
     date: record.date,
     maintenance_end_date: record.maintenanceEndDate || null,
     odometer: parseInt(record.odometer) || 0,
@@ -1345,6 +1380,7 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     invoiceNumber: b.invoice_number ?? "",
     invoiceDate: b.invoice_date ?? "",
     remindAtOdometer: b.remind_at_odometer != null ? String(b.remind_at_odometer) : "",
+    repairLines: Array.isArray(b.repair_lines) ? (b.repair_lines as B[]).map(toRepairLine) : [],
     truckCode: b.truck_code ?? null,
     truckRegistration: b.truck_registration ?? null,
   };
@@ -3261,7 +3297,12 @@ function toMaintenanceRequest(b: B): MaintenanceRequest {
     invoiceDate: p.invoice_date ?? "",
     description: p.description ?? "",
     cost: Number(p.cost ?? 0),
+    // The repairs; a request from before repair cards (or a trip sheet) shows as one.
+    repairLines: Array.isArray(p.items) && p.items.length
+      ? (p.items as B[]).map(toRepairLine)
+      : [toRepairLine({ ...p, repair_type: p.repair_type || p.maintenance_type })],
     remindAtOdometer: p.remind_at_odometer != null ? Number(p.remind_at_odometer) : null,
+    submittedById: b.submitted_by_id != null ? String(b.submitted_by_id) : null,
     submittedByName: b.submitted_by_name ?? "",
     submittedByRole: b.submitted_by_role ?? null,
     decidedByName: b.decided_by_name ?? null,
@@ -3277,11 +3318,30 @@ function toMaintenanceRequest(b: B): MaintenanceRequest {
 /** Maintenance Approvals — every new maintenance record waits here for Admin
  *  or Accounts. Uncached (rawReq): a pending list must never show stale. */
 export const maintenanceRequestsApi = {
-  submit: (record: MaintenanceRecord, truckDbId: string): Promise<MaintenanceRequest> =>
-    rawReq<B>("/maintenance-requests", {
+  /** schedule: save it to Scheduled Records instead, costs added later. */
+  submit: (record: MaintenanceRecord, truckDbId: string, opts: { schedule?: boolean } = {}): Promise<MaintenanceRequest> =>
+    rawReq<B>(`/maintenance-requests${opts.schedule ? "?schedule=true" : ""}`, {
       method: "POST",
       body: JSON.stringify({ truck_id: parseInt(truckDbId), ...maintenanceRecordChanges(record) }),
     }).then(toMaintenanceRequest),
+  /** Jobs waiting for their cost, oldest first: a truck's, everyone's, or
+   *  the caller's own waiting at least minDays (the bell's reminder). */
+  scheduled: (opts: { truckId?: string; mine?: boolean; minDays?: number } = {}): Promise<MaintenanceRequest[]> => {
+    const params = new URLSearchParams();
+    if (opts.truckId) params.set("truck_id", opts.truckId);
+    if (opts.mine) params.set("mine", "true");
+    if (opts.minDays) params.set("min_days", String(opts.minDays));
+    const qs = params.toString();
+    return rawReq<B[]>(`/maintenance-requests/scheduled${qs ? `?${qs}` : ""}`).then((d) => d.map(toMaintenanceRequest));
+  },
+  /** Scheduled Records → Add costs: the job, now priced, goes for approval. */
+  addCosts: (requestId: string, record: MaintenanceRecord, truckDbId: string): Promise<MaintenanceRequest> =>
+    rawReq<B>(`/maintenance-requests/${requestId}/costs`, {
+      method: "PUT",
+      body: JSON.stringify({ truck_id: parseInt(truckDbId), ...maintenanceRecordChanges(record) }),
+    }).then(toMaintenanceRequest),
+  removeScheduled: (requestId: string): Promise<void> =>
+    rawReq<void>(`/maintenance-requests/${requestId}/scheduled`, { method: "DELETE" }),
   list: (opts: { status?: string; truckId?: string } = {}): Promise<MaintenanceRequest[]> => {
     const params = new URLSearchParams();
     if (opts.status) params.set("status", opts.status);
@@ -5594,7 +5654,7 @@ export const foundingApi = {
     }) as FoundingDay),
 };
 
-export type CelebrationKey = "birthdays" | "season" | "founding";
+export type CelebrationKey = "birthdays" | "season" | "founding" | "teatime";
 export type CelebrationMessages = { birthday: string; christmas: string; newyear: string; founding: string; signature: string };
 export type CelebrationsOverview = {
   today: string;
@@ -5637,6 +5697,9 @@ export const celebrationsApi = {
     rawReq<CelebrationMessages>("/celebrations/messages", { method: "PUT", body: JSON.stringify(messages) }),
   setFestival: (key: FestivalKey, enabled: boolean, dates: string[]) =>
     rawReq<Festival>("/celebrations/festivals", { method: "PUT", body: JSON.stringify({ key, enabled, dates }) }),
+  /** Every user: whether Admin has tea time on for everyone. */
+  teaTime: (): Promise<boolean> =>
+    rawReq<{ enabled: boolean }>("/celebrations/tea-time").then((r) => Boolean(r.enabled)),
   /** Every user: last visit, birthday, work anniversary and festival, for Joshine's greeting. */
   greeting: () =>
     rawReq<B>(`/celebrations/greeting${previewQuery()}`).then((r) => ({

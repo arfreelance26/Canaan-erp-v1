@@ -20,7 +20,7 @@ import type { JoshineExpression } from "@/lib/joshine";
 
 export type GreetingSlot = "early" | "morning" | "afternoon" | "evening" | "night" | "midnight";
 export type GreetingKind = GreetingSlot | "birthday" | "anniversary" | "festival" | "first" | "rare" | "away" | "back"
-  | "monday" | "friday" | "weekend" | "month";
+  | "monday" | "friday" | "weekend" | "month" | "tea";
 
 export type Greeting = { kind: GreetingKind; text: string; expression: JoshineExpression };
 
@@ -59,7 +59,7 @@ const SLOT_LINES: Record<GreetingSlot, string[]> = {
   ],
 };
 
-const SITUATION_LINES: Record<Exclude<GreetingKind, GreetingSlot | "festival">, string[]> = {
+const SITUATION_LINES: Record<Exclude<GreetingKind, GreetingSlot | "festival" | "tea">, string[]> = {
   birthday: ["Happy birthday, {name}.", "Many happy returns, {name}.", "Your day today, {name}."],
   anniversary: ["{years} with Canaan today, {name}.", "Happy work anniversary, {name}.", "{years} together today, {name}."],
   first: ["Welcome to Canaan, {name}.", "Glad you're here, {name}.", "Let's get you started, {name}."],
@@ -88,6 +88,7 @@ const EXPRESSION: Record<GreetingKind, JoshineExpression> = {
   early: "curious", morning: "happy", afternoon: "focused", evening: "calm", night: "calm", midnight: "sleepy",
   birthday: "sparkle", anniversary: "love", festival: "sparkle", first: "happy", rare: "wink",
   away: "happy", back: "happy", monday: "determined", friday: "wink", weekend: "curious", month: "sparkle",
+  tea: "sparkle",
 };
 
 // ── Time in India ────────────────────────────────────────────────────────────
@@ -195,14 +196,79 @@ function fill(line: string, name: string, extra: Record<string, string> = {}): s
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+// ── Tea time: 11:00 AM and 4:00 PM, India time ──────────────────────────────
+export type TeaSlot = "11" | "16";
+const TEA_SLOTS: TeaSlot[] = ["11", "16"];
+/** Missed the minute (laptop asleep, another tab)? Still said up to this late. */
+const TEA_GRACE_MIN = 10;
+
+const TEA_LINES: Record<TeaSlot, string[]> = {
+  "11": [
+    "Tea time, right {name}?",
+    "11 o'clock. Chai break, {name}?",
+    "Kettle's on, {name}. Tea?",
+    "Tea kudikalaama, {name}?",
+    "Five-minute tea break, {name}. You've earned it.",
+  ],
+  "16": [
+    "Tea time, right {name}?",
+    "4 o'clock chai, {name}?",
+    "Evening tea, {name}. Biscuits too?",
+    "Vada with that tea, {name}?",
+    "Tea time! The trucks can wait five minutes, {name}.",
+  ],
+};
+const TEA_LATE_LINES = [
+  "Tea's getting cold, {name}!",
+  "Did you get your tea, {name}?",
+  "Still time for that tea, {name}.",
+];
+
+/** Today's date and the minutes since midnight, in India. */
+function istClock(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, minutes: (Number(get("hour")) % 24) * 60 + Number(get("minute")) };
+}
+
+/**
+ * The tea time due now, if it hasn't been said today: within its first
+ * minute it's on time; up to 10 minutes after, it's "late" (a different
+ * line). Only asks; claimTeaTime() records it once the bubble is on screen,
+ * which also keeps other tabs from saying it again.
+ */
+export function teaTimeDue(userKey: string, now: Date = new Date()): { slot: TeaSlot; late: boolean } | null {
+  if (!userKey) return null;
+  const { date, minutes } = istClock(now);
+  for (const slot of TEA_SLOTS) {
+    const since = minutes - Number(slot) * 60;
+    if (since < 0 || since > TEA_GRACE_MIN) continue;
+    if (read(KEY(userKey, `tea.${date}.${slot}`)) === "1") return null;
+    return { slot, late: since >= 2 };
+  }
+  return null;
+}
+
+/** Said: not again today, in this tab or any other. */
+export function claimTeaTime(userKey: string, slot: TeaSlot, now: Date = new Date()): void {
+  write(KEY(userKey, `tea.${istClock(now).date}.${slot}`), "1");
+}
+
+/** The tea-time line, from its own no-repeat deck. */
+export function teaTimeGreeting(userKey: string, name: string, slot: TeaSlot, late: boolean): Greeting {
+  const line = late ? fromDeck(userKey, "tea.late", TEA_LATE_LINES) : fromDeck(userKey, `tea.${slot}`, TEA_LINES[slot]);
+  return { kind: "tea", text: fill(line, name), expression: EXPRESSION.tea };
+}
+
 const RARE_ODDS = 1 / 20;
 
 /**
  * The line to greet `fullName` with now. `ctx` comes from the server
  * (celebrationsApi.greeting); without it, the time-of-day line is used.
  */
-export function pickGreeting(userKey: string, fullName: string, ctx: GreetingContext | null, now: Date = new Date()): Greeting {
-  const name = (fullName ?? "").trim().split(/\s+/)[0] ?? "";
+export function pickGreeting(userKey: string, name: string, ctx: GreetingContext | null, now: Date = new Date()): Greeting {
   const say = (kind: GreetingKind, lines: string[], extra?: Record<string, string>): Greeting => ({
     kind, text: fill(fromDeck(userKey, kind === "festival" ? `festival.${ctx?.festival?.key}` : kind, lines), name, extra), expression: EXPRESSION[kind],
   });

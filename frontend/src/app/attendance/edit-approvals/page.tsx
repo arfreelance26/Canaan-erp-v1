@@ -1,10 +1,11 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { RepairLinesTable } from "@/components/maintenance/RepairLines";
 import { useEffect, useMemo, useState } from "react";
 import { RiShieldFlashLine as ShieldAlert, RiShieldCheckLine as ShieldCheck, RiShieldCrossLine as ShieldX, RiTimeLine as Clock, RiUserLine as User, RiHistoryLine as History, RiCheckLine as Check, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
-import { editApprovalsApi, type EditApprovalEditEventRow } from "@/lib/api";
+import { editApprovalsApi, toRepairLine, type EditApprovalEditEventRow } from "@/lib/api";
 import type { EditApprovalRequest } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -602,13 +603,20 @@ export default function EditApprovalsPage() {
                 <p className="text-caption-2-semibold text-text-tertiary">Proposed Changes</p>
                 <div className="mt-1 rounded-lg border border-accent-border bg-accent-surface px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                   {/* vendor_id is an internal link — maintenance_by already shows the vendor's name. */}
-                  {Object.entries(viewing.proposedChanges).filter(([k]) => k !== "vendor_id").map(([k, v]) => (
+                  {Object.entries(viewing.proposedChanges).filter(([k]) => k !== "vendor_id" && k !== "items").map(([k, v]) => (
                     <div key={k} className="flex gap-1.5">
                       <span className="text-accent-text capitalize min-w-[90px]">{viewing.resourceType === "AdBlueLog" && k === "supplier" ? "filling location" : k.replace(/_/g, " ")}:</span>
                       <span className="font-semibold text-accent-text-strong">{String(v ?? "—")}</span>
                     </div>
                   ))}
                 </div>
+                {/* A maintenance edit carries its repairs as a list: show them as a table. */}
+                {Array.isArray(viewing.proposedChanges.items) && (
+                  <div className="mt-2">
+                    <p className="mb-1 text-caption-2-semibold text-text-tertiary">Repairs after the change</p>
+                    <RepairLinesTable lines={(viewing.proposedChanges.items as Record<string, unknown>[]).map((i) => toRepairLine(i))} />
+                  </div>
+                )}
               </div>
             )}
 

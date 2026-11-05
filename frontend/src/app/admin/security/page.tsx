@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { PagedTbody } from "@/components/ui/PagedTbody";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 const EVENT_LABELS: Record<string, string> = {
   "login.success": "Login — Success",
   "login.failure": "Login — Failed",
@@ -691,21 +692,7 @@ export default function SecurityLogPage() {
 
             {/* Date range */}
             <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="rounded-lg border border-separator-border bg-background-primary-default px-2 py-1.5 text-xs text-text-primary"
-                title="From date"
-              />
-              <span className="text-xs text-text-tertiary">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="rounded-lg border border-separator-border bg-background-primary-default px-2 py-1.5 text-xs text-text-primary"
-                title="To date"
-              />
+              <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
               {(dateFrom || dateTo) && (
                 <button
                   onClick={() => { setDateFrom(""); setDateTo(""); }}

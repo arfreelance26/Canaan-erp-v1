@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PerRepair, byText, invoiceDateText, money } from "@/components/maintenance/RepairLines";
 import { createPortal } from "react-dom";
 import { RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiCloseLine as X, RiAlertLine as AlertTriangle, RiAttachment2 as Paperclip, RiTimeLine as Clock } from "@remixicon/react";
 import { MaintenanceProofsDialog } from "./MaintenanceProofsDialog";
@@ -377,17 +378,18 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                     <td className="px-4 py-2.5 text-text-secondary">
                       {record.compliant || <span className="italic text-text-tertiary">—</span>}
                     </td>
+                    {/* Per repair: a record can hold several, each with its own details. */}
                     <td className="px-4 py-2.5 text-text-secondary">
-                      {record.maintenanceLocation || <span className="italic text-text-tertiary">—</span>}
+                      <PerRepair lines={record.repairLines ?? []} render={(l) => l.maintenanceLocation} />
                     </td>
                     <td className="px-4 py-2.5 text-text-secondary">
-                      {record.maintenanceBy || <span className="italic text-text-tertiary">—</span>}
+                      <PerRepair lines={record.repairLines ?? []} render={byText} />
                     </td>
                     <td className="px-4 py-2.5 text-text-secondary">
-                      {record.invoiceNumber || <span className="italic text-text-tertiary">—</span>}
+                      <PerRepair lines={record.repairLines ?? []} render={(l) => l.invoiceNumber} />
                     </td>
                     <td className="px-4 py-2.5 tabular-nums text-text-secondary">
-                      {record.invoiceDate ? formatDate(record.invoiceDate) : <span className="italic text-text-tertiary">—</span>}
+                      <PerRepair lines={record.repairLines ?? []} render={invoiceDateText} />
                     </td>
                     <td className="px-4 py-2.5 text-text-secondary">
                       {record.description || <span className="italic text-text-tertiary">—</span>}
@@ -403,6 +405,13 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                     </td>
                     <td className="px-4 py-2.5 tabular-nums font-semibold text-accent-text">
                       ₹{Number(record.cost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {(record.repairLines?.length ?? 0) > 1 && (
+                        <ul className="mt-1 flex flex-col gap-0.5 text-caption-2-medium font-normal text-text-tertiary">
+                          {record.repairLines!.map((l, i) => (
+                            <li key={i} className="whitespace-nowrap">{l.repairType} · {money(l.cost)}</li>
+                          ))}
+                        </ul>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       {(proofCounts[record.id] ?? record.proofCount ?? 0) > 0 ? (

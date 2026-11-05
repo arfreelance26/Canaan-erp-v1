@@ -104,6 +104,8 @@ def _run_schema_migrations():
         "ALTER TABLE trucks ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE drivers ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE staff ADD COLUMN version INT NOT NULL DEFAULT 1",
+        # Preferred name — what greetings call them; NULL = worked out from the name
+        "ALTER TABLE staff ADD COLUMN preferred_name VARCHAR(60) DEFAULT NULL",
         # Device lock — comma-separated SHA-256(s) of the bound device token(s); NULL = unbound
         "ALTER TABLE staff ADD COLUMN device_hash VARCHAR(64) DEFAULT NULL",
         # Widen to hold multiple hashes (admins may bind several devices)

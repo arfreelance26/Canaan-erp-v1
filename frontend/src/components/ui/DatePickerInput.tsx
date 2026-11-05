@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { format } from "date-fns";
 import { parseDate, type CalendarDate } from "@internationalized/date";
 import { RiCalendarLine, RiCloseLine } from "@remixicon/react";
-import { DatePicker } from "@/components/base/date-picker/date-picker";
+import { QuickCalendar } from "@/components/ui/QuickCalendar";
 import { cx } from "@/utils/cx";
 
 type Props = {
@@ -44,10 +44,10 @@ function toCalendarDate(iso: string | undefined): CalendarDate | null {
 
 /**
  * The app's date field: a trigger that shows the date as DD-MM-YYYY and opens
- * BoardUI's date picker (one month, editable date chip, Cancel / Apply). The
- * value in and out stays an ISO "YYYY-MM-DD" string, so every form keeps
- * working unchanged. Far-off dates (birthdays, expiry years ahead) are quickest
- * typed into the date chip at the bottom of the calendar.
+ * the calendar (components/ui/QuickCalendar.tsx): one click picks a day, month
+ * and year dropdowns jump to far-off dates (birthdays, expiry years), and
+ * Today / Clear / typing a date sit at its foot. The value in and out stays an
+ * ISO "YYYY-MM-DD" string, so every form keeps working unchanged.
  */
 export function DatePickerInput({
   value,
@@ -65,7 +65,8 @@ export function DatePickerInput({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const date = toCalendarDate(value);
-  const canClear = (clearable ?? (!required && !disabled)) && Boolean(date);
+  const allowClear = clearable ?? (!required && !disabled);
+  const canClear = allowClear && Boolean(date);
   const shown = date ? format(new Date(date.year, date.month - 1, date.day), dateFormat) : "";
   const bare = variant === "bare";
 
@@ -124,7 +125,7 @@ export function DatePickerInput({
         />
       )}
 
-      <DatePicker
+      <QuickCalendar
         triggerRef={triggerRef}
         isOpen={open}
         onOpenChange={setOpen}
@@ -132,6 +133,7 @@ export function DatePickerInput({
         onChange={(next) => onChange(next ? next.toString() : "")}
         minValue={toCalendarDate(minDate)}
         maxValue={toCalendarDate(maxDate)}
+        clearable={allowClear}
         aria-label={ariaLabel ?? placeholder ?? "Date"}
       />
     </div>

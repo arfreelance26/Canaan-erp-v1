@@ -30,6 +30,20 @@ def test_login_logout_and_lockout_reset(api, client):
     api.post("/auth/lockouts/reset", json={"ip_address": "testclient", "username": person["username"]})
 
 
+
+def test_preferred_name_is_saved_and_sent_at_login(api, client):
+    """What greetings call someone: set on Our Staff, sent with the login."""
+    password = "Pytest#" + secrets.token_hex(6)
+    person = create_staff(api, password=password, name="D. PYTEST JEBARSON", preferred_name="  Jeba   Sam ")
+    assert person["preferred_name"] == "Jeba Sam"
+    res = client.post("/auth/login", json={"username": person["username"], "password": password})
+    assert res.status_code == 200, res.text
+    assert res.json()["preferred_name"] == "Jeba Sam"
+
+    # Blank goes back to "work it out from the name"; too long is refused.
+    assert api.put(f"/staff/{person['id']}", json={"preferred_name": "  "})["preferred_name"] is None
+    api.put(f"/staff/{person['id']}", json={"preferred_name": "x" * 61}, expect=422)
+
 # ---------------------------------------------------------------- files
 
 def test_file_upload_download_delete(api, client, auth):

@@ -245,6 +245,9 @@ class Staff(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     staff_id = Column(String(20), unique=True, nullable=False)          # STF-1001
     name = Column(String(100), nullable=False)
+    # What Joshine and the dashboard call them ("Manuel" for "D. MANUEL
+    # JEBARSON"). Empty: worked out from the name (frontend lib/call-name.ts).
+    preferred_name = Column(String(60), nullable=True)
     department = Column(String(100))
     designation = Column(String(100))
     software_designation = Column(
@@ -1120,6 +1123,44 @@ class MaintenanceRecord(Base):
     remind_due_sent_at = Column(DateTime, nullable=True)
 
     truck = relationship("Truck", back_populates="maintenance_records")
+    # The repairs in this visit, each with its own cost, place, who did it
+    # and invoice. The record's `cost` is their total; older records have no
+    # lines and show as one line built from their own fields (repair_lines).
+    items = relationship(
+        "MaintenanceRecordItem", back_populates="record", cascade="all, delete-orphan",
+        order_by="MaintenanceRecordItem.position", lazy="selectin",
+    )
+
+    @property
+    def repair_lines(self) -> list:
+        if self.items:
+            return list(self.items)
+        return [{
+            "repair_type": self.repair_type or self.maintenance_type, "cost": self.cost,
+            "maintenance_location": self.maintenance_location, "maintenance_by_type": self.maintenance_by_type,
+            "vendor_id": self.vendor_id, "maintenance_by": self.maintenance_by,
+            "invoice_number": self.invoice_number, "invoice_date": self.invoice_date,
+        }]
+
+
+class MaintenanceRecordItem(Base):
+    """One repair within a maintenance record (Update Maintenance Record's
+    repair cards): its cost, where, who did it, and their invoice."""
+    __tablename__ = "maintenance_record_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    record_id = Column(Integer, ForeignKey("maintenance_records.id", ondelete="CASCADE"), nullable=False, index=True)
+    position = Column(Integer, nullable=False, default=0)
+    repair_type = Column(String(200), nullable=False)
+    cost = Column(Numeric(10, 2), nullable=False, default=0)
+    maintenance_location = Column(String(200), nullable=True)
+    maintenance_by_type = Column(String(12), nullable=True)   # "Vendor" | "Individual"
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
+    maintenance_by = Column(String(200), nullable=True)       # name snapshot
+    invoice_number = Column(String(100), nullable=True)
+    invoice_date = Column(Date, nullable=True)
+
+    record = relationship("MaintenanceRecord", back_populates="items")
 
 
 class MaintenanceProof(Base):

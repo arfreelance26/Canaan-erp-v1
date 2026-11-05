@@ -1,6 +1,13 @@
 /** A new maintenance record waiting on (or decided in) Maintenance Approvals —
- *  backend/routers/maintenance_requests.py. */
-export type MaintenanceRequestStatus = "Pending" | "Approved" | "Rejected" | "Cancelled";
+ *  backend/routers/maintenance_requests.py. "Scheduled": saved before its cost
+ *  was known; it waits in the truck's Scheduled Records until costs are added. */
+export type MaintenanceRequestStatus = "Pending" | "Approved" | "Rejected" | "Cancelled" | "Scheduled";
+
+import type { RepairLine } from "@/types/truck-maintenance";
+
+// Mirrors SCHEDULED_REMIND_DAYS in backend/routers/maintenance_requests.py:
+// a scheduled job this old reminds its owner (the bell) and shows in the recap.
+export const SCHEDULED_REMIND_DAYS = 7;
 
 export type MaintenanceRequest = {
   id: string;
@@ -25,7 +32,10 @@ export type MaintenanceRequest = {
   invoiceDate: string;
   description: string;
   cost: number;
+  /** The repairs, each with its own cost, place, who did it and invoice. */
+  repairLines: RepairLine[];
   remindAtOdometer: number | null;
+  submittedById: string | null;
   submittedByName: string;
   submittedByRole: string | null;
   decidedByName: string | null;

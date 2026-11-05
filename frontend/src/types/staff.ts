@@ -11,6 +11,8 @@ export type Staff = {
   photoUrl: string | null;
   identityImageUrl: string | null;
   name: string;
+  /** What greetings call them ("Manuel"); "" = worked out from the name (lib/call-name.ts). */
+  preferredName?: string;
   staffId: string;
   department: string;
   designation: string;

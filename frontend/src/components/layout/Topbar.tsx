@@ -14,6 +14,7 @@ import { AlertsButton } from "./AlertsButton";
 import { UniversalSearch } from "./UniversalSearch";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi, maintenanceRequestsApi } from "@/lib/api";
+import { SCHEDULED_REMIND_DAYS, type MaintenanceRequest } from "@/types/maintenance-request";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate } from "@/lib/format-date";
@@ -225,6 +226,9 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const [deletionRequestNotifs, setDeletionRequestNotifs] = useState<DeletionRequestNotif[]>([]); // Admin
   const [myDecidedRequests, setMyDecidedRequests] = useState<MyDecidedRequest[]>([]);       // everyone
   const [maintRequestNotifs, setMaintRequestNotifs] = useState<MaintenanceRequestNotif[]>([]); // Admin + Accounts
+  // The user's own scheduled maintenance jobs still waiting for a cost after
+  // SCHEDULED_REMIND_DAYS — a personal reminder until the costs are added.
+  const [myWaitingJobs, setMyWaitingJobs] = useState<MaintenanceRequest[]>([]);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef   = useRef<HTMLDivElement>(null);
@@ -374,7 +378,17 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
     const id = setInterval(loadMyDecidedRequests, 20000);
     return () => clearInterval(id);
   }, [loadMyDecidedRequests]);
-  useWebSocketEvent("maintenance_request_updated", () => { loadMaintRequests(); loadMyDecidedRequests(); });
+
+  const loadMyWaitingJobs = useCallback(() => {
+    if (user?.id == null) return;
+    maintenanceRequestsApi.scheduled({ mine: true, minDays: SCHEDULED_REMIND_DAYS }).then(setMyWaitingJobs).catch(() => {});
+  }, [user?.id]);
+  useEffect(() => {
+    loadMyWaitingJobs();
+    const id = setInterval(loadMyWaitingJobs, 60_000);
+    return () => clearInterval(id);
+  }, [loadMyWaitingJobs]);
+  useWebSocketEvent("maintenance_request_updated", () => { loadMaintRequests(); loadMyDecidedRequests(); loadMyWaitingJobs(); });
 
   // Mark seen once the bell is actually opened — clears the badge server-side
   // so it doesn't come back on the next poll/reload, but the list stays
@@ -731,6 +745,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               reverificationAlerts.length +
               summaryAlerts.length +
               maintRequestNotifs.length +
+              myWaitingJobs.length +
               (isAdmin ? recentLeaveRequests.length + recentDeletionRequestNotifs.length : 0) +
               ((isAdmin || isFleetManager) ? recentEditRequestNotifs.length : 0) +
               recentMyDecidedRequests.length;
@@ -768,6 +783,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     reverificationAlerts.length +
                     summaryAlerts.length +
                     maintRequestNotifs.length +
+                    myWaitingJobs.length +
                     (isAdmin ? recentLeaveRequests.length + recentEditRequestNotifs.length + recentDeletionRequestNotifs.length : 0) +
                     recentMyDecidedRequests.length;
                   return count > 0 ? (
@@ -779,7 +795,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               </div>
 
               {/* Body */}
-              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 && reverificationAlerts.length === 0 ? (
+              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 && reverificationAlerts.length === 0 && myWaitingJobs.length === 0 ? (
                 <EmptyState size="compact" illustration="inbox-empty" title="No notifications yet" description="Role-specific alerts coming soon" />
               ) : (
                 <div className="max-h-[420px] overflow-y-auto">
@@ -890,6 +906,50 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                           {maintRequestNotifs.length > NOTIF_ROW_CAP
                             ? `+${maintRequestNotifs.length - NOTIF_ROW_CAP} more — view all in Maintenance Approvals →`
                             : "Review in Maintenance Approvals →"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Waiting for a cost — the user's own scheduled maintenance
+                      jobs, a week or more without their cost. ── */}
+                  {myWaitingJobs.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-caption-2-semibold text-teal-text">
+                        Waiting for a cost
+                      </p>
+                      <ul className="divide-y divide-separator-border">
+                        {myWaitingJobs.slice(0, NOTIF_ROW_CAP).map((j) => (
+                          <li key={`sched-${j.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => { setIsNotifOpen(false); router.push(`/maintenance/trucks?search=${encodeURIComponent(j.registrationNumber || j.truckIdStr)}`); }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-teal-surface-strong/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-surface-strong">
+                                <Wrench className="h-3.5 w-3.5 text-teal-text" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-text-primary">
+                                  Add the cost for <span className="text-teal-text">{j.maintenanceType || "a repair"}</span>
+                                </p>
+                                <p className="truncate text-[11px] text-text-secondary">
+                                  <span className="font-semibold">{j.registrationNumber || j.truckIdStr}</span> · scheduled {timeAgo(j.createdAt)} · not in P&amp;L yet
+                                </p>
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="border-t border-separator-border px-4 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => { setIsNotifOpen(false); router.push("/maintenance/trucks"); }}
+                          className="text-caption-1-medium text-teal-text transition-colors hover:text-teal-text-strong"
+                        >
+                          {myWaitingJobs.length > NOTIF_ROW_CAP
+                            ? `+${myWaitingJobs.length - NOTIF_ROW_CAP} more — open Truck Maintenance →`
+                            : "Add costs in Scheduled Records →"}
                         </button>
                       </div>
                     </div>
@@ -1366,6 +1426,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                    summaryAlerts.length === 0 &&
                    recentMyDecidedRequests.length === 0 &&
                    maintRequestNotifs.length === 0 &&
+                   myWaitingJobs.length === 0 &&
                    (isStaff || isFinanceManager || isMaintenance || (isFleetManager && recentEditRequestNotifs.length === 0) || (isAdmin && recentLeaveRequests.length === 0 && recentEditRequestNotifs.length === 0 && recentDeletionRequestNotifs.length === 0)) && (
                     <EmptyState size="compact" illustration="inbox-empty" title="No notifications" />
                   )}

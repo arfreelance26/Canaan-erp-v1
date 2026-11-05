@@ -277,7 +277,22 @@ def _maintenance(db: Session, day: date):
     waiting = db.query(R).filter(R.status == "Pending").order_by(R.created_at).all()
     if waiting:
         lines.append(_line(f"**Repair requests waiting:** {len(waiting)}", "/attendance/maintenance-approvals"))
-    return lines, attention, {"Repairs": len(records), "Tyres fitted": fitted, "Repair requests waiting": len(waiting)}
+    # Jobs saved to Scheduled Records without a cost: not counted anywhere yet,
+    # so a long wait means a period's costs are understated.
+    from routers.maintenance_requests import SCHEDULED_REMIND_DAYS
+    scheduled = db.query(R).filter(R.status == "Scheduled").order_by(R.created_at).all()
+    if scheduled:
+        lines.append(_line(f"**Waiting for a cost:** {_plural(len(scheduled), 'scheduled repair')}", "/maintenance/trucks"))
+        today = now_ist().date()
+        overdue = [r for r in scheduled if r.created_at and (today - r.created_at.date()).days >= SCHEDULED_REMIND_DAYS]
+        if overdue:
+            oldest = overdue[0]
+            attention.append(_line(
+                f"**{_plural(len(overdue), 'scheduled repair')} still {'has' if len(overdue) == 1 else 'have'} no cost** after "
+                f"{SCHEDULED_REMIND_DAYS}+ days; the oldest is on {regs.get(oldest.truck_id, 'a truck')} "
+                f"({_days((today - oldest.created_at.date()).days)}). Their costs aren't in P&L yet.", "/maintenance/trucks"))
+    return lines, attention, {"Repairs": len(records), "Tyres fitted": fitted, "Repair requests waiting": len(waiting),
+                              "Repairs waiting for a cost": len(scheduled)}
 
 
 def _documents(db: Session, day: date, today: date):

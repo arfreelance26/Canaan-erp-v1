@@ -96,6 +96,8 @@ WORK = {
     "PATCH /attendance/leave-requests/{request_id}/reject": Work("Leave rejected", "Approvals"),
     # Maintenance
     "POST /maintenance-requests": Work("Repair request added", "Maintenance", "truck", "truck_id"),
+    "PUT /maintenance-requests/{request_id}/costs": Work("Scheduled repair costs added", "Maintenance"),
+    "DELETE /maintenance-requests/{request_id}/scheduled": Work("Scheduled repair removed", "Maintenance"),
     "PUT /maintenance/records/{record_id}": Work("Maintenance record edited", "Maintenance", "truck", "truck_id"),
     "POST /maintenance/records/{record_id}/proofs": Work("Maintenance proof added", "Maintenance"),
     "POST /compliance-records/truck/{truck_id}/{doc_type}/renew": Work("Truck document renewed", "Maintenance", "truck"),

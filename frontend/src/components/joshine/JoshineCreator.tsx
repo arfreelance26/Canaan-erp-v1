@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { celebrationsApi } from "@/lib/api";
 import { animate } from "animejs";
 import { RiArrowDownSLine, RiResetLeftLine, RiRouteLine } from "@remixicon/react";
 import { Button } from "@/components/base/buttons/button";
 import { CloseButton } from "@/components/base/buttons/close-button";
 import { ColorWell } from "@/components/base/color-picker/color-picker";
 import { Slider } from "@/components/base/slider/slider";
+import { Switch } from "@/components/base/switch/switch";
 import { MOTION, prefersReducedMotion } from "@/lib/motion";
 import {
   EXPRESSION_LABELS,
@@ -46,6 +48,11 @@ type Props = {
 
 export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, petSize, tours = [] }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Admin's switch for everyone (Celebrations Management); null until known.
+  const [teaForAll, setTeaForAll] = useState<boolean | null>(null);
+  useEffect(() => {
+    celebrationsApi.teaTime().then(setTeaForAll).catch(() => {});
+  }, []);
   const custom = !JOSHINE_COLORS.some((c) => c.value.toLowerCase() === settings.color.toLowerCase());
 
   // Rises out of the pet: fade, small lift, slight blur, from the corner.
@@ -213,6 +220,22 @@ export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, p
             value={settings.size}
             onChange={(size) => onChange({ size: size as number })}
             className="min-w-0 flex-1"
+          />
+        </div>
+
+        {/* "Tea time, right?" at 11 AM and 4 PM */}
+        <div className="flex items-center gap-4 rounded-2xl border border-separator-border bg-background-secondary-default px-4 py-3">
+          <span className="min-w-0 flex-1">
+            <span className="block text-body-medium text-text-secondary">Tea-time reminders</span>
+            <span className="block text-caption-1-regular text-text-tertiary">
+              {teaForAll === false ? "Turned off for everyone by Admin" : "At 11 AM and 4 PM"}
+            </span>
+          </span>
+          <Switch
+            aria-label="Tea-time reminders"
+            isDisabled={teaForAll === false}
+            isSelected={settings.teaTime && teaForAll !== false}
+            onChange={(teaTime) => onChange({ teaTime })}
           />
         </div>
       </div>

@@ -1,3 +1,17 @@
+/** One repair in a maintenance record: its own cost, place, who did it and invoice. */
+export type RepairLine = {
+  repairType: string;
+  cost: string;
+  maintenanceLocation: string;
+  maintenanceByType: "Vendor" | "Individual" | null;
+  vendorId: string | null;
+  /** Vendor name (snapshot) or the individual's name. */
+  maintenanceBy: string;
+  invoiceNumber: string;
+  /** YYYY-MM-DD, "" when not given. */
+  invoiceDate: string;
+};
+
 export type MaintenanceRecord = {
   id: string;
   truckId: string;
@@ -25,6 +39,8 @@ export type MaintenanceRecord = {
   invoiceDate?: string;
   /** "Notify me when this is due again" — the odometer to alert at ("" = no reminder). */
   remindAtOdometer?: string;
+  /** The repairs (older records: one line built from the record's own fields). */
+  repairLines?: RepairLine[];
   /** Only on Our Vendors → View Record rows. */
   truckCode?: string | null;
   truckRegistration?: string | null;

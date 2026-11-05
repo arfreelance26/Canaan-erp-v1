@@ -83,6 +83,8 @@ class LoginResponse(BaseModel):
     software_designation: str
     staff_id: str | None
     photo_url: str | None
+    # What greetings call them; None = worked out from the name.
+    preferred_name: str | None = None
 
 
 def _activity_login(staff_id: int | None, name: str, role: str | None, request: Request, ok: bool) -> None:
@@ -156,6 +158,7 @@ def login(
             software_designation="Admin",
             staff_id=admin_staff.staff_id,
             photo_url=admin_staff.photo_url,
+            preferred_name=admin_staff.preferred_name,
         )
 
     member = (
@@ -257,6 +260,7 @@ def login(
         software_designation=role,
         staff_id=member.staff_id,
         photo_url=member.photo_url,
+        preferred_name=member.preferred_name,
     )
 
 

@@ -16,6 +16,7 @@ import type { Staff } from "@/types/staff";
 import type { Branch } from "@/types/branch";
 import { branchesApi, deleteFile } from "@/lib/api";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { callName } from "@/lib/call-name";
 
 export const DRAFT_KEY = "erp_staff_form_draft";
 
@@ -35,6 +36,7 @@ const emptyForm: Omit<Staff, "id"> = {
   photoUrl: null,
   identityImageUrl: null,
   name: "",
+  preferredName: "",
   staffId: "",
   department: "",
   designation: "",
@@ -65,13 +67,14 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
   useEffect(() => {
     if (open) {
       const { id: _id, ...rest } = initialData ?? { id: "", ...emptyForm };
-      setForm({ ...rest, password: "" });
+      setForm({ ...emptyForm, ...rest, password: "" });
       setFiles({});
       setChangePassword(false);
     }
   }, [open, initialData]);
 
-  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
+  // Merged over emptyForm: a draft saved before a field existed still restores it.
+  useFormDraft(DRAFT_KEY, open && !initialData, form, (draft) => setForm({ ...emptyForm, ...draft }));
 
   function update<K extends keyof Omit<Staff, "id">>(key: K, value: Omit<Staff, "id">[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -237,6 +240,21 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               className={inputClassLower}
               placeholder="e.g. Anita Menon"
             />
+          </Field>
+
+          <Field label="Preferred name (optional)">
+            <input
+              type="text"
+              maxLength={60}
+              value={form.preferredName ?? ""}
+              onChange={(e) => update("preferredName", e.target.value)}
+              className={inputClassLower}
+              placeholder={callName(form.name) ? `e.g. ${callName(form.name)}` : "e.g. Manuel"}
+            />
+            <p className="mt-1 text-xs text-text-tertiary">
+              What Joshine and the dashboard call them.
+              {!form.preferredName?.trim() && callName(form.name) ? <> Left empty: &ldquo;{callName(form.name)}&rdquo;.</> : null}
+            </p>
           </Field>
 
           <Field label="Staff ID" required>

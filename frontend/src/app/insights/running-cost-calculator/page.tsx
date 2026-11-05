@@ -2,6 +2,7 @@
 
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { PendingCostNotice } from "@/components/maintenance/PendingCostNotice";
 import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
 import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, adblueApi, type AdBlueManufacturer, type AdBlueStats, type ServerCostParts, type TruckRunStats } from "@/lib/api";
@@ -2640,6 +2641,14 @@ export default function RunningCostCalculatorPage() {
           Currently in <span data-tour="rcc-mode-banner" className="font-semibold">{mode} Mode</span> for Calculation
         </p>
       </div>
+
+      {/* Basic/Advanced use the last 12 months' maintenance: warn when some of it has no cost yet. */}
+      {mode !== "Manual" && (
+        <PendingCostNotice
+          lastMonths={12}
+          truckIds={truckView === "list" ? undefined : truckView === "compare" ? compareTruckIds.filter(Boolean) : selectedTruckId ? [selectedTruckId] : []}
+        />
+      )}
 
       {/* ── Main layout — all three modes ── */}
       {(mode === "Manual" || mode === "Basic" || mode === "Advanced") && (

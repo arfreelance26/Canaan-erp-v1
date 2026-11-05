@@ -7,6 +7,7 @@ import { trucksApi, maintenanceApi, maintenanceRequestsApi, type MaintenanceReco
 import { RiToolsLine as Wrench, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import type { MaintenanceRequest } from "@/types/maintenance-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -26,6 +27,7 @@ import { PagedTbody } from "@/components/ui/PagedTbody";
 const MaintenanceRecordFormDialog = dynamic(() => import("@/components/maintenance/MaintenanceRecordFormDialog").then((m) => m.MaintenanceRecordFormDialog));
 const MaintenanceRecordHistoryDialog = dynamic(() => import("@/components/maintenance/MaintenanceRecordHistoryDialog").then((m) => m.MaintenanceRecordHistoryDialog));
 const TruckStatusDialog = dynamic(() => import("@/components/maintenance/TruckStatusDialog").then((m) => m.TruckStatusDialog));
+const ScheduledRecordsDialog = dynamic(() => import("@/components/maintenance/ScheduledRecordsDialog").then((m) => m.ScheduledRecordsDialog));
 const EDIT_EVENT_ICON: Record<MaintenanceRecordEditEventRow["event"], typeof Plus> = {
   "Record Created": Plus,
   "Record Edited": Pencil,
@@ -42,6 +44,10 @@ export default function TruckMaintenancePage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
   const [trucks, setTrucks] = useState<Truck[]>([]);
+  // Jobs saved before their cost was known (Scheduled Records), every truck's.
+  const [scheduledJobs, setScheduledJobs] = useState<MaintenanceRequest[]>([]);
+  // Scheduled Records → Add costs: the job the form is pricing.
+  const [costJob, setCostJob] = useState<MaintenanceRequest | null>(null);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -84,16 +90,38 @@ export default function TruckMaintenancePage() {
         setRecords(r);
       })
       .catch(() => {}).finally(() => setLoading(false));
+    maintenanceRequestsApi.scheduled().then(setScheduledJobs).catch(() => {});
   }, [refreshKey]);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("maintenance_request_updated", () => setRefreshKey(k => k + 1));
 
 
   function handleUpdateRecord(truck: Truck) {
     setSelectedTruck(truck);
+    setCostJob(null);
     setUpdateDialogOpen(true);
+  }
+
+  // Who may price or remove a scheduled job (the server checks too).
+  const isOwnJob = (job: MaintenanceRequest) =>
+    authUser?.id != null ? job.submittedById === String(authUser.id) : job.submittedByName === authUser?.name;
+  const canAddCosts = (job: MaintenanceRequest) =>
+    isOwnJob(job) || ["Admin", "Maintenance"].includes(authUser?.softwareDesignation ?? "");
+  const canRemoveJob = (job: MaintenanceRequest) => isOwnJob(job) || isAdmin;
+
+  function handleAddCosts(job: MaintenanceRequest) {
+    setCostJob(job);
+    setScheduledOpen(false);
+    setUpdateDialogOpen(true);
+  }
+
+  const [scheduledOpen, setScheduledOpen] = useState(false);
+  function handleScheduledRecords(truck: Truck) {
+    setSelectedTruck(truck);
+    setScheduledOpen(true);
   }
 
   function handleViewRecord(truck: Truck) {
@@ -106,14 +134,19 @@ export default function TruckMaintenancePage() {
     setStatusDialogOpen(true);
   }
 
-  async function handleSaveRecord(record: MaintenanceRecord, proofs: File[]) {
+  async function handleSaveRecord(record: MaintenanceRecord, proofs: File[], _reason?: string, opts?: { schedule: boolean }) {
     const truck = trucks.find((t) => t.id === record.truckId);
     if (!truck || savingRecord) return;
+    const schedule = Boolean(opts?.schedule) && !costJob;
+    const verb = schedule ? "saved to Scheduled Records" : "sent for approval";
     setSavingRecord(true);
     try {
       // Every new record goes to Maintenance Approvals first — it reaches the
       // truck's record (and costs) only once Admin or Accounts approves it.
-      const request = await maintenanceRequestsApi.submit(record, truck.id);
+      // Not priced yet → Scheduled Records; a priced scheduled job → approval.
+      const request = costJob
+        ? await maintenanceRequestsApi.addCosts(costJob.id, record, truck.id)
+        : await maintenanceRequestsApi.submit(record, truck.id, { schedule });
       // Proof of Payment needs the request's id, so it uploads afterwards.
       // One at a time keeps a slow connection from timing out several at once.
       const failed: string[] = [];
@@ -125,11 +158,15 @@ export default function TruckMaintenancePage() {
         }
       }
       setUpdateDialogOpen(false);
+      setCostJob(null);
+      setRefreshKey((k) => k + 1);
       if (failed.length) {
         showError(
-          `The record was sent for approval, but ${failed.length} proof file(s) didn't upload:\n${failed.join("\n")}`,
+          `The record was ${verb}, but ${failed.length} proof file(s) didn't upload:\n${failed.join("\n")}`,
           "Some files weren't uploaded",
         );
+      } else if (schedule) {
+        showSuccess("Saved to Scheduled Records. Add the costs there when the bill comes in.", "Scheduled");
       } else {
         showSuccess("Sent for approval. It's added to the truck's record once Admin or Accounts approves it.", "Submitted");
       }
@@ -194,16 +231,19 @@ export default function TruckMaintenancePage() {
         trucks={filteredTrucks}
         records={datedRecords}
         onUpdateRecord={handleUpdateRecord}
+        onScheduledRecords={handleScheduledRecords}
+        scheduledCounts={scheduledJobs.reduce<Record<string, number>>((acc, j) => ({ ...acc, [j.truckId]: (acc[j.truckId] ?? 0) + 1 }), {})}
         onViewRecord={handleViewRecord}
         onViewStatus={handleViewStatus}
       />
 
       <MaintenanceRecordFormDialog
         open={updateDialogOpen}
-        onClose={() => setUpdateDialogOpen(false)}
+        onClose={() => { setUpdateDialogOpen(false); setCostJob(null); }}
         onSave={handleSaveRecord}
         truck={selectedTruck}
         saving={savingRecord}
+        scheduledJob={costJob}
       />
 
       <MaintenanceRecordHistoryDialog
@@ -216,6 +256,19 @@ export default function TruckMaintenancePage() {
           setRecords((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
         }}
       />
+
+      {scheduledOpen && (
+        <ScheduledRecordsDialog
+          open={scheduledOpen}
+          onClose={() => setScheduledOpen(false)}
+          truck={selectedTruck}
+          jobs={selectedTruck ? scheduledJobs.filter((j) => j.truckId === selectedTruck.id) : []}
+          onAddCosts={handleAddCosts}
+          canAddCosts={canAddCosts}
+          canRemove={canRemoveJob}
+          onRemoved={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
 
       <TruckStatusDialog
         open={statusDialogOpen}

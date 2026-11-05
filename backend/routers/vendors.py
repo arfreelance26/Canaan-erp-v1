@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from database import get_db
 from security import get_current_user, TokenUser, require_roles
@@ -230,13 +230,19 @@ def vendor_maintenance_records(
     db: Session = Depends(get_db),
 ):
     """Our Vendors → View Record: every maintenance job this vendor did
-    (linked via Maintenance By → Vendor), newest first, with the truck."""
+    (linked via Maintenance By → Vendor, on the record or on any of its
+    repair lines), newest first, with the truck."""
     if not db.get(models.Vendor, vendor_id):
         raise HTTPException(404, "Vendor not found")
     q = (
         db.query(models.MaintenanceRecord, models.Truck.truck_id, models.Truck.registration_number)
         .join(models.Truck, models.Truck.id == models.MaintenanceRecord.truck_id)
-        .filter(models.MaintenanceRecord.vendor_id == vendor_id)
+        .filter(or_(
+            models.MaintenanceRecord.vendor_id == vendor_id,
+            models.MaintenanceRecord.id.in_(
+                db.query(models.MaintenanceRecordItem.record_id).filter(models.MaintenanceRecordItem.vendor_id == vendor_id)
+            ),
+        ))
     )
     if from_date:
         q = q.filter(models.MaintenanceRecord.date >= from_date)

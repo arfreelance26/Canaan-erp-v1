@@ -172,7 +172,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col [contain:layout_style]">
         <CelebrationPreviewBar />
         <Topbar onMenuOpen={() => setMobileMenuOpen((v) => !v)} attendanceLocked={attendanceLocked} />
-        <main className="flex-1 overflow-y-auto bg-background-full p-4 md:p-6">
+        {/* The bottom padding keeps room for Joshine (--joshine-space, set by
+            JoshinePet), so the last rows and buttons scroll clear of it. */}
+        <main className="flex-1 overflow-y-auto bg-background-full p-4 pb-[max(1rem,var(--joshine-space,0px))] md:p-6 md:pb-[max(1.5rem,var(--joshine-space,0px))]">
           <div ref={mainRef} className="h-full w-full">{children}</div>
         </main>
       </div>

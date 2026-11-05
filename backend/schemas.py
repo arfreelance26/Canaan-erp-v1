@@ -207,6 +207,18 @@ VALID_DESIGNATIONS = {"Admin", "Commercial Manager", "Assistant Commercial Manag
 class StaffBase(OrmBase):
     staff_id: str
     name: str
+    preferred_name: Optional[str] = None
+
+    @field_validator("preferred_name", mode="before")
+    @classmethod
+    def _tidy_preferred_name(cls, v: object) -> object:
+        """Blank means "work it out from the name"."""
+        if isinstance(v, str):
+            v = " ".join(v.split())
+            if len(v) > 60:
+                raise ValueError("Preferred name can be at most 60 characters.")
+            return v or None
+        return v
     department: Optional[str] = None
     designation: Optional[str] = None
     software_designation: SoftwareDesignation = "Trip Sheet Register"
@@ -238,6 +250,18 @@ class StaffCreate(StaffBase):
 class StaffUpdate(OrmBase):
     client_version: Optional[int] = None
     name: Optional[str] = None
+    preferred_name: Optional[str] = None
+
+    @field_validator("preferred_name", mode="before")
+    @classmethod
+    def _tidy_preferred_name(cls, v: object) -> object:
+        """Blank means "work it out from the name"."""
+        if isinstance(v, str):
+            v = " ".join(v.split())
+            if len(v) > 60:
+                raise ValueError("Preferred name can be at most 60 characters.")
+            return v or None
+        return v
     department: Optional[str] = None
     designation: Optional[str] = None
     software_designation: Optional[SoftwareDesignation] = None
@@ -1811,6 +1835,31 @@ class LeaveRequestOut(OrmBase):
 # Maintenance Records
 # ---------------------------------------------------------------------------
 
+class MaintenanceItemIn(OrmBase):
+    """One repair card on Update Maintenance Record. Cost can wait on a
+    scheduled job (added later from Scheduled Records); it's required before
+    the job goes for approval."""
+    repair_type: str
+    cost: Optional[Decimal] = None
+    maintenance_location: Optional[str] = None
+    maintenance_by_type: Optional[Literal["Vendor", "Individual"]] = None
+    vendor_id: Optional[int] = None
+    maintenance_by: Optional[str] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[_DateType] = None
+
+
+class MaintenanceItemOut(OrmBase):
+    repair_type: str
+    cost: Optional[Decimal] = None
+    maintenance_location: Optional[str] = None
+    maintenance_by_type: Optional[str] = None
+    vendor_id: Optional[int] = None
+    maintenance_by: Optional[str] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[_DateType] = None
+
+
 class MaintenanceRecordCreate(OrmBase):
     truck_id: int
     date: date                                    # Maintenance Start Date
@@ -1828,6 +1877,9 @@ class MaintenanceRecordCreate(OrmBase):
     description: Optional[str] = None             # Remarks
     cost: Optional[Decimal] = None
     remind_at_odometer: Optional[int] = None      # "Notify me when this is due again"
+    # The repair cards. When given, cost is their total and the record-level
+    # cost/location/vendor/invoice fields are filled from them.
+    items: Optional[list[MaintenanceItemIn]] = None
 
 
 class MaintenanceRecordUpdate(OrmBase):
@@ -1848,6 +1900,7 @@ class MaintenanceRecordUpdate(OrmBase):
     description: Optional[str] = None
     cost: Optional[Decimal] = None
     remind_at_odometer: Optional[int] = None      # sent as null to turn the reminder off
+    items: Optional[list[MaintenanceItemIn]] = None  # replaces the repair lines
 
 
 class MaintenanceRecordOut(OrmBase):
@@ -1877,6 +1930,8 @@ class MaintenanceRecordOut(OrmBase):
     remind_due_sent_at: Optional[datetime] = None
     # Number of Proof of Payment files attached (filled in by the list route).
     proof_count: int = 0
+    # The repairs, each with its own cost / location / vendor / invoice.
+    repair_lines: list[MaintenanceItemOut] = []
 
 
 class VendorMaintenanceRecordOut(MaintenanceRecordOut):
@@ -1906,7 +1961,8 @@ class MaintenanceRequestProofOut(OrmBase):
 
 
 class MaintenanceRequestOut(OrmBase):
-    """A new maintenance record waiting on (or decided in) Maintenance Approvals."""
+    """A new maintenance record waiting on (or decided in) Maintenance Approvals,
+    or a Scheduled job still waiting for its cost."""
     id: int
     truck_id: int
     truck_id_str: Optional[str] = None            # CGI-T0005
@@ -1916,6 +1972,7 @@ class MaintenanceRequestOut(OrmBase):
     source: str
     payload: dict
     status: str
+    submitted_by_id: Optional[int] = None
     submitted_by_name: str
     submitted_by_role: Optional[str] = None
     decided_by_name: Optional[str] = None

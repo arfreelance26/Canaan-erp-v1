@@ -998,13 +998,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   />
                 </Field>
                 <Field label="Date *">
-                  <input
-                    type="date"
-                    className={fc}
-                    value={repair.date}
-                    readOnly={ro} disabled={ro}
-                    onChange={(e) => upd({ date: e.target.value })}
-                  />
+                  <DatePickerInput value={repair.date} onChange={(v) => upd({ date: v })} disabled={ro} required />
                 </Field>
                 <Field label="Odometer (km) *">
                   <DecimalInput

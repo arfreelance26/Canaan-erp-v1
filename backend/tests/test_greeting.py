@@ -70,3 +70,14 @@ def test_christmas_and_new_year_come_from_the_season_switch(api):
 
 def test_preview_is_ignored_for_everyone_but_admin(api_as):
     assert _greet(api_as("Accounts"), "2026-12-25")["today"] != "2026-12-25" or date.today().isoformat() == "2026-12-25"
+
+
+def test_admin_switches_tea_time_for_everyone(api, api_as):
+    me = api_as("Accounts")
+    assert me.get("/celebrations/tea-time") == {"enabled": True}
+    api.put("/celebrations/switch", json={"key": "teatime", "enabled": False})
+    assert me.get("/celebrations/tea-time") == {"enabled": False}
+    assert api.get("/celebrations")["switches"]["teatime"] is False
+    me.put("/celebrations/switch", json={"key": "teatime", "enabled": True}, expect=403)
+    api.put("/celebrations/switch", json={"key": "teatime", "enabled": True})
+    assert me.get("/celebrations/tea-time") == {"enabled": True}

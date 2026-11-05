@@ -160,6 +160,7 @@ SWITCHES = {
     "birthdays": (settings_store.birthdays_enabled, settings_store.set_birthdays_enabled),
     "season": (settings_store.festive_season_enabled, settings_store.set_festive_season_enabled),
     "founding": (settings_store.founding_day_enabled, settings_store.set_founding_day_enabled),
+    "teatime": (settings_store.tea_time_enabled, settings_store.set_tea_time_enabled),
 }
 AUDIT_EVENTS = ("celebrations.switch", "celebrations.messages", "celebrations.festival", "settings.festive_season", "settings.founding_day")
 
@@ -297,6 +298,13 @@ def set_festival(
 # records this visit's own page loads, so the previous visit is the latest
 # activity before this gap.
 VISIT_GAP = timedelta(minutes=30)
+
+
+@router.get("/tea-time")
+def tea_time(db: Session = Depends(get_db), _: TokenUser = Depends(get_current_user)):
+    """Every user: whether Joshine says "Tea time, right?" at 11 AM and 4 PM
+    (Admin switches it off for everyone on Celebrations Management)."""
+    return {"enabled": settings_store.tea_time_enabled(db)}
 
 
 @router.get("/greeting")

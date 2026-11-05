@@ -1,7 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useRef, useState } from "react";
-import ReactDatePicker from "react-datepicker";
+import { useEffect, useRef, useState } from "react";
 import { RiCalendarScheduleLine as CalendarClock, RiCalendar2Line as CalendarDays, RiCheckLine as Check, RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiHistoryLine as History, RiLoader4Line as Loader2, RiAddLine as Plus, RiSearchLine as Search, RiDeleteBinLine as Trash2, RiGroupLine as Users, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/ui/Dialog";
@@ -37,15 +36,15 @@ const pickerTriggerClass = cn(
 const isoDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-const EventTimeTrigger = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-  ({ value, onClick }, ref) => (
-    <button ref={ref} type="button" onClick={onClick} className={cn(pickerTriggerClass, value ? "text-text-primary" : "text-text-tertiary")}>
-      <Clock className="h-4 w-4 shrink-0 text-orange-text" />
-      <span className="truncate">{value || "Time"}</span>
-    </button>
-  )
-);
-EventTimeTrigger.displayName = "EventTimeTrigger";
+/** Meeting times, every 15 minutes, as "HH:MM" with a "9:15 am" label. */
+const TIME_SLOTS = Array.from({ length: 96 }, (_, i) => {
+  const h = Math.floor(i / 4);
+  const m = (i % 4) * 15;
+  const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const label = `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+  return { value, label };
+});
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
 /**
  * Admin-schedules-a-meeting button — sits between Invite (left) and
@@ -323,20 +322,29 @@ export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" |
                   aria-label="Event date"
                 />
               </div>
-              <ReactDatePicker
-                selected={startsAt}
-                onChange={handleTimeChange}
-                showTimeSelect
-                showTimeSelectOnly
-                timeIntervals={15}
-                timeCaption="Time"
-                dateFormat="h:mm aa"
-                popperPlacement="bottom-start"
-                portalId="event-time-picker-portal"
-                calendarClassName="canaan-calendar"
-                wrapperClassName="flex-1"
-                customInput={<EventTimeTrigger />}
-              />
+              {/* Time: a plain list of 15-minute slots (the date above uses the app calendar). */}
+              <div className="relative flex-1">
+                <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-orange-text" />
+                <select
+                  aria-label="Event time"
+                  value={startsAt ? hhmm(startsAt) : ""}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(":").map(Number);
+                    const t = new Date();
+                    t.setHours(h, m, 0, 0);
+                    handleTimeChange(t);
+                  }}
+                  className={cn(pickerTriggerClass, "cursor-pointer appearance-none pl-9", startsAt ? "text-text-primary" : "text-text-tertiary")}
+                >
+                  <option value="" disabled>Time</option>
+                  {startsAt && !TIME_SLOTS.some((s) => s.value === hhmm(startsAt)) && (
+                    <option value={hhmm(startsAt)}>{hhmm(startsAt)}</option>
+                  )}
+                  {TIME_SLOTS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <input
               type="text"

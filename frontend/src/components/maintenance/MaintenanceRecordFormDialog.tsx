@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { RiNotification4Line as BellRing, RiCheckLine as Check, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiCloseLine as X } from "@remixicon/react";
+import { RiNotification4Line as BellRing, RiCheckLine as Check, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiCloseLine as X, RiCalendarScheduleLine as Scheduled } from "@remixicon/react";
+import type { MaintenanceRequest } from "@/types/maintenance-request";
+import { formatDate } from "@/lib/format-date";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { maintenanceCategoriesApi, vendorsApi } from "@/lib/api";
 import type { Vendor } from "@/types/vendor";
-import { PROOF_MAX_BYTES, PROOF_MAX_IMAGES, PROOF_MAX_PDFS, type MaintenanceRecord } from "@/types/truck-maintenance";
+import { PROOF_MAX_BYTES, PROOF_MAX_IMAGES, PROOF_MAX_PDFS, type MaintenanceRecord, type RepairLine } from "@/types/truck-maintenance";
+import { RepairCard, emptyRepairLine } from "@/components/maintenance/RepairCard";
 import type { MaintenanceCategory } from "@/types/maintenance-category";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -21,7 +24,7 @@ type MaintenanceRecordFormDialogProps = {
    * proofs: the Proof of Payment files to upload once the record is created
    * (always empty when editing). reason: only when requireReason is set.
    */
-  onSave: (record: MaintenanceRecord, proofs: File[], reason?: string) => void;
+  onSave: (record: MaintenanceRecord, proofs: File[], reason?: string, opts?: { schedule: boolean }) => void;
   truck: Truck | null;
   /** True while the record is being saved and its proofs uploaded. */
   saving?: boolean;
@@ -29,6 +32,8 @@ type MaintenanceRecordFormDialogProps = {
   editRecord?: MaintenanceRecord | null;
   /** Edit mode for non-Admins: the change goes to Edit Approvals, so a reason is required. */
   requireReason?: boolean;
+  /** Add-costs mode: a job from Scheduled Records, prefilled; its costs are now required. */
+  scheduledJob?: MaintenanceRequest | null;
 };
 
 type PickedProof = { key: string; file: File; kind: "image" | "pdf"; url: string | null };
@@ -62,10 +67,23 @@ export function splitRepairs(value: string | null | undefined): string[] {
   return (value ?? "").split(",").map((r) => r.trim()).filter(Boolean);
 }
 
-const MAINTENANCE_BY_TYPES = ["Vendor", "Individual"] as const;
 // Mirrors REMIND_SOON_KM in backend/maintenance_reminders.py.
 const REMIND_SOON_KM = 500;
-type MaintenanceByType = (typeof MAINTENANCE_BY_TYPES)[number];
+
+const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
+/** The fields "Same vendor & invoice for all" copies from the first repair. */
+const SHARED: (keyof RepairLine)[] = ["maintenanceLocation", "maintenanceByType", "vendorId", "maintenanceBy", "invoiceNumber", "invoiceDate"];
+
+/** A record saved before repair cards held several repairs in one line
+ *  ("A, B" with one cost): split it, the cost staying on the first. */
+function linesFromRecord(record: MaintenanceRecord): RepairLine[] {
+  const lines = record.repairLines ?? [];
+  if (lines.length === 1 && lines[0].repairType.includes(",")) {
+    return splitRepairs(lines[0].repairType).map((name, i) => ({ ...lines[0], repairType: name, cost: i === 0 ? lines[0].cost : "0" }));
+  }
+  return lines.map((l) => ({ ...l, maintenanceByType: l.maintenanceByType ?? (l.vendorId ? "Vendor" : l.maintenanceBy ? "Individual" : "Vendor") }));
+}
 
 const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
   date: "",
@@ -81,12 +99,18 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
   invoiceNumber: "",
   invoiceDate: "",
   remindAtOdometer: "",
+  repairLines: [],
 };
 
 export function MaintenanceRecordFormDialog({
-  open, onClose, onSave, truck, saving = false, editRecord = null, requireReason = false,
+  open, onClose, onSave, truck, saving = false, editRecord = null, requireReason = false, scheduledJob = null,
 }: MaintenanceRecordFormDialogProps) {
   const isEdit = editRecord !== null;
+  const addingCosts = !isEdit && scheduledJob !== null;
+  // "Do you know the cost yet?" — Not yet saves the job to Scheduled Records,
+  // its costs added later. Nothing is counted until then (and approval).
+  const [costKnown, setCostKnown] = useState(true);
+  const scheduling = !isEdit && !addingCosts && !costKnown;
   const [form, setForm] = useState<Omit<MaintenanceRecord, "id" | "truckId">>(emptyForm);
   const [reason, setReason] = useState("");
   // Shown once Submit is pressed with no repair picked (chips can't use `required`).
@@ -94,10 +118,11 @@ export function MaintenanceRecordFormDialog({
   // Maintenance Type and Repair Type both come from Admin > Maintenance
   // Management (categories and each category's repair types).
   const [categories, setCategories] = useState<MaintenanceCategory[]>([]);
-  const [maintenanceByType, setMaintenanceByType] = useState<MaintenanceByType>("Vendor");
-  // The picked vendor's id — saved with the record so Our Vendors → View Record
-  // can list it (form.maintenanceBy keeps the name).
-  const [vendorId, setVendorId] = useState("");
+  // Each repair has its own cost, place, who did it and invoice (repair
+  // cards). "Same vendor & invoice for all" makes cards 2+ follow card 1.
+  const [sameForAll, setSameForAll] = useState(false);
+  // Shown once Submit is pressed with a repair's cost left empty.
+  const [costsChecked, setCostsChecked] = useState(false);
   // "Notify me when this is due again": the target odometer lives in
   // form.remindAtOdometer; "remind after" is the same thing as a distance from
   // this record's odometer — typing either one fills in the other.
@@ -179,7 +204,30 @@ export function MaintenanceRecordFormDialog({
     clearProofs();
     setReason("");
     setRepairMissing(false);
-    if (editRecord) {
+    setCostsChecked(false);
+    setSameForAll(false);
+    setCostKnown(true);
+    if (scheduledJob && !editRecord) {
+      const job = scheduledJob;
+      setForm({
+        ...emptyForm,
+        date: job.date,
+        maintenanceEndDate: job.maintenanceEndDate,
+        odometer: String(job.odometer || ""),
+        maintenanceType: job.maintenanceType,
+        repairType: job.repairType,
+        compliant: job.compliant,
+        description: job.description,
+        remindAtOdometer: job.remindAtOdometer != null ? String(job.remindAtOdometer) : "",
+        repairLines: job.repairLines.map((l) => ({
+          ...l,
+          maintenanceByType: l.maintenanceByType ?? (l.vendorId ? "Vendor" : l.maintenanceBy ? "Individual" : "Vendor"),
+        })),
+      });
+      const target = Number(job.remindAtOdometer || 0);
+      setRemindOn(target > 0);
+      setRemindAfter(target > 0 && job.odometer ? String(target - job.odometer) : "");
+    } else if (editRecord) {
       setForm({
         ...emptyForm,
         date: editRecord.date,
@@ -195,24 +243,17 @@ export function MaintenanceRecordFormDialog({
         invoiceNumber: editRecord.invoiceNumber ?? "",
         invoiceDate: editRecord.invoiceDate ?? "",
         remindAtOdometer: editRecord.remindAtOdometer ?? "",
+        repairLines: linesFromRecord(editRecord),
       });
       const target = Number(editRecord.remindAtOdometer || 0);
       setRemindOn(target > 0);
       setRemindAfter(target > 0 ? String(target - Number(editRecord.odometer || 0)) : "");
-      // Older records have no toggle saved: a linked vendor means Vendor,
-      // a plain typed name means Individual.
-      const byType = editRecord.maintenanceByType
-        ?? (editRecord.vendorId ? "Vendor" : editRecord.maintenanceBy ? "Individual" : "Vendor");
-      setMaintenanceByType(byType);
-      setVendorId(byType === "Vendor" ? editRecord.vendorId ?? "" : "");
     } else {
       setForm(emptyForm);
-      setMaintenanceByType("Vendor");
-      setVendorId("");
       setRemindOn(false);
       setRemindAfter("");
     }
-  }, [open, truck?.id, editRecord]);
+  }, [open, truck?.id, editRecord, scheduledJob]);
 
   const imageCount = proofs.filter((p) => p.kind === "image").length;
   const pdfCount = proofs.filter((p) => p.kind === "pdf").length;
@@ -224,6 +265,32 @@ export function MaintenanceRecordFormDialog({
   const selectedRepairs = splitRepairs(form.repairType);
   // An edited record may name a repair since removed from the category — keep it pickable.
   const repairChips = [...repairOptions, ...selectedRepairs.filter((r) => !repairOptions.includes(r))];
+
+  // One card per picked repair type, in the list's order. A maintenance type
+  // with no repair types set up gets a single card named after it.
+  const wanted = repairChips.length > 0 ? selectedRepairs : form.maintenanceType ? [form.maintenanceType] : [];
+  const lines = ((): RepairLine[] => {
+    const byName = new Map((form.repairLines ?? []).map((l) => [l.repairType, l]));
+    const own = wanted.map((name) => byName.get(name) ?? emptyRepairLine(name));
+    if (!sameForAll || own.length < 2) return own;
+    const first = own[0];
+    return own.map((l, i) => (i === 0 ? l : { ...l, ...Object.fromEntries(SHARED.map((k) => [k, first[k]])) }));
+  })();
+  const total = lines.reduce((sum, l) => sum + (parseFloat(l.cost) || 0), 0);
+  const missingCost = lines.map((l) => l.cost.trim() === "" || Number.isNaN(parseFloat(l.cost)));
+
+  function updateLine(name: string, patch: Partial<RepairLine>) {
+    setForm((prev) => {
+      const current = prev.repairLines ?? [];
+      const exists = current.some((l) => l.repairType === name);
+      return {
+        ...prev,
+        repairLines: exists
+          ? current.map((l) => (l.repairType === name ? { ...l, ...patch } : l))
+          : [...current, { ...emptyRepairLine(name), ...patch }],
+      };
+    });
+  }
 
   function toggleRepair(name: string) {
     const next = selectedRepairs.includes(name)
@@ -244,7 +311,7 @@ export function MaintenanceRecordFormDialog({
   // before these fields existed would otherwise restore without them, flipping
   // their inputs from controlled to uncontrolled (undefined value).
   // Drafts are for new records only — an edit always starts from the saved record.
-  useFormDraft(draftKey, open && !isEdit, form, (draft) => {
+  useFormDraft(draftKey, open && !isEdit && !addingCosts, form, (draft) => {
     setForm({ ...emptyForm, ...draft });
     const target = Number(draft.remindAtOdometer || 0);
     setRemindOn(target > 0);
@@ -266,7 +333,8 @@ export function MaintenanceRecordFormDialog({
   // Unchanged on an edit, it's left alone even if the truck has passed it.
   const remindTarget = form.remindAtOdometer ? Number(form.remindAtOdometer) : null;
   const remindFloor = Math.max(currentOdometer ?? 0, enteredOdometer ?? 0);
-  const remindUnchanged = isEdit && (form.remindAtOdometer ?? "") === (editRecord?.remindAtOdometer ?? "");
+  const remindUnchanged = (isEdit && (form.remindAtOdometer ?? "") === (editRecord?.remindAtOdometer ?? ""))
+    || (addingCosts && (form.remindAtOdometer ?? "") === (scheduledJob?.remindAtOdometer != null ? String(scheduledJob.remindAtOdometer) : ""));
   const remindError = !remindOn
     ? ""
     : remindTarget === null || remindTarget <= 0
@@ -311,26 +379,42 @@ export function MaintenanceRecordFormDialog({
       setRepairMissing(true);
       return;
     }
-    if (!isEdit) clearFormDraft(draftKey);
+    if (lines.length === 0 || (!scheduling && missingCost.some(Boolean))) {
+      setCostsChecked(true);
+      return;
+    }
+    if (!isEdit && !addingCosts) clearFormDraft(draftKey);
+    const first = lines[0];
     onSave(
       {
         id: editRecord?.id ?? crypto.randomUUID(),
         truckId: truck.id,
         version: editRecord?.version,
         ...form,
-        maintenanceByType: form.maintenanceBy ? maintenanceByType : null,
-        vendorId: maintenanceByType === "Vendor" && vendorId ? vendorId : null,
+        // The repairs carry the cost, place, vendor and invoice; the record's
+        // own fields hold the total and mirror the first repair.
+        repairLines: lines,
+        repairType: lines.map((l) => l.repairType).join(", "),
+        cost: String(total),
+        maintenanceLocation: first.maintenanceLocation,
+        maintenanceBy: first.maintenanceBy,
+        maintenanceByType: first.maintenanceBy || first.vendorId ? first.maintenanceByType : null,
+        vendorId: first.maintenanceByType === "Vendor" ? first.vendorId : null,
+        invoiceNumber: first.invoiceNumber,
+        invoiceDate: first.invoiceDate,
         remindAtOdometer: remindOn ? form.remindAtOdometer : "",
       },
       isEdit ? [] : proofs.map((p) => p.file),
       requireReason ? reason.trim() : undefined,
+      { schedule: scheduling },
     );
   }
 
-  const title = isEdit ? "Edit Maintenance Record" : "Update Maintenance Record";
+  const title = isEdit ? "Edit Maintenance Record" : addingCosts ? "Add Costs" : "Update Maintenance Record";
   const submitLabel = saving
-    ? (isEdit ? (requireReason ? "Submitting…" : "Saving…") : proofs.length ? "Submitting & uploading…" : "Submitting…")
-    : isEdit ? (requireReason ? "Submit Edit Request" : "Save Changes") : "Submit for Approval";
+    ? (isEdit ? (requireReason ? "Submitting…" : "Saving…") : scheduling ? "Saving…" : proofs.length ? "Submitting & uploading…" : "Submitting…")
+    : isEdit ? (requireReason ? "Submit Edit Request" : "Save Changes") : scheduling ? "Save to Scheduled Records" : "Submit for Approval";
+  const costsLeft = missingCost.filter(Boolean).length;
 
   return (
     <Dialog
@@ -345,11 +429,54 @@ export function MaintenanceRecordFormDialog({
             Your changes go to <span className="font-semibold">Edit Approvals</span> and are applied once an Admin approves them.
           </div>
         )}
-        {!isEdit && (
+        {/* New records: is the cost known yet? Not yet → Scheduled Records. */}
+        {!isEdit && !addingCosts && (
+          <div data-tour="maintenance-cost-known" className={`rounded-xl border px-4 py-3 transition-colors ${scheduling ? "border-teal-border bg-teal-surface" : "border-separator-border bg-fill-1"}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${scheduling ? "bg-teal-surface-strong text-teal-text" : "bg-background-primary-default text-text-tertiary ring-1 ring-separator-border"}`}>
+                  <Scheduled className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-body-medium text-text-primary">Do you know the cost yet?</p>
+                  <p className="text-xs text-text-secondary">Not yet? Save it now and add the cost later.</p>
+                </div>
+              </div>
+              <div role="radiogroup" aria-label="Do you know the cost yet?" className="flex shrink-0 gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
+                {([true, false] as const).map((known) => (
+                  <button
+                    key={String(known)}
+                    type="button"
+                    role="radio"
+                    aria-checked={costKnown === known}
+                    onClick={() => { setCostKnown(known); setCostsChecked(false); }}
+                    className={`rounded-full px-3 py-1 text-caption-1-semibold transition duration-200 ${
+                      costKnown === known
+                        ? known ? "bg-accent-solid text-on-solid shadow-md" : "bg-teal-solid text-on-solid shadow-md"
+                        : "text-text-secondary hover:bg-fill-2 hover:text-text-primary"
+                    }`}
+                  >
+                    {known ? "Yes" : "Not yet"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {!isEdit && (scheduling ? (
+          <div className="rounded-lg border border-teal-border bg-teal-surface px-4 py-2.5 text-xs text-teal-text-strong">
+            This job is saved to the truck&apos;s <span className="font-semibold">Scheduled Records</span>. Add the costs there when the bill arrives; it then goes for approval and lands on its start date, so the P&amp;L of that day stays right. Nothing is counted until then.
+          </div>
+        ) : addingCosts ? (
+          <div className="rounded-lg border border-teal-border bg-teal-surface px-4 py-2.5 text-xs text-teal-text-strong">
+            Scheduled by <span className="font-semibold">{scheduledJob?.submittedByName || "someone"}</span>
+            {scheduledJob?.createdAt ? <> on {formatDate(scheduledJob.createdAt)}</> : null}. Add every repair&apos;s cost; it then goes to <span className="font-semibold">Maintenance Approvals</span> and is counted on its start date{form.date ? <> ({formatDate(form.date)})</> : null}.
+          </div>
+        ) : (
           <div className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2.5 text-xs text-warning-text-strong">
             This record goes to <span className="font-semibold">Maintenance Approvals</span> and is added to the truck&apos;s record once Admin or Accounts approves it.
           </div>
-        )}
+        ))}
         {currentOdometer !== null && currentOdometer > 0 && (
           <div className="flex items-center gap-3 rounded-lg border border-accent-border bg-accent-surface px-4 py-2.5">
             <span className="text-caption-1-semibold text-accent-text">Current Odometer</span>
@@ -444,99 +571,44 @@ export function MaintenanceRecordFormDialog({
             </div>
           )}
 
-          <Field label="Cost" required>
-            <DecimalInput type="number"
-              required
-              min="0"
-              value={form.cost}
-              onChange={(e) => update("cost", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. 5000"
-            />
-          </Field>
-
-          <Field label="Maintenance Location">
-            <input
-              type="text"
-              value={form.maintenanceLocation}
-              onChange={(e) => update("maintenanceLocation", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Canaan Yard, Chennai"
-            />
-          </Field>
-
-          {/* Not <Field>: that wraps everything in a <label>, and a click on the
-              label text would be forwarded to the first toggle button. */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-body-medium text-text-primary">Maintenance By</span>
-              <div role="radiogroup" aria-label="Maintenance by" className="flex shrink-0 gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5 shadow-inner">
-                {MAINTENANCE_BY_TYPES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    role="radio"
-                    aria-checked={maintenanceByType === t}
-                    onClick={() => {
-                      if (t === maintenanceByType) return;
-                      setMaintenanceByType(t);
-                      // A vendor name and a typed person's name aren't interchangeable.
-                      update("maintenanceBy", "");
-                      setVendorId("");
-                    }}
-                    className={`rounded-full px-3 py-1 text-caption-1-semibold transition duration-200 ${
-                      maintenanceByType === t
-                        ? "bg-accent-solid text-on-solid shadow-md"
-                        : "text-text-secondary hover:bg-fill-2 hover:text-text-primary"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {maintenanceByType === "Vendor" ? (
-              <GlassCombobox
-                strictSelect
-                value={vendorId}
-                onChange={(id) => {
-                  setVendorId(id);
-                  update("maintenanceBy", vendors.find((v) => v.id === id)?.name ?? "");
-                }}
-                placeholder={vendorsLoaded && vendorOptions.length === 0 ? "No active vendors — add one in Our Vendors" : "Select a vendor"}
-                options={vendorOptions}
-              />
-            ) : (
-              <input
-                type="text"
-                aria-label="Maintenance by (individual)"
-                value={form.maintenanceBy}
-                onChange={(e) => update("maintenanceBy", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. mechanic name"
-              />
-            )}
-          </div>
-
-          <Field label={`Invoice Number (given by the ${maintenanceByType === "Vendor" ? "vendor" : "individual"})`}>
-            <input
-              type="text"
-              maxLength={100}
-              value={form.invoiceNumber ?? ""}
-              onChange={(e) => update("invoiceNumber", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. INV-2026-0412"
-            />
-          </Field>
-
-          <Field label="Invoice Date">
-            <DatePickerInput
-              value={form.invoiceDate ?? ""}
-              onChange={(v) => update("invoiceDate", v)}
-              className={inputClass}
-            />
-          </Field>
         </div>
+
+        {/* The repairs: one card each, with its own cost, place, vendor and invoice. */}
+        {lines.length > 0 && (
+          <div data-tour="maintenance-repairs" className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-body-semibold text-text-primary">
+                Repairs <span className="ml-1 text-caption-1-regular text-text-tertiary">({lines.length})</span>
+              </span>
+              {lines.length > 1 && (
+                <label className="flex cursor-pointer items-center gap-2 text-caption-1-semibold text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={sameForAll}
+                    onChange={(e) => setSameForAll(e.target.checked)}
+                    className="size-4 rounded border-border-button-default"
+                  />
+                  Same vendor &amp; invoice for all
+                </label>
+              )}
+            </div>
+            {lines.map((line, i) => (
+              <RepairCard
+                key={line.repairType}
+                line={line}
+                index={i}
+                onChange={(patch) => updateLine(line.repairType, patch)}
+                onRemove={repairChips.length > 0 && lines.length > 1 ? () => toggleRepair(line.repairType) : undefined}
+                vendorOptions={vendorOptions}
+                vendorName={(id) => vendors.find((v) => v.id === id)?.name ?? ""}
+                vendorsLoaded={vendorsLoaded}
+                followsFirst={sameForAll && i > 0}
+                costMissing={costsChecked && !scheduling && missingCost[i]}
+                costOptional={scheduling}
+              />
+            ))}
+          </div>
+        )}
 
         <Field label="Compliant">
           <textarea
@@ -642,7 +714,12 @@ export function MaintenanceRecordFormDialog({
         ) : (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-body-medium text-text-primary">Proof of Payment</span>
+            <span className="text-body-medium text-text-primary">
+              Proof of Payment
+              {addingCosts && (scheduledJob?.proofCount ?? 0) > 0 && (
+                <span className="ml-1.5 text-caption-1-regular text-text-tertiary">{scheduledJob!.proofCount} already attached</span>
+              )}
+            </span>
             <span className="text-xs text-text-tertiary">
               Images {imageCount}/{PROOF_MAX_IMAGES} · PDFs {pdfCount}/{PROOF_MAX_PDFS}
             </span>
@@ -700,10 +777,29 @@ export function MaintenanceRecordFormDialog({
         </div>
         )}
 
+        {/* The total of every repair above. */}
+        {lines.length > 0 && (
+          <div data-tour="maintenance-total" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-accent-border bg-accent-surface px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-body-semibold text-accent-text-strong">
+                Total cost <span className="font-normal text-accent-text">· {lines.length} repair{lines.length === 1 ? "" : "s"}</span>
+              </p>
+              {lines.length > 1 && (
+                <p className="mt-0.5 truncate text-xs text-accent-text">
+                  {lines.map((l) => `${l.repairType} ${money(parseFloat(l.cost) || 0)}`).join(" · ")}
+                </p>
+              )}
+            </div>
+            <span className="text-title-3-semibold tabular-nums text-accent-text-strong">
+              {scheduling && costsLeft > 0 ? (costsLeft === lines.length ? "Added later" : `${money(total)} so far`) : money(total)}
+            </span>
+          </div>
+        )}
+
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => { if (!isEdit) clearFormDraft(draftKey); onClose(); }}
+            onClick={() => { if (!isEdit && !addingCosts) clearFormDraft(draftKey); onClose(); }}
             className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel
@@ -711,7 +807,7 @@ export function MaintenanceRecordFormDialog({
           <button
             type="submit"
             disabled={saving || !!remindError || (requireReason && !reason.trim())}
-            className="btn-interactive rounded-lg bg-accent-solid px-4 py-2 text-body-medium text-on-solid transition duration-200 hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`btn-interactive rounded-lg px-4 py-2 text-body-medium text-on-solid transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${scheduling ? "bg-teal-solid hover:bg-teal-solid-hover" : "bg-accent-solid hover:bg-accent-solid-hover"}`}
           >
             {submitLabel}
           </button>

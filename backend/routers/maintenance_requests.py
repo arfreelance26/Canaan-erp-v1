@@ -7,12 +7,21 @@ approved nothing else sees it: the truck's records, running cost, P&L, vendor
 records and reminders only ever read real MaintenanceRecord rows, which are
 created here on approval (routers/maintenance.create_record).
 
+A job whose cost isn't known yet can be saved as "Scheduled" instead: it
+keeps the details (and the real date of the work) and waits in the truck's
+Scheduled Records until someone adds the costs, which sends it on as
+"Pending". Nothing counts a scheduled job — no record, cost, P&L or running
+cost — until it's approved, and then on its own date, so the right period's
+figures change. The places that show figures warn when a job in their
+period is still waiting for its cost.
+
 Edits to existing records are unchanged — they still go to Edit Approvals.
 Admin and Accounts may approve their own requests.
 """
 import hashlib
 import json
-from datetime import date, datetime, timezone
+from decimal import Decimal
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -24,7 +33,7 @@ import schemas
 from database import get_db
 from routers.maintenance import (
     PROOF_IMAGE_MIMES, PROOF_MAX_BYTES, PROOF_MAX_IMAGES, PROOF_MAX_PDFS,
-    _apply_maintenance_by, _proof_mime, check_new_record, create_record,
+    _apply_maintenance_by, _clean_items, _proof_mime, check_new_record, create_record,
 )
 from security import TokenUser, get_current_user, require_roles
 from websocket_manager import emit
@@ -32,6 +41,10 @@ from websocket_manager import emit
 router = APIRouter(prefix="/maintenance-requests", tags=["Maintenance Approvals"])
 
 APPROVER_ROLES = ("Admin", "Accounts")
+# Who may add the costs to a scheduled job besides the person who scheduled it.
+SCHEDULE_EDITOR_ROLES = ("Admin", "Maintenance")
+# A scheduled job waiting this long reminds its owner and shows in the recap.
+SCHEDULED_REMIND_DAYS = 7
 approver = require_roles("Accounts")       # Admin always passes
 
 
@@ -99,19 +112,34 @@ def _payload_json(payload: schemas.MaintenanceRecordCreate) -> dict:
 
 # ── Submit ──────────────────────────────────────────────────────────────────
 
+def _prepared(db: Session, payload: schemas.MaintenanceRecordCreate, *, need_cost: bool) -> schemas.MaintenanceRecordCreate:
+    """Checked and with names snapshotted: the vendor's (each repair line's
+    too) so the approval card always shows it, and the cost as the total of
+    the costs known so far."""
+    check_new_record(db, payload, need_cost=need_cost)
+    data = _apply_maintenance_by(db, payload.model_dump())
+    if data.get("items"):
+        data["items"] = _clean_items(db, data["items"], need_cost=need_cost)
+        data["cost"] = sum((Decimal(str(i["cost"])) for i in data["items"] if i.get("cost") is not None), Decimal("0"))
+    elif need_cost and data.get("cost") is None:
+        raise HTTPException(400, "Enter the cost.")
+    return schemas.MaintenanceRecordCreate(**data)
+
+
 @router.post("", response_model=schemas.MaintenanceRequestOut, status_code=201)
 def submit_request(
     payload: schemas.MaintenanceRecordCreate,
+    schedule: bool = False,
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
     """The Update Maintenance Record form. Checked now (odometer, vendor) so
-    the submitter hears about mistakes straight away, and again on approval."""
-    check_new_record(db, payload)
-    # Snapshot the vendor's name now so the approval card always shows it.
-    payload = schemas.MaintenanceRecordCreate(**_apply_maintenance_by(db, payload.model_dump()))
+    the submitter hears about mistakes straight away, and again on approval.
+    ?schedule=true saves it to Scheduled Records instead, costs left for later."""
+    payload = _prepared(db, payload, need_cost=not schedule)
     req = models.MaintenanceRequest(
-        truck_id=payload.truck_id, source="Web", payload=_payload_json(payload), status="Pending",
+        truck_id=payload.truck_id, source="Web", payload=_payload_json(payload),
+        status="Scheduled" if schedule else "Pending",
         submitted_by_id=current_user.id, submitted_by_name=current_user.name, submitted_by_role=current_user.role,
     )
     db.add(req)
@@ -143,9 +171,9 @@ async def upload_request_proof(
     else:
         raise HTTPException(415, "Only images (JPG, PNG, WEBP, GIF, BMP) and PDF files can be uploaded as Proof of Payment.")
     req = _get(db, request_id, lock=True)
-    if req.status != "Pending":
+    if req.status not in ("Pending", "Scheduled"):
         raise HTTPException(409, "This request has already been decided.")
-    if not _is_submitter(req, current_user) and not _is_approver(current_user):
+    if not _is_submitter(req, current_user) and not _is_approver(current_user) and current_user.role not in SCHEDULE_EDITOR_ROLES:
         raise HTTPException(403, "Only the person who submitted this request can add files to it.")
     existing = (
         db.query(func.count(models.MaintenanceRequestProof.id))
@@ -182,6 +210,9 @@ def list_requests(
     q = db.query(models.MaintenanceRequest)
     if status:
         q = q.filter(models.MaintenanceRequest.status == status)
+    else:
+        # Scheduled jobs aren't up for approval yet: they live in Scheduled Records.
+        q = q.filter(models.MaintenanceRequest.status != "Scheduled")
     if truck_id is not None:
         q = q.filter(models.MaintenanceRequest.truck_id == truck_id)
     if not _is_approver(current_user):
@@ -198,7 +229,7 @@ def my_requests(db: Session = Depends(get_db), current_user: TokenUser = Depends
     """The caller's own requests (newest 100) — the bell's "Your Request Updates"."""
     rows = (
         db.query(models.MaintenanceRequest)
-        .filter(_mine(current_user), models.MaintenanceRequest.status != "Cancelled")
+        .filter(_mine(current_user), models.MaintenanceRequest.status.notin_(("Cancelled", "Scheduled")))
         .order_by(models.MaintenanceRequest.created_at.desc())
         .limit(100).all()
     )
@@ -246,6 +277,76 @@ def download_request_proof(request_id: int, proof_id: int, db: Session = Depends
             "Content-Security-Policy": "default-src 'none'; sandbox",
         },
     )
+
+
+# ── Scheduled jobs (cost added later) ─────────────────────────────────────────
+
+def _can_edit_scheduled(req: models.MaintenanceRequest, user: TokenUser) -> bool:
+    return _is_submitter(req, user) or user.role in SCHEDULE_EDITOR_ROLES
+
+
+@router.get("/scheduled", response_model=list[schemas.MaintenanceRequestOut])
+def list_scheduled(
+    truck_id: int | None = None,
+    mine: bool = False,
+    min_days: int = 0,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Jobs waiting for their cost, oldest first: a truck's (Scheduled
+    Records), every truck's (warnings on Profitability and the Running Cost
+    Calculator), or the caller's own waiting at least `min_days` (the bell)."""
+    q = db.query(models.MaintenanceRequest).filter(models.MaintenanceRequest.status == "Scheduled")
+    if truck_id is not None:
+        q = q.filter(models.MaintenanceRequest.truck_id == truck_id)
+    if mine:
+        q = q.filter(_mine(current_user))
+    rows = q.order_by(models.MaintenanceRequest.created_at, models.MaintenanceRequest.id).all()
+    if min_days > 0:
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=min_days)
+        rows = [r for r in rows if r.created_at and r.created_at.replace(tzinfo=None) <= cutoff]
+    return _out(db, rows)
+
+
+@router.put("/{request_id}/costs", response_model=schemas.MaintenanceRequestOut)
+def add_scheduled_costs(
+    request_id: int,
+    payload: schemas.MaintenanceRecordCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Scheduled Records → Add costs: the job, now with every repair's cost,
+    goes to Maintenance Approvals. Its date stays the date of the work."""
+    req = _get(db, request_id, lock=True)
+    if req.status != "Scheduled":
+        raise HTTPException(409, "This job isn't waiting for a cost any more.")
+    if not _can_edit_scheduled(req, current_user):
+        raise HTTPException(403, "Only the person who scheduled this job, Admin or Maintenance can add its costs.")
+    if payload.truck_id != req.truck_id:
+        raise HTTPException(400, "A scheduled job can't move to another truck.")
+    payload = _prepared(db, payload, need_cost=True)
+    req.payload = _payload_json(payload)
+    req.status = "Pending"
+    db.commit()
+    db.refresh(req)
+    _changed()
+    return _out(db, [req])[0]
+
+
+@router.delete("/{request_id}/scheduled", status_code=204)
+def remove_scheduled(request_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """A scheduled job entered by mistake: the person who scheduled it, or Admin."""
+    req = _get(db, request_id, lock=True)
+    if req.status != "Scheduled":
+        raise HTTPException(409, "This job isn't waiting for a cost any more.")
+    if not _is_submitter(req, current_user) and current_user.role != "Admin":
+        raise HTTPException(403, "Only the person who scheduled this job, or Admin, can remove it.")
+    req.status = "Cancelled"
+    db.query(models.MaintenanceRequestProof).filter(
+        models.MaintenanceRequestProof.request_id == req.id
+    ).delete(synchronize_session=False)
+    db.commit()
+    _changed()
 
 
 # ── Decide (Admin / Accounts) ───────────────────────────────────────────────

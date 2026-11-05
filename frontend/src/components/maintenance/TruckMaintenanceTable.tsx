@@ -1,6 +1,6 @@
 "use client";
 
-import { RiTruckLine as TruckIcon, RiPencilLine as Pencil, RiEyeLine as Eye, RiPulseLine as Activity } from "@remixicon/react";
+import { RiTruckLine as TruckIcon, RiPencilLine as Pencil, RiEyeLine as Eye, RiPulseLine as Activity, RiCalendarScheduleLine as Scheduled } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 
@@ -9,6 +9,10 @@ type TruckMaintenanceTableProps = {
   trucks: Truck[];
   records: MaintenanceRecord[];
   onUpdateRecord: (truck: Truck) => void;
+  /** Jobs saved before their cost was known. */
+  onScheduledRecords: (truck: Truck) => void;
+  /** How many jobs wait for a cost, by truck id. */
+  scheduledCounts?: Record<string, number>;
   onViewRecord: (truck: Truck) => void;
   onViewStatus: (truck: Truck) => void;
 };
@@ -17,6 +21,8 @@ export function TruckMaintenanceTable({
   trucks,
   records,
   onUpdateRecord,
+  onScheduledRecords,
+  scheduledCounts = {},
   onViewRecord,
   onViewStatus,
 }: TruckMaintenanceTableProps) {
@@ -55,6 +61,19 @@ export function TruckMaintenanceTable({
               >
                 <Pencil className="h-3.5 w-3.5" />
                 Update Record
+              </button>
+              <button
+                type="button"
+                onClick={() => onScheduledRecords(truck)}
+                className="flex h-9 items-center gap-1.5 rounded-full border border-teal-border bg-teal-surface px-3.5 text-caption-1-semibold text-teal-text transition duration-200 hover:bg-teal-surface-strong"
+              >
+                <Scheduled className="h-3.5 w-3.5" />
+                Scheduled Records
+                {(scheduledCounts[truck.id] ?? 0) > 0 && (
+                  <span className="ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-teal-solid px-1.5 text-caption-2-semibold tabular-nums text-on-solid">
+                    {scheduledCounts[truck.id]}
+                  </span>
+                )}
               </button>
               <button
                 type="button"

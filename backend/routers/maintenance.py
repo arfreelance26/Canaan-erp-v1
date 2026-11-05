@@ -188,14 +188,51 @@ def _apply_maintenance_by(db: Session, data: dict) -> dict:
     return data
 
 
-def check_new_record(db: Session, payload: schemas.MaintenanceRecordCreate) -> models.Truck:
+def _clean_items(db: Session, items: list[dict], *, need_cost: bool = True) -> list[dict]:
+    """Checks the repair cards and links each one's vendor (as for a whole
+    record, _apply_maintenance_by). Every card needs a repair, and a cost
+    unless the job is only being scheduled (need_cost=False)."""
+    if not items:
+        raise HTTPException(400, "Add at least one repair.")
+    cleaned = []
+    for i, item in enumerate(items, start=1):
+        name = (item.get("repair_type") or "").strip()
+        if not name:
+            raise HTTPException(400, f"Repair {i} needs a repair type.")
+        cost = item.get("cost")
+        if cost is None:
+            if need_cost:
+                raise HTTPException(400, f"Enter the cost for {name}.")
+        elif Decimal(str(cost)) < 0:
+            raise HTTPException(400, f"The cost for {name} can't be negative.")
+        cleaned.append(_apply_maintenance_by(db, {**item, "repair_type": name[:200]}))
+    return cleaned
+
+
+def _set_items(record: models.MaintenanceRecord, items: list[dict]) -> None:
+    """Replaces the record's repair lines. The record's cost becomes their
+    total and repair_type their names; its own location / vendor / invoice
+    fields mirror the first line, for screens and reports that read one."""
+    record.items = [models.MaintenanceRecordItem(position=i, **item) for i, item in enumerate(items)]
+    record.cost = sum((Decimal(str(i["cost"])) for i in items), Decimal("0"))
+    record.repair_type = ", ".join(i["repair_type"] for i in items)[:1000]
+    first = items[0]
+    for f in ("maintenance_location", "maintenance_by_type", "vendor_id", "maintenance_by", "invoice_number", "invoice_date"):
+        setattr(record, f, first.get(f))
+
+
+def check_new_record(db: Session, payload: schemas.MaintenanceRecordCreate, *, need_cost: bool = True) -> models.Truck:
     """The checks a new maintenance record must pass — run when it's
     submitted for approval and again when it's approved (the truck or vendor
-    may have changed in between)."""
+    may have changed in between). A scheduled job may leave costs for later."""
     truck = db.get(models.Truck, payload.truck_id)
     if not truck or truck.deleted_at is not None:
         raise HTTPException(404, "Truck not found")
-    _apply_maintenance_by(db, payload.model_dump())
+    data = payload.model_dump()
+    items = data.pop("items", None)
+    _apply_maintenance_by(db, data)
+    if items is not None:
+        _clean_items(db, items, need_cost=need_cost)
     return truck
 
 
@@ -207,9 +244,13 @@ def create_record(
     endpoint for this any more — every new record goes through Maintenance
     Approvals (routers/maintenance_requests.py). Doesn't commit."""
     truck = check_new_record(db, payload)
-    data = _apply_maintenance_by(db, payload.model_dump())
+    data = payload.model_dump()
+    items = data.pop("items", None)
+    data = _apply_maintenance_by(db, data)
     remind_at = data.pop("remind_at_odometer", None)
     record = models.MaintenanceRecord(**data, trip_id=trip_id, entered_by_name=entered_by_name, source=source)
+    if items is not None:
+        _set_items(record, _clean_items(db, items))
     maintenance_reminders.set_reminder(record, truck, remind_at)
     db.add(record)
     db.flush()
@@ -366,12 +407,15 @@ def apply_maintenance_record_update(
     for f in _REQUIRED_RECORD_FIELDS:
         if f in updates and updates[f] in (None, ""):
             raise HTTPException(400, f"{f.replace('_', ' ').capitalize()} can't be empty.")
+    items = updates.pop("items", None)
     if {"vendor_id", "maintenance_by_type"} & updates.keys():
         updates = _apply_maintenance_by(db, updates)
     has_reminder = "remind_at_odometer" in updates
     remind_at = updates.pop("remind_at_odometer", None)
     for field, value in updates.items():
         setattr(record, field, value)
+    if items is not None:
+        _set_items(record, _clean_items(db, items))
     if has_reminder:
         maintenance_reminders.set_reminder(record, db.get(models.Truck, record.truck_id), remind_at)
     record.entered_by_name = actor_name

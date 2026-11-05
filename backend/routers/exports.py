@@ -683,7 +683,12 @@ def export_maintenance_records(
     if truck_id:
         q = q.filter(models.MaintenanceRecord.truck_id == truck_id)
     if vendor_id:
-        q = q.filter(models.MaintenanceRecord.vendor_id == vendor_id)
+        q = q.filter(or_(
+            models.MaintenanceRecord.vendor_id == vendor_id,
+            models.MaintenanceRecord.id.in_(
+                db.query(models.MaintenanceRecordItem.record_id).filter(models.MaintenanceRecordItem.vendor_id == vendor_id)
+            ),
+        ))
     if from_date:
         q = q.filter(models.MaintenanceRecord.date >= from_date)
     if to_date:
@@ -695,15 +700,21 @@ def export_maintenance_records(
         .group_by(models.MaintenanceProof.record_id)
         .all()
     ) if records else {}
+    # One row per repair (a record can hold several, each with its own cost,
+    # place, vendor and invoice); the record's own total sits on each row.
     headers = ["Truck ID", "Registration Number", "Start Date", "End Date", "Maintenance Type", "Repair Type",
                "Compliant", "Location", "Maintenance By", "Invoice Number", "Invoice Date", "Remarks", "Odometer", "User Modified", "Source",
-               "Cost", "Proof of Payment Files"]
-    data = [
-        [r.truck.truck_id, r.truck.registration_number, r.date, r.maintenance_end_date, r.maintenance_type,
-         r.repair_type, r.compliant, r.maintenance_location, r.maintenance_by, r.invoice_number, r.invoice_date, r.description, r.odometer,
-         r.entered_by_name, r.source, r.cost, int(proof_counts.get(r.id, 0))]
-        for r in records
-    ]
+               "Repair Cost", "Record Total", "Proof of Payment Files"]
+    data = []
+    for r in records:
+        for line in r.repair_lines:
+            get = (lambda k: line.get(k)) if isinstance(line, dict) else (lambda k: getattr(line, k))
+            if vendor_id and r.items and get("vendor_id") != vendor_id:  # only that vendor's repairs
+                continue
+            data.append([r.truck.truck_id, r.truck.registration_number, r.date, r.maintenance_end_date, r.maintenance_type,
+                         get("repair_type"), r.compliant, get("maintenance_location"), get("maintenance_by"), get("invoice_number"),
+                         get("invoice_date"), r.description, r.odometer, r.entered_by_name, r.source, get("cost"), r.cost,
+                         int(proof_counts.get(r.id, 0))])
     truck_part = f"_{records[0].truck.registration_number}" if truck_id and records else ""
     if vendor_id:
         v = db.get(models.Vendor, vendor_id)

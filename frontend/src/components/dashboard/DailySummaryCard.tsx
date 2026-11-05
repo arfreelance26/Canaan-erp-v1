@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { showError } from "@/lib/feedback";
 import { SortableGrid } from "@/components/ui/SortableGrid";
 import { AttentionTicket, type TicketMeta } from "./AttentionTicket";
+import { callName } from "@/lib/call-name";
 
 const SECTION_STYLE: Record<string, { icon: LucideIcon; tone: string }> = {
   trips: { icon: Truck, tone: "bg-accent-surface text-accent-text" },
@@ -135,7 +136,7 @@ export function DailySummaryCard() {
 
   if (!morning) return null;
   const shown = live ?? morning;
-  const firstName = (user?.name ?? "").split(" ")[0] || "there";
+  const firstName = callName(user?.name, user?.preferredName) || "there";
   const changes = live
     ? Object.entries(live.metrics).filter(([k, v]) => morning.metrics[k] !== undefined && morning.metrics[k] !== v)
     : [];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { PerRepair, invoiceDateText } from "@/components/maintenance/RepairLines";
 import { RiRecordCircleLine as CircleDot, RiEyeLine as Eye, RiLoader4Line as Loader2, RiAttachment2 as Paperclip, RiToolsLine as Wrench } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -9,7 +10,7 @@ import { tyreApi, vendorsApi } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 import type { Vendor } from "@/types/vendor";
-import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import type { MaintenanceRecord, RepairLine } from "@/types/truck-maintenance";
 import type { VendorRetread } from "@/types/tyre-inventory";
 import dynamic from "next/dynamic";
 import { PagedTbody } from "@/components/ui/PagedTbody";
@@ -66,8 +67,16 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
     };
   }, [open, vendor, fromDate, toDate]);
 
+  // A record can hold repairs by several vendors: only this vendor's count here.
+  const mine = (r: MaintenanceRecord): RepairLine[] => {
+    const lines = r.repairLines ?? [];
+    const theirs = lines.filter((l) => l.vendorId === vendor?.id);
+    return theirs.length ? theirs : lines;
+  };
+  const mineTotal = (r: MaintenanceRecord) => mine(r).reduce((sum, l) => sum + (parseFloat(l.cost) || 0), 0);
+
   const stats = useMemo(() => {
-    const jobsTotal = records.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
+    const jobsTotal = records.reduce((sum, r) => sum + mineTotal(r), 0);
     const retreadTotal = retreads.reduce((sum, r) => sum + (r.retreadCost || 0), 0);
     const trucks = new Set(records.map((r) => r.truckId)).size;
     const lastRetread = retreads[0]?.date?.slice(0, 10) ?? null;
@@ -229,14 +238,15 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
                         {r.truckCode && <span className="block text-[11px] text-text-tertiary">{r.truckCode}</span>}
                       </td>
                       <td className="px-4 py-2.5 font-medium text-text-primary">{r.maintenanceType}</td>
-                      <td className="px-4 py-2.5 text-text-secondary">{r.repairType || <span className="italic text-text-tertiary">—</span>}</td>
-                      <td className="px-4 py-2.5 text-text-secondary">{r.invoiceNumber || <span className="italic text-text-tertiary">—</span>}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-text-secondary">{r.invoiceDate ? formatDate(r.invoiceDate) : <span className="italic text-text-tertiary">—</span>}</td>
-                      <td className="px-4 py-2.5 text-text-secondary">{r.maintenanceLocation || <span className="italic text-text-tertiary">—</span>}</td>
+                      {/* Only the repairs this vendor did in the record. */}
+                      <td className="px-4 py-2.5 text-text-secondary"><PerRepair lines={mine(r)} render={(l) => l.repairType} /></td>
+                      <td className="px-4 py-2.5 text-text-secondary"><PerRepair lines={mine(r)} render={(l) => l.invoiceNumber} /></td>
+                      <td className="px-4 py-2.5 tabular-nums text-text-secondary"><PerRepair lines={mine(r)} render={invoiceDateText} /></td>
+                      <td className="px-4 py-2.5 text-text-secondary"><PerRepair lines={mine(r)} render={(l) => l.maintenanceLocation} /></td>
                       <td className="max-w-[220px] truncate px-4 py-2.5 text-text-secondary" title={r.description}>
                         {r.description || <span className="italic text-text-tertiary">—</span>}
                       </td>
-                      <td className="px-4 py-2.5 tabular-nums font-semibold text-accent-text">{money(parseFloat(r.cost) || 0)}</td>
+                      <td className="px-4 py-2.5 tabular-nums font-semibold text-accent-text">{money(mineTotal(r))}</td>
                       <td className="px-4 py-2.5">
                         {(r.proofCount ?? 0) > 0 ? (
                           <button

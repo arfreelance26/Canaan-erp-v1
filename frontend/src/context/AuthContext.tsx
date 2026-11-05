@@ -19,6 +19,8 @@ export type AuthUser = {
   softwareDesignation: string;
   staffId: string | null;
   photoUrl: string | null;
+  /** What greetings call them; use callName(user.name, user.preferredName). */
+  preferredName?: string | null;
   token?: string;
 };
 
@@ -99,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: data.email,
       softwareDesignation: data.software_designation,
       staffId: data.staff_id ?? null,
+      preferredName: data.preferred_name ?? null,
       photoUrl: data.photo_url
         ? `${API_URL}/files/staff/${data.id}/photo?token=${encodeURIComponent(data.access_token)}`
         : null,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RiCake2Line as Cake, RiCalendarEventLine as CalendarHeart, RiEyeLine as Eye, RiHistoryLine as History, RiBankLine as Landmark, RiLoader4Line as Loader2, RiGiftLine as PartyPopper, RiResetLeftLine as RotateCcw, RiSave3Line as Save, RiPlantLine as TreePine, RiCloseLine as X } from "@remixicon/react";
+import { RiCake2Line as Cake, RiCalendarEventLine as CalendarHeart, RiEyeLine as Eye, RiHistoryLine as History, RiBankLine as Landmark, RiLoader4Line as Loader2, RiGiftLine as PartyPopper, RiResetLeftLine as RotateCcw, RiSave3Line as Save, RiPlantLine as TreePine, RiCloseLine as X, RiCupLine as Cup } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import {
   celebrationsApi, type CelebrationKey, type CelebrationMessages, type CelebrationsOverview,
@@ -54,7 +54,7 @@ const EVENT_LABEL: Record<string, string> = {
   "settings.festive_season": "December Season",
   "settings.founding_day": "Founding Day",
 };
-const SWITCH_LABEL: Record<string, string> = { birthdays: "Staff Birthdays", season: "December Season", founding: "Founding Day" };
+const SWITCH_LABEL: Record<string, string> = { birthdays: "Staff Birthdays", season: "December Season", founding: "Founding Day", teatime: "Tea Time" };
 
 export default function CelebrationsPage() {
   const router = useRouter();
@@ -150,6 +150,8 @@ export default function CelebrationsPage() {
   const cards: {
     key: CelebrationKey; title: string; icon: typeof Cake; tone: string; when: string; detail: string[];
     status: string; previews: { label: string; p: CelebrationPreview }[];
+    /** Instead of a dashboard preview: shows it right here (Tea Time). */
+    tryNow?: { label: string; run: () => void }[];
   }[] = [
     {
       key: "birthdays", title: "Staff Birthdays", icon: Cake, tone: "bg-warning-surface text-warning-text border-warning-border",
@@ -181,6 +183,17 @@ export default function CelebrationsPage() {
         { label: `Milestone (${quick.milestoneYears} yrs)`, p: { date: quick.milestone, label: "Founding Day milestone" } },
       ],
     },
+    {
+      key: "teatime", title: "Tea Time", icon: Cup, tone: "bg-orange-surface text-orange-text border-orange-border",
+      when: "Every day · 11 AM and 4 PM",
+      detail: ["Joshine: “Tea time, right Manuel?”, with a steaming cup", "Missed the minute? Said up to 10 minutes late", "Each person can also turn it off for themselves"],
+      status: "On",
+      previews: [],
+      tryNow: [
+        { label: "11 AM line", run: () => window.dispatchEvent(new CustomEvent("joshine:tea", { detail: "11" })) },
+        { label: "4 PM line", run: () => window.dispatchEvent(new CustomEvent("joshine:tea", { detail: "16" })) },
+      ],
+    },
   ];
 
   return (
@@ -193,7 +206,7 @@ export default function CelebrationsPage() {
         <div>
           <h1 className="text-title-1-semibold tracking-tight text-text-primary">Celebrations Management</h1>
           <p className="mt-0.5 text-body-regular text-text-secondary">
-            Birthdays, the December season and Founding Day — switch them on or off for everyone, edit the card text, and preview any day.
+            Birthdays, the December season, Founding Day and Joshine&apos;s tea time — switch them on or off for everyone, edit the card text, and preview any day.
           </p>
         </div>
       </div>
@@ -216,7 +229,7 @@ export default function CelebrationsPage() {
       )}
 
       {/* Celebration cards */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
         {cards.map((c) => {
           const on = data.switches[c.key];
           const Icon = c.icon;
@@ -247,6 +260,13 @@ export default function CelebrationsPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {c.previews.map((p) => (
                     <button key={p.label} type="button" onClick={() => startPreview(p.p)}
+                      className="rounded-full border border-separator-border px-2.5 py-1 text-caption-1-medium text-text-secondary transition-colors hover:border-warning-border-strong hover:bg-warning-surface hover:text-warning-text">
+                      {p.label}
+                    </button>
+                  ))}
+                  {/* Joshine says it now, on this screen only. */}
+                  {c.tryNow?.map((p) => (
+                    <button key={p.label} type="button" onClick={p.run}
                       className="rounded-full border border-separator-border px-2.5 py-1 text-caption-1-medium text-text-secondary transition-colors hover:border-warning-border-strong hover:bg-warning-surface hover:text-warning-text">
                       {p.label}
                     </button>

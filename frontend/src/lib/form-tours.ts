@@ -77,12 +77,23 @@ export const FORM_TOURS: Record<string, FormTour> = {
   "maintenance-record": {
     title: "the maintenance record",
     steps: [
-      { title: "Recording maintenance", text: "One repair or service on this truck.", expression: "happy" },
+      { title: "Recording maintenance", text: "One visit to the workshop for this truck: it can cover several repairs, each with its own cost and vendor.", expression: "happy" },
+      { target: "maintenance-cost-known", orCentered: true, title: "No bill yet?", text: "If you don't know the cost yet, pick \"Not yet\". The job is saved to the truck's Scheduled Records with today's details; add the costs there when the bill comes. Nothing is counted until then, and once approved it lands on its start date, so that day's P&L stays right.", expression: "curious", side: "bottom" },
       { field: "Odometer (km)", title: "Odometer", text: "The reading when the work was done. The truck's current odometer is shown above, for reference.", expression: "focused", side: "right" },
-      { field: "Maintenance Type", title: "What was done", text: "The type of work and the repairs in it.", expression: "curious", side: "right" },
-      { field: "Cost", title: "Cost", text: "What it cost, and who did it: a vendor or your own staff.", expression: "determined", side: "right" },
+      { field: "Maintenance Type", title: "What was done", text: "The type of work, then tick every repair that was done. Each one you tick gets its own card below.", expression: "curious", side: "right" },
+      { target: "maintenance-repairs", title: "One card per repair", text: "Each repair has its own cost (required), location, who did it (a vendor or an individual) and their invoice, since different garages may have done different jobs. If one garage did everything on one bill, tick \"Same vendor & invoice for all\".", expression: "determined", side: "right" },
+      { target: "maintenance-total", title: "The total", text: "Every repair's cost added up. This is what the truck's record, its running cost and Profitability use.", expression: "sparkle", side: "top" },
       { field: "Remarks", title: "Remarks", text: "A short note on the work. Required.", expression: "calm", side: "right" },
       { title: "After you save", text: "New records go to Maintenance Approvals and join the truck's record once Admin or Accounts approves them. You can also set a reminder for the next service.", expression: "wink" },
+    ],
+  },
+  "scheduled-records": {
+    title: "Scheduled Records",
+    steps: [
+      { title: "Waiting for a cost", text: "Maintenance saved before its bill came in. None of it is in the truck's records, running cost or P&L yet.", expression: "happy" },
+      { target: "scheduled-list", orCentered: true, title: "Each job", text: "When the work was done, the repairs, who did it, and how long it has been waiting. After 7 days the person who scheduled it gets a reminder in the bell, and the Recap Report flags it.", expression: "focused", side: "right" },
+      { target: "scheduled-add-costs", orCentered: true, title: "Add costs", text: "Opens the form filled in; enter every repair's cost (and the invoice, if you have it). It then goes to Maintenance Approvals and, once approved, counts on its original start date.", expression: "determined", side: "left" },
+      { title: "Remove", text: "A job entered by mistake can be removed by the person who scheduled it, or by Admin.", expression: "wink" },
     ],
   },
   "add-truck": {
@@ -137,6 +148,7 @@ export const FORM_TOURS: Record<string, FormTour> = {
     title: "the staff form",
     steps: [
       { title: "A staff member", text: "Their details, photos and login.", expression: "happy" },
+      { field: "Preferred name (optional)", title: "What to call them", text: "The name Joshine and the dashboard greet them by. Leave it empty and it's worked out from the full name, skipping initials: \"D. MANUEL JEBARSON\" becomes Manuel. Fill it in when they go by something else.", expression: "curious", side: "right" },
       { field: "Software Designation", title: "Software role", text: "Decides which pages they see and what they can do. Choose carefully: Admin can do everything.", expression: "determined", side: "right" },
       { field: "Software Credentials", title: "Login", text: "Username and password. The username fills in from the email.", expression: "curious", side: "right" },
       { title: "Documents", text: "A photo, a passport-size identity photo and the Aadhaar card.", expression: "calm" },

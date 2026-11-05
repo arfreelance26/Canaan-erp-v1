@@ -81,6 +81,8 @@ export type JoshineSettings = {
   nudges: boolean;
   /** Eyes follow the cursor and blink. */
   lively: boolean;
+  /** "Tea time, right?" at 11 AM and 4 PM (lib/greetings.ts teaTimeDue). */
+  teaTime: boolean;
   /** Tucked into the corner, only the top peeking out. */
   tucked: boolean;
   /** Pet size in px, JOSHINE_SIZE.min–max. */
@@ -98,6 +100,7 @@ export const JOSHINE_DEFAULTS: JoshineSettings = {
   language: "English",
   nudges: true,
   lively: true,
+  teaTime: true,
   tucked: false,
   size: JOSHINE_SIZE.default,
 };

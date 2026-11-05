@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { COST_INPUT_RESOURCES } from "@/lib/api-cache";
+import { PendingCostNotice } from "@/components/maintenance/PendingCostNotice";
 import { RiArrowRightUpLine as TrendingUp, RiArrowRightDownLine as TrendingDown, RiLoader4Line as Loader2, RiBarChartBoxLine as BarChart3, RiArrowRightLine as ArrowRight, RiEyeLine as Eye, RiMoneyDollarCircleLine as DollarSign, RiToolsLine as Wrench, RiBankLine as Landmark, RiErrorWarningLine as AlertCircle, RiCalendar2Line as CalendarDays, RiCloseLine as X, RiShieldCheckLine as ShieldCheck, RiArrowDownSLine as ChevronDown, RiCalculatorLine as Calculator, RiCompass3Line as Compass, RiRouteLine as Route, RiFileTextLine as FileText, RiGasStationLine as Fuel, RiCursorLine as MousePointerClick, RiEqualizerLine as SlidersHorizontal, RiInformationLine as Info, RiErrorWarningLine as WarnIcon } from "@remixicon/react";
 import { problemFromMessage, reportProblem } from "@/lib/connection-problem";
 import { fetchExcel, plSummaryApi, type PlComputed, type PlComputedTrip, type PlComputedTruck, type PlTruckMoney, type TruckPLEntry } from "@/lib/api";
@@ -1423,6 +1424,9 @@ export default function PLSummaryPage() {
           {error}
         </div>
       )}
+
+      {/* Maintenance in this period still waiting for its cost (Scheduled Records). */}
+      <PendingCostNotice from={startDate} to={endDate} />
 
       {computed !== null && (
         <>

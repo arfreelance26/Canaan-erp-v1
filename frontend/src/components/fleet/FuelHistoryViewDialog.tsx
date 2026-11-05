@@ -14,6 +14,7 @@ import { showSuccess, showError } from "@/lib/feedback";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { PagedTbody } from "@/components/ui/PagedTbody";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 // ---------------------------------------------------------------------------
 // Edit fuel log dialog
 // Admin  → saves directly via PUT; changes apply immediately
@@ -46,8 +47,6 @@ function EditFuelLogDialog({
   const [reason, setReason]       = useState("");
   const [saving, setSaving]       = useState(false);
 
-  const firstRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { firstRef.current?.focus(); }, []);
 
   const computedTotal = (Number(litres) * Number(pricePerL)).toFixed(2);
 
@@ -140,7 +139,7 @@ function EditFuelLogDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-caption-1-semibold text-text-secondary">Date <span className="text-danger-text">*</span></label>
-              <input ref={firstRef} type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+              <DatePickerInput value={date} onChange={setDate} required />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-caption-1-semibold text-text-secondary">Odometer (km) <span className="text-danger-text">*</span></label>
