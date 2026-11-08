@@ -43,7 +43,7 @@ export function useTruckTripRuns(truck: Truck | null, active: boolean) {
 
 export const EMPTY_RUN_STATS: TruckRunStats = {
   totalDistance: 0, tripsWithDistance: 0, missingSheets: 0, firstTripDate: null, dataUntil: null, days: 0,
-  months: 0, monthlyAvg: 0, dailyAvg: 0, avgPerTrip: 0, longest: 0, shortest: 0,
+  months: 0, monthlyAvg: 0, dailyAvg: 0, avgPerTrip: 0, longest: 0, shortest: 0, normalKm: 0, normalMonths: 0,
 };
 
 /**

@@ -94,8 +94,8 @@ export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, p
           <button
             type="button"
             onClick={onTuck}
-            title="Tuck into the corner"
-            aria-label="Tuck into the corner"
+            title="Peek — slide down out of the way (J)"
+            aria-label="Peek — slide down out of the way"
             className="flex size-8 items-center justify-center rounded-lg text-foreground-icon-tertiary outline-none transition-colors hover:bg-fill-2 hover:text-foreground-icon-primary focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
             <RiArrowDownSLine className="size-5" />

@@ -21,6 +21,8 @@ import { claimTeaTime, greetingUserKey, markGreeted, pickGreeting, resetVisitGre
 import { PREVIEW_EVENT } from "@/lib/celebration-preview";
 import { callName } from "@/lib/call-name";
 import { GUM_FACE, JoshineGum, useGumBubble } from "./JoshineGum";
+import { RiArrowDownSLine, RiArrowUpSLine } from "@remixicon/react";
+import { JOSHINE_PEEK_EVENT, SHORTCUTS } from "@/lib/shortcuts";
 
 // The creator (colour picker, slider…) loads when Joshine is first clicked.
 const JoshineCreator = dynamic(() => import("./JoshineCreator").then((m) => m.JoshineCreator));
@@ -39,6 +41,11 @@ const JoshineCreator = dynamic(() => import("./JoshineCreator").then((m) => m.Jo
  * a speech bubble beside it, with its face to match, fading after 8 seconds.
  *
  * Now and then, at random, it blows a chewing-gum bubble (JoshineGum.tsx).
+ *
+ * Peek mode (settings.tucked): sent down by hand — the ↓ handle on hover,
+ * dragging it down, J, or the panel's ↓ — only its top shows, still awake
+ * (eyes follow the cursor). It rises to greet, offer a tour or give one, then
+ * sinks back; a click, ↑, dragging it up or J brings it back for good.
  *
  * It never sits in the way: when the mouse heads for the corner and there's
  * something clickable under Joshine, it ducks down to a peek until the mouse
@@ -211,9 +218,35 @@ export function JoshinePet() {
   function runTour(t: Tour) {
     setOpen(false);
     setOffer(null);
-    if (settings.tucked) update({ tucked: false });
+    // In peek mode it rises for the tour on its own and sinks back after.
     void startTour(t, settings, { userId: user?.id, role: user?.softwareDesignation });
   }
+
+  // ── Peek mode ──────────────────────────────────────────────────────────────
+  // Down to peek, or back up: a wink going down, a happy hop coming back.
+  function setPeek(on: boolean) {
+    if (on === settings.tucked) return;
+    setOpen(false);
+    update({ tucked: on });
+    react(on ? "wink" : "happy", on ? [1.06, 0.95] : [0.9, 1.1]);
+  }
+  const setPeekRef = useRef(setPeek);
+  useEffect(() => {
+    setPeekRef.current = setPeek;
+  });
+  const tuckedRef = useRef(settings.tucked);
+  useEffect(() => {
+    tuckedRef.current = settings.tucked;
+  }, [settings.tucked]);
+  // J (components/layout/KeyboardShortcuts.tsx) toggles it.
+  useEffect(() => {
+    const onPeek = () => setPeekRef.current(!tuckedRef.current);
+    window.addEventListener(JOSHINE_PEEK_EVENT, onPeek);
+    return () => window.removeEventListener(JOSHINE_PEEK_EVENT, onPeek);
+  }, []);
+  // Dragging Joshine down sends it to peek; dragging it up brings it back.
+  const drag = useRef<{ y: number; done: boolean } | null>(null);
+  const dragged = useRef(false);
 
   function declineOffer() {
     if (offer) markTourSeen(user?.id, offer.id);
@@ -247,9 +280,12 @@ export function JoshinePet() {
   }
 
   function onClick() {
-    if (settings.tucked) {
-      update({ tucked: false });
-      react("happy", [0.9, 1.1]);
+    if (dragged.current) {   // the end of a drag, not a click
+      dragged.current = false;
+      return;
+    }
+    if (peeking) {
+      setPeek(false);
       return;
     }
     setOpen((o) => !o);
@@ -350,6 +386,9 @@ export function JoshinePet() {
     };
   }, [user, settings.size, settings.tucked]);
 
+  // Peeking right now: in peek mode and not risen to greet, offer or give a tour.
+  const peeking = settings.tucked && !tour.active && !greeting && !offer && !open;
+
   // The gum bubble waits while Joshine is busy with anything else.
   const { run: gumRun, phase: gum } = useGumBubble(Boolean(user) && settings.lively && !settings.tucked && !ducked && !open && !greeting && !offer && !tour.active);
 
@@ -384,13 +423,13 @@ export function JoshinePet() {
           name={callName(user.name, user.preferredName)}
           color={settings.color}
           petSize={settings.size}
-          tucked={settings.tucked || ducked}
+          tucked={ducked}
           onDone={() => setGreeting(null)}
         />
       )}
 
       {/* A tour offer waits until the greeting has gone. */}
-      {offer && !greeting && !open && !tour.active && !settings.tucked && (
+      {offer && !greeting && !open && !tour.active && (
         <div
           role="dialog"
           aria-label={`${settings.name || "Joshine"} offers a tour of ${offer.title}`}
@@ -441,11 +480,26 @@ export function JoshinePet() {
           "group fixed bottom-4 right-5 z-pet transition-transform ease-out",
           // Ducking is quick; coming back up (and tucking) is gentler.
           ducked ? "duration-200" : "duration-500",
-          (settings.tucked || ducked) && (hovered ? "translate-y-[36%]" : "translate-y-[58%]"),
+          (peeking || ducked) && (hovered ? "translate-y-[36%]" : "translate-y-[58%]"),
         )}
       >
+        {/* Peek handle on hover: ↓ to peek, ↑ to come back (or J, or drag). */}
+        {!open && !tour.active && (
+          <button
+            type="button"
+            onClick={() => setPeek(!settings.tucked)}
+            title={settings.tucked ? `Bring ${settings.name || "Joshine"} back (${SHORTCUTS.joshine.key})` : `Peek — slide down out of the way (${SHORTCUTS.joshine.key})`}
+            aria-label={settings.tucked ? `Bring ${settings.name || "Joshine"} back` : `${settings.name || "Joshine"}: peek`}
+            className={cx(
+              "absolute -left-1 -top-1 z-10 flex size-6 items-center justify-center rounded-full border border-separator-border bg-background-primary-default text-text-secondary shadow-sm outline-none transition-opacity duration-150 hover:text-text-primary focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+              peeking ? "opacity-70 group-hover:opacity-100" : "opacity-0 group-hover:opacity-100",
+            )}
+          >
+            {settings.tucked ? <RiArrowUpSLine className="size-4" /> : <RiArrowDownSLine className="size-4" />}
+          </button>
+        )}
         {/* Name tag on hover */}
-        {!settings.tucked && !ducked && !open && (
+        {!peeking && !ducked && !open && (
           <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-separator-border bg-background-primary-default px-2.5 py-1 text-body-regular text-text-primary opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100">
             {settings.name || "Joshine"}
             <span className="text-text-tertiary"> · {settings.label}</span>
@@ -454,13 +508,27 @@ export function JoshinePet() {
         <button
           type="button"
           onClick={onClick}
+          onPointerDown={(e) => {
+            drag.current = { y: e.clientY, done: false };
+            dragged.current = false;
+          }}
+          onPointerUp={() => {
+            drag.current = null;
+          }}
           onPointerEnter={() => {
             if (open) return;
             setHovered(true);
-            react(settings.tucked ? "curious" : "happy", [1.08, 0.93]);
+            react(peeking ? "curious" : "happy", [1.08, 0.93]);
           }}
           onPointerMove={(e) => {
-            if (calm || settings.tucked) return;
+            // Dragged far enough down (or up, when peeking): peek / come back.
+            const d = drag.current;
+            if (d && !d.done && e.buttons === 1) {
+              const dy = e.clientY - d.y;
+              if (dy > 24 && !settings.tucked) { d.done = true; dragged.current = true; setPeek(true); }
+              else if (dy < -24 && settings.tucked) { d.done = true; dragged.current = true; setPeek(false); }
+            }
+            if (calm || peeking) return;
             const box = e.currentTarget.getBoundingClientRect();
             const x = (e.clientX - box.left) / box.width - 0.5;
             setTilt(Math.round(x * 14));
@@ -469,7 +537,7 @@ export function JoshinePet() {
             setHovered(false);
             setTilt(0);
           }}
-          aria-label={settings.tucked ? `Bring ${settings.name || "Joshine"} back` : `${settings.name || "Joshine"}, customise`}
+          aria-label={peeking ? `Bring ${settings.name || "Joshine"} back` : `${settings.name || "Joshine"}, customise`}
           aria-expanded={open}
           data-icon-motion="off"
           data-tour="joshine"
@@ -483,10 +551,11 @@ export function JoshinePet() {
               <JoshineFace
                 shape={settings.shape}
                 color={settings.color}
-                expression={mood ?? tour.expression ?? (gum ? GUM_FACE[gum] : null) ?? (hovered ? (settings.tucked || ducked ? "curious" : "happy") : null) ?? (ducked ? "dots" : null) ?? greeting?.expression ?? (settings.tucked ? "sleepy" : settings.expression)}
-                blush={(hovered && !settings.tucked && !ducked) || gum === "sheepish"}
+                expression={mood ?? tour.expression ?? (gum ? GUM_FACE[gum] : null) ?? (hovered ? (peeking || ducked ? "curious" : "happy") : null) ?? (ducked ? "dots" : null) ?? greeting?.expression ?? settings.expression}
+                blush={(hovered && !peeking && !ducked) || gum === "sheepish"}
                 size={settings.size}
-                lively={settings.lively && !settings.tucked}
+                // Awake while peeking too: the eyes keep following the cursor.
+                lively={settings.lively}
                 className="drop-shadow-[0_6px_8px_color-mix(in_srgb,var(--color-scrim)_22%,transparent)]"
               />
               <JoshineGum run={gumRun} phase={gum} size={settings.size} />

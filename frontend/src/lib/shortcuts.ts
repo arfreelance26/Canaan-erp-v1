@@ -16,7 +16,11 @@ export const SHORTCUTS = {
   todo: { key: "T", label: "To-do" },
   notes: { key: "N", label: "Notes" },
   meetings: { key: "M", label: "Meetings" },
+  joshine: { key: "J", label: "Peek Joshine" },
 } as const;
+
+/** J: Joshine slides down to peek, or comes back up (components/joshine/JoshinePet.tsx). */
+export const JOSHINE_PEEK_EVENT = "joshine:peek";
 
 export type ShortcutPanel = "todo" | "notes" | "meetings";
 

@@ -1760,6 +1760,13 @@ export const trucksApi = {
     req<{ id: number; truck_id: number; document_type: string; updated_at: string; updated_by_name: string }[]>(
       `/trucks/${truckId}/compliance-history`
     ),
+  /** Each document's cost, validity and cost per calendar day — the same
+   *  figures as the Running Cost Calculator and Profitability (backend compliance_docs_all). */
+  getComplianceCost: (truckId: string) =>
+    req<{ label: string; expense: number; issued: string | null; expiry: string | null;
+          validity_days: number | null; per_calendar_day: number | null; skipped: string | null }[]>(
+      `/trucks/${truckId}/compliance-cost`
+    ),
   getCompliancePerKmAll: () => req<Record<string, number>>("/trucks/compliance-per-km/all"),
   getCompliancePerDayAll: () => req<Record<string, number>>("/trucks/compliance-per-day/all"),
   // Every truck's Basic-mode Total Cost/Km (fuel+tyre+maintenance+
@@ -5132,6 +5139,12 @@ export type TruckPLEntry = {
     bankName: string;
     monthlyEmi: number;
     shareForPeriod: number;
+    /** One instalment for each calendar month the period touches. */
+    fullForPeriod: number;
+    /** Each part of those instalments not counted, and why (backend emi_alloc.emi_gaps). */
+    uncounted: { reason: "outside" | "loan_start" | "loan_end" | "sold" | "future"; from: string; to: string; amount: number }[];
+    loanStart: string | null;
+    loanEnd: string | null;
     monthlyFinanceCost: number;
     dailyFinanceCost: number;
     periodFinanceCost: number;
@@ -5173,6 +5186,20 @@ export type TripBreakdown = {
   flaggedForRecheck: boolean;
   flaggedRemark: string | null;
   cost: Record<"Manual" | "Basic" | "Advanced", TripBreakdownCost> | null;
+  /** The truck's EMI, documents and normal maintenance for the trip's month,
+   *  and the monthly km each mode divides them by (Basic: the km/day setting
+   *  × 26; Advanced: its normal km a month) — backend/emi_alloc.py. */
+  fixedMonth: {
+    month: string; emi: number; documents: number; maintenance: number;
+    normalKm: number; monthsUsed: number; settingKm: number;
+    rates: Record<"Basic" | "Advanced", { km: number; emi: number | null; documents: number | null; maintenance: number | null }>;
+  } | null;
+  /** Basic / Advanced diesel and tyres as of the trip's month: that month's
+   *  average price paid per litre ÷ the truck's mileage then; tyres fitted then. */
+  runningMonth: {
+    dieselPrice: number | null; pricePaid: boolean; mileage: number | null;
+    dieselRate: number | null; tyreRate: number | null;
+  } | null;
 };
 
 function toBreakdownCost(c: B): TripBreakdownCost {
@@ -5239,6 +5266,12 @@ function toTruckPLEntry(b: B): TruckPLEntry {
           bankName: String(e.bank_name ?? ""),
           monthlyEmi: Number(e.monthly_emi ?? 0),
           shareForPeriod: Number(e.share_for_period ?? 0),
+          fullForPeriod: Number(e.full_for_period ?? e.share_for_period ?? 0),
+          uncounted: ((e.uncounted as B[]) ?? []).map((u) => ({
+            reason: u.reason, from: String(u.from ?? ""), to: String(u.to ?? ""), amount: Number(u.amount ?? 0),
+          })),
+          loanStart: (e.loan_start as string | null) ?? null,
+          loanEnd: (e.loan_end as string | null) ?? null,
           monthlyFinanceCost: Number(e.monthly_finance_cost ?? 0),
           dailyFinanceCost: Number(e.daily_finance_cost ?? 0),
           periodFinanceCost: Number(e.period_finance_cost ?? 0),
@@ -5271,6 +5304,8 @@ export type PlTripMoney = {
   /** True when there's no diesel figure, so Truck Expenses is all of Cost/KM. */
   truckExpensesIncludeDiesel: boolean;
   finalProfit: number | null;
+  /** Truck Expenses, part by part (null when they can't be split in this mode). */
+  split: { emi: number | null; adblue: number | null; tyre: number | null; maintenance: number | null; compliance: number | null } | null;
 };
 
 /** One truck's money for the period (backend pl_compute.truck_money). */
@@ -5322,8 +5357,16 @@ export type PlComputed = {
     trucks: number; idle: number; incomplete: number; profitable: number; nonProfitable: number;
     trips: number; km: number; hire: number; tripExpenses: number; tripProfit: number;
     diesel: number; gross: number; running: number; fixed: number; net: number;
+    /** Why the tabs' bottom lines differ (no search only):
+     *  Trucks' net = tripsFinal + emi + maintenance + documents + other, exactly. */
+    whyDiffer: {
+      tripsFinal: number; emi: number; maintenance: number; documents: number; other: number;
+      idleTrucks: number; noKmTrips: number;
+    } | null;
   };
   allTruckCount: number;
+  /** What in the data holds this period's figures back (backend pl_compute.data_health). */
+  dataHealth: { noKmTrips: number; noDieselTrips: number; noDieselTrucks: number; documentsWithoutCost: number };
 };
 
 function toPlComputed(b: B): PlComputed {
@@ -5342,6 +5385,9 @@ function toPlComputed(b: B): PlComputed {
           tripProfit: Number(m.trip_profit ?? 0), dieselRate: num(m.diesel_rate), diesel: num(m.diesel),
           gross: num(m.gross), costPerKm: num(m.cost_per_km), truckExpenses: num(m.truck_expenses),
           truckExpensesIncludeDiesel: Boolean(m.truck_expenses_include_diesel), finalProfit: num(m.final_profit),
+          split: m.split
+            ? ((s: B) => ({ emi: num(s.emi), adblue: num(s.adblue), tyre: num(s.tyre), maintenance: num(s.maintenance), compliance: num(s.compliance) }))(m.split as B)
+            : null,
         },
       };
     }),
@@ -5384,8 +5430,19 @@ function toPlComputed(b: B): PlComputed {
       trips: Number(kt.trips), km: Number(kt.km), hire: Number(kt.hire), tripExpenses: Number(kt.trip_expenses),
       tripProfit: Number(kt.trip_profit), diesel: Number(kt.diesel), gross: Number(kt.gross),
       running: Number(kt.running), fixed: Number(kt.fixed), net: Number(kt.net),
+      whyDiffer: kt.why_differ
+        ? ((w: B) => ({
+            tripsFinal: Number(w.trips_final ?? 0), emi: Number(w.emi ?? 0), maintenance: Number(w.maintenance ?? 0),
+            documents: Number(w.documents ?? 0), other: Number(w.other ?? 0),
+            idleTrucks: Number(w.idle_trucks ?? 0), noKmTrips: Number(w.no_km_trips ?? 0),
+          }))(kt.why_differ as B)
+        : null,
     },
     allTruckCount: Number(b.all_truck_count ?? 0),
+    dataHealth: ((h: B) => ({
+      noKmTrips: Number(h.no_km_trips ?? 0), noDieselTrips: Number(h.no_diesel_trips ?? 0),
+      noDieselTrucks: Number(h.no_diesel_trucks ?? 0), documentsWithoutCost: Number(h.documents_without_cost ?? 0),
+    }))((b.data_health ?? {}) as B),
   };
 }
 
@@ -5421,6 +5478,25 @@ export const plSummaryApi = {
       flaggedRemark: (b.flagged_remark as string | null) ?? null,
       cost: b.cost
         ? { Manual: toBreakdownCost(b.cost.Manual), Basic: toBreakdownCost(b.cost.Basic), Advanced: toBreakdownCost(b.cost.Advanced) }
+        : null,
+      fixedMonth: b.fixed_month
+        ? ((f: B) => {
+            const n = (v: unknown) => (v == null ? null : Number(v));
+            const rate = (r: B) => ({ km: Number(r?.km ?? 0), emi: n(r?.emi), documents: n(r?.documents), maintenance: n(r?.maintenance) });
+            return {
+              month: String(f.month ?? ""), emi: Number(f.emi ?? 0), documents: Number(f.documents ?? 0),
+              maintenance: Number(f.maintenance ?? 0), normalKm: Number(f.normal_km ?? 0),
+              monthsUsed: Number(f.months_used ?? 0), settingKm: Number(f.setting_km ?? 0),
+              rates: { Basic: rate(f.rates?.Basic), Advanced: rate(f.rates?.Advanced) },
+            };
+          })(b.fixed_month as B)
+        : null,
+      runningMonth: b.running_month
+        ? ((r: B) => {
+            const n = (v: unknown) => (v == null ? null : Number(v));
+            return { dieselPrice: n(r.diesel_price), pricePaid: Boolean(r.price_paid), mileage: n(r.mileage),
+                     dieselRate: n(r.diesel_rate), tyreRate: n(r.tyre_rate) };
+          })(b.running_month as B)
         : null,
     })),
   get: (startDate: string, endDate: string, truckId?: string): Promise<TruckPLEntry[]> => {
@@ -6071,6 +6147,10 @@ export type TruckRunStats = {
   avgPerTrip: number;
   longest: number;
   shortest: number;
+  /** What Advanced divides monthly costs by: the average km of the months the
+   *  truck actually worked, in the last 6 (idle months left out). */
+  normalKm: number;
+  normalMonths: number;
 };
 
 function toRunStats(b: B): TruckRunStats {
@@ -6087,6 +6167,8 @@ function toRunStats(b: B): TruckRunStats {
     avgPerTrip: Number(b.avg_per_trip ?? 0),
     longest: Number(b.longest ?? 0),
     shortest: Number(b.shortest ?? 0),
+    normalKm: Number(b.normal_km ?? 0),
+    normalMonths: Number(b.normal_months ?? 0),
   };
 }
 

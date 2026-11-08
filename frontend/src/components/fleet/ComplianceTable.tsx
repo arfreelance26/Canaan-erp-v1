@@ -307,9 +307,9 @@ function CalcInfoDialog({ kmPerDay, onClose }: { kmPerDay: number | null; onClos
 // ---------------------------------------------------------------------------
 
 function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => void }) {
-  const [history,      setHistory]      = useState<HistoryRow[] | null>(null);
-  // The current version's "Valid from" per document, when one was entered on a renewal.
-  const [validFrom,    setValidFrom]    = useState<Record<string, string>>({});
+  // Each document's cost and validity from the server — the same figures as
+  // the Running Cost Calculator and Profitability (backend compliance_docs_all).
+  const [costRows,     setCostRows]     = useState<Awaited<ReturnType<typeof trucksApi.getComplianceCost>> | null>(null);
   const [kmPerDay,     setKmPerDay]     = useState<number | null>(null);
   const [loadingHx,    setLoadingHx]    = useState(true);
   const [showCalcInfo, setShowCalcInfo] = useState(false);
@@ -321,59 +321,34 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
 
   useEffect(() => {
     Promise.all([
-      trucksApi.getComplianceHistory(truck.id),
+      trucksApi.getComplianceCost(truck.id),
       trucksApi.getRunConfig(),
-      complianceRecordsApi.listForTruck(truck.id).catch(() => []),
     ])
-      .then(([hx, runRows, records]) => {
-        setHistory(hx);
-        const from: Record<string, string> = {};
-        for (const r of records) if (r.isCurrent && r.validFrom) from[r.docType] = r.validFrom;
-        setValidFrom(from);
+      .then(([rows, runRows]) => {
+        setCostRows(rows);
         const row = (runRows as { tyre_layout: string; km_per_day: string | null }[])
           .find((r) => r.tyre_layout === truck.tyreLayout);
         if (row?.km_per_day) setKmPerDay(parseFloat(row.km_per_day));
       })
-      .catch(() => setHistory([]))
+      .catch(() => setCostRows([]))
       .finally(() => setLoadingHx(false));
   }, [truck.id, truck.tyreLayout]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
   const computed = COST_DOCS.map((doc) => {
-    const raw        = parseFloat((truck[doc.expKey] as string) || "0") || 0;
+    // The document's record as the server costs it (its period covering today,
+    // else its latest): cost, start ("Valid from", else the day it was entered)
+    // → expiry — the same rule as Running Cost and the P&L (backend/compliance_cost.py).
+    const rec        = costRows?.find((r) => r.label === doc.historyDocType);
+    const raw        = rec?.expense ?? (parseFloat((truck[doc.expKey] as string) || "0") || 0);
     const expiryDate = truck[doc.dateKey] as string;
     const daysLeft   = expiryDate ? daysBetween(today, expiryDate) : null;
 
-    // Validity period = its start → expiryDate. The start is the "Valid from"
-    // typed in on a renewal when there is one, else history.updated_at (when
-    // the doc was last set via Add Truck or a Renew) — the same rule as
-    // Running Cost and the P&L (backend/compliance_cost.py).
-    // Add Truck and every Renew log a history row (a correction doesn't; undoing a
-    // renewal removes its row), so this is always available for form-entered data.
-    let perDay:   number | null = null;
-    let perMonth: number | null = null;
-
-    if (history && expiryDate && raw > 0) {
-      const entries = history
-        .filter((h) => h.document_type === doc.historyDocType)
-        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      const typedFrom = validFrom[RECORD_DOC[doc.historyDocType]];
-      if (typedFrom || entries.length > 0) {
-        const issuedAt = typedFrom
-          ? typedFrom
-          : entries[0].updated_at.endsWith("Z") || entries[0].updated_at.includes("+")
-            ? entries[0].updated_at
-            : entries[0].updated_at + "Z";
-        const validityDays = daysBetween(issuedAt, expiryDate);
-        if (validityDays > 0) {
-          // Per working day (26 a month), like every other per-day cost:
-          // cost per calendar day × 30.44 days a month ÷ 26.
-          perDay   = (raw / validityDays) * DAYS_PER_MONTH / 26;
-          perMonth = perDay * 26;
-        }
-      }
-    }
+    // Per working day (26 a month), like every other per-day cost:
+    // cost per calendar day × 30.44 days a month ÷ 26.
+    const perDay:   number | null = rec?.per_calendar_day ? rec.per_calendar_day * DAYS_PER_MONTH / 26 : null;
+    const perMonth: number | null = perDay !== null ? perDay * 26 : null;
 
     const perKm = perDay !== null && kmPerDay !== null && kmPerDay > 0
       ? perDay / kmPerDay
@@ -386,10 +361,10 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
   const totalPerMonth = computed.reduce((s, c) => s + (c.perMonth ?? 0), 0);
   const totalPerDay   = computed.reduce((s, c) => s + (c.perDay   ?? 0), 0);
   const totalPerKm    = kmPerDay && kmPerDay > 0 ? totalPerDay / kmPerDay : null;
-  // Advanced = the month's cost ÷ the month's km (Per Day × 26 ÷ Monthly
-  // Distance Average from Truck Run Record) — no km/day involved.
-  const totalPerKmAdvanced = totalPerDay > 0 && runStats.monthlyAvg > 0
-    ? (totalPerDay * 26) / runStats.monthlyAvg
+  // Advanced = the month's cost ÷ the truck's normal km a month (the months
+  // it worked, in the last 6) — no km/day involved.
+  const totalPerKmAdvanced = totalPerDay > 0 && runStats.normalKm > 0
+    ? (totalPerDay * 26) / runStats.normalKm
     : null;
 
   const portal = createPortal(
@@ -568,9 +543,9 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                   <span className="font-semibold text-text-secondary"> Cost/km (Basic)</span> = {totalPerKm !== null ? "total daily cost ÷ km/day" : "set km/day in Admin → Truck Run Config to unlock"}
                 </p>
                 <p className="text-[10px] leading-relaxed text-text-tertiary">
-                  <span className="font-semibold text-text-secondary">Cost/km (Advanced)</span> = Per day × 26 ÷ Monthly Distance Average
-                  {runStats.monthlyAvg > 0
-                    ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
+                  <span className="font-semibold text-text-secondary">Cost/km (Advanced)</span> = Per day × 26 ÷ normal km a month
+                  {runStats.normalKm > 0
+                    ? ` (${runStats.normalKm.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, the months it worked in the last 6)`
                     : " — no trip run history for this truck yet"}
                   {missingSheetsNote(runStats) && <span className="block text-warning-text">{missingSheetsNote(runStats)}</span>}
                 </p>

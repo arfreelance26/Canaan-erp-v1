@@ -16,6 +16,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { cn } from "@/lib/utils";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { downloadPlReportPdf } from "@/lib/pl-report-pdf";
 import { PagedTbody } from "@/components/ui/PagedTbody";
 
 // Dialogs load on demand, after the page has drawn (next/dynamic).
@@ -47,6 +49,50 @@ function fmt(v: number) {
   if (abs >= 1e5) return `₹${(abs / 1e5).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`;
   return `₹${abs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+/** The exact amount (₹4,24,277.79) — shown on hover wherever fmt() shortens it. */
+function fmtFull(v: number) {
+  return `${v < 0 ? "−" : ""}₹${Math.abs(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+/** A shortened amount with the exact one on hover (to match the Excel). */
+function Amount({ v }: { v: number }) {
+  return <span title={fmtFull(v)}>{fmt(v)}</span>;
+}
+/** "EMI ₹20,000.00 · Tyres ₹1,000.00 · …" — what a combined cost is made of. */
+function splitTitle(parts: [string, number | null | undefined][]): string {
+  return parts.filter(([, v]) => v != null && Math.abs(v) >= 0.005).map(([k, v]) => `${k} ${fmtFull(v!)}`).join(" · ") || "Nothing";
+}
+
+/** "9 Nov" or "9–30 Nov" for a stretch of days. */
+function dayRange(from: string, to: string): string {
+  const f = new Date(`${from}T00:00:00`), t = new Date(`${to}T00:00:00`);
+  const day = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  if (from === to) return day(f);
+  return f.getMonth() === t.getMonth() ? `${f.getDate()}–${day(t)}` : `${day(f)} – ${day(t)}`;
+}
+
+type EmiLoan = TruckPLEntry["emiDetails"][number];
+const GAP_WHY: Record<EmiLoan["uncounted"][number]["reason"], string> = {
+  future: "not over yet — it counts as those days pass",
+  outside: "outside the dates you picked",
+  loan_start: "before the loan started",
+  loan_end: "after the loan ended",
+  sold: "after the truck left the fleet",
+};
+/** Where the rest of a loan's instalments is, when less than the full EMI is
+ *  counted: "The other ₹46,981.73 is for 9–30 Nov — not over yet …". */
+function emiGapText(loans: EmiLoan[]): string | null {
+  const full = loans.reduce((s, l) => s + l.fullForPeriod, 0);
+  const counted = loans.reduce((s, l) => s + l.shareForPeriod, 0);
+  if (full - counted < 1) return null;
+  const parts: string[] = [];
+  for (const l of loans) {
+    for (const g of l.uncounted) {
+      parts.push(`${fmtFull(g.amount)} for ${dayRange(g.from, g.to)}${loans.length > 1 ? ` (${l.emiName})` : ""}: ${GAP_WHY[g.reason]}`);
+    }
+  }
+  return `${fmtFull(counted)} of ${fmtFull(full)} in full instalments. The other ${fmtFull(full - counted)} isn't counted here — ${parts.join("; ")}.`;
+}
+
 function fmtDate(iso: string) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");
@@ -59,11 +105,23 @@ function fmtDate(iso: string) {
 type EnrichedTrip = PlComputedTrip;
 
 type Tab = "trips" | "trucks";
-type TripSortKey = "date" | "hire" | "expense" | "pl";
+type TripSortKey = "date" | "hire" | "expense" | "pl" | "gross" | "final";
+type TruckSortKey = "trips" | "km" | "hire" | "expense" | "tripProfit" | "diesel" | "gross" | "running" | "fixed" | "net";
+type Mode = "Manual" | "Basic" | "Advanced";
+const MODE_KEY = "canaan.pl.mode";
+
+/** Why a trip has no Final Profit, in a few words. */
+function unjudgedReason(t: PlComputedTrip): string {
+  if (t.totalKm <= 0) return "No km";
+  if (t.money.dieselRate == null) return "No diesel rate";
+  return "No cost per km";
+}
 
 // ── Shared components ──────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, icon, color, onClick, active }: {
+function StatCard({ label, value, sub, icon, color, onClick, active, exact }: {
   label: string; value: string; sub?: string;
+  /** The exact amount, shown on hover when `value` is shortened (₹4.24 L). */
+  exact?: number | null;
   icon: React.ReactNode;
   color: "blue" | "emerald" | "red" | "amber" | "purple" | "slate";
   /** When set, the card becomes a toggleable filter — see TripProfitabilityTab's
@@ -91,7 +149,7 @@ function StatCard({ label, value, sub, icon, color, onClick, active }: {
         {icon}
         <span className="text-caption-1-semibold opacity-70">{label}</span>
       </div>
-      <p className={`text-title-2-semibold ${txt[color]}`}><AnimatedNumber value={value} /></p>
+      <p className={`text-title-2-semibold ${txt[color]}`} title={exact != null ? fmtFull(exact) : undefined}><AnimatedNumber value={value} /></p>
       {sub && <p className={`mt-0.5 text-xs ${txt[color]} opacity-60`}>{sub}</p>}
     </div>
   );
@@ -104,21 +162,22 @@ function PlBadge({ value, size = "sm" }: { value: number; size?: "sm" | "lg" }) 
     ? `inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-body-semibold ${base}`
     : `inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-caption-1-semibold ${base}`;
   return (
-    <span className={cls}>
+    <span className={cls} title={fmtFull(value)}>
       {p ? <TrendingUp className="h-3.5 w-3.5 shrink-0" /> : <TrendingDown className="h-3.5 w-3.5 shrink-0" />}
       {p ? "+" : "−"}{fmt(value)}
     </span>
   );
 }
 
-function SortTh({ label, col, current, dir, onSort, hint }: {
-  label: string; col: TripSortKey; current: TripSortKey; dir: "asc" | "desc";
-  onSort: (c: TripSortKey) => void; hint?: string;
+function SortTh<K extends string>({ label, col, current, dir, onSort, hint, align = "right" }: {
+  label: string; col: K; current: K | null; dir: "asc" | "desc";
+  onSort: (c: K) => void; hint?: string; align?: "right" | "center";
 }) {
   const active = current === col;
   return (
     <th
-      className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary cursor-pointer select-none hover:text-accent-text whitespace-nowrap"
+      className={cn("px-4 py-3 text-caption-1-semibold text-text-secondary cursor-pointer select-none hover:text-accent-text whitespace-nowrap",
+        align === "center" ? "text-center" : "text-right")}
       onClick={() => onSort(col)}
     >
       {label}{active ? (dir === "asc" ? " ▲" : " ▼") : ""}
@@ -219,47 +278,72 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
     >
       {tab === "Overview" && (
         <>
-          <GuideSection title="Data source" icon={<FileText className="h-3.5 w-3.5" />}>
+          <GuideSection title="Two questions, two tabs" icon={<FileText className="h-3.5 w-3.5" />}>
             <p>
-              Every figure comes from the backend <code className="rounded bg-fill-2 px-1 py-0.5 text-[11px]">/pl-summary</code> endpoint
-              for your selected date range. It pulls trip hire &amp; expenses, maintenance records, EMI loans, and document/compliance
-              validity windows (RC, FC, Road Tax, Insurance, National/Local Permit, Pollution Certificate) — all pro-rated to the exact days
-              that fall inside your period.
+              <b>Trip Profitability</b> answers &ldquo;was each trip a good deal?&rdquo; — every trip is judged at steady costs per km.
+              <b> Truck Profitability</b> answers &ldquo;what did each truck really make?&rdquo; — the real bills for the period. Both use the
+              trip sheets completed in the period (a trip counts in the month it was completed). Their totals differ on purpose:
+              &ldquo;Why the two tabs differ&rdquo; shows exactly by how much (EMI for idle days, repairs above or below normal,
+              documents, idle trucks, trips with no km or no profit figure).
+            </p>
+            <p className="text-xs text-text-secondary">
+              Trips under audit review are listed but left out of every total until the recheck is done. A past month is worked out
+              with the prices, mileage and costs as they stood in that month, so later fills or bills don&rsquo;t change it.
             </p>
           </GuideSection>
 
           <GuideSection title="Trip Profitability tab" icon={<Route className="h-3.5 w-3.5" />}>
             <p>Per trip:</p>
-            <Formula>Trip Profit&nbsp;&nbsp;=&nbsp;&nbsp;Hire Amount − Trip Expenses</Formula>
-            <Formula>Diesel Expenses&nbsp;&nbsp;=&nbsp;&nbsp;Total KM × Mileage Cost/KM</Formula>
+            <Formula>Hire&nbsp;&nbsp;=&nbsp;&nbsp;Hire Amount − Route Commission</Formula>
+            <Formula>Trip Profit&nbsp;&nbsp;=&nbsp;&nbsp;Hire − Trip Expenses</Formula>
+            <Formula>Diesel Expenses&nbsp;&nbsp;=&nbsp;&nbsp;Total KM × (the month&rsquo;s diesel price paid ÷ the truck&rsquo;s mileage)</Formula>
             <Formula>Gross Profit&nbsp;&nbsp;=&nbsp;&nbsp;Trip Profit − Diesel Expenses</Formula>
-            <Formula>Truck Expenses&nbsp;&nbsp;=&nbsp;&nbsp;Total KM × (Cost/KM − Mileage Cost/KM)&nbsp;&nbsp;— EMI, tyres, maintenance, documents</Formula>
+            <Formula>Truck Expenses&nbsp;&nbsp;=&nbsp;&nbsp;EMI + Maintenance + Documents + Tyres + AdBlue&nbsp;&nbsp;(each Total KM × its cost per km)</Formula>
+            <Formula>EMI, Documents, Maintenance&nbsp;&nbsp;=&nbsp;&nbsp;Trip KM × (the truck&rsquo;s monthly cost ÷ its monthly KM)</Formula>
+            <Formula>AdBlue&nbsp;&nbsp;=&nbsp;&nbsp;Trip KM × (AdBlue price per litre ÷ the truck&rsquo;s AdBlue km per litre)</Formula>
             <Formula>Final Profit&nbsp;&nbsp;=&nbsp;&nbsp;Gross Profit − Truck Expenses</Formula>
             <p className="text-xs text-text-secondary">
-              <b>Mileage Cost/KM</b> is the diesel part of the Running Cost Calculator (diesel price ÷ the truck&rsquo;s km/L) for the
-              selected mode. It&rsquo;s already included in Cost/KM, so Gross Profit sits between Trip Profit and Final Profit — diesel
-              is never counted twice.
+              <b>Diesel per km</b> = the average price paid per litre in the trip&rsquo;s month (all trucks&rsquo; fuel fills; wrongly typed
+              prices left out) ÷ the truck&rsquo;s mileage from its fuel fills up to the end of that month (only readings between 1.5 and
+              6 km/L count, and odd fills far from the truck&rsquo;s usual are left out). <b>AdBlue</b> counts as ₹0 until the truck has
+              at least 2 AdBlue fills.
+            </p>
+            <p className="text-xs text-text-secondary">
+              This tab judges each trip at <b>steady costs per km</b>, so a good trip looks good whether the truck was busy or quiet
+              that month. The monthly cost is the EMI and documents due in the trip&rsquo;s month and the truck&rsquo;s normal monthly
+              maintenance. The monthly KM is, in <b>Basic</b>, the km/day set for its tyre layout × 26 (Admin → Truck Run
+              Configuration) and, in <b>Advanced</b>, the truck&rsquo;s normal km a month (the average of the months it worked, in the
+              last 6). No Final Profit is worked out for a trip whose truck has no diesel cost per km yet (no fuel fills) or whose
+              sheet has no km — the yellow box lists them. EMI for idle days and repairs above normal show on the Truck Profitability
+              tab — &ldquo;Why the two tabs differ&rdquo; shows by how much.
             </p>
           </GuideSection>
 
           <GuideSection title="Truck Profitability tab" icon={<Wrench className="h-3.5 w-3.5" />}>
             <p>Per truck, across every trip in the period:</p>
             <Formula>Trip Profit&nbsp;&nbsp;=&nbsp;&nbsp;Hire − Trip Expenses</Formula>
-            <Formula>Gross Profit&nbsp;&nbsp;=&nbsp;&nbsp;Trip Profit − Diesel&nbsp;&nbsp;(KM × Mileage cost per km)</Formula>
-            <Formula>Running Costs&nbsp;&nbsp;=&nbsp;&nbsp;Tyres&nbsp;(KM × Tyre Charges per km) + Maintenance</Formula>
-            <Formula>Fixed Costs&nbsp;&nbsp;=&nbsp;&nbsp;EMI share + Document share</Formula>
+            <Formula>Gross Profit&nbsp;&nbsp;=&nbsp;&nbsp;Trip Profit − Diesel&nbsp;&nbsp;(the sum of its trips&rsquo; diesel)</Formula>
+            <Formula>Running Costs&nbsp;&nbsp;=&nbsp;&nbsp;AdBlue + Tyres&nbsp;(for the km driven) + the real maintenance bills</Formula>
+            <Formula>Maintenance&nbsp;&nbsp;=&nbsp;&nbsp;approved bills dated in the period (by the day the work was done)</Formula>
+            <Formula>Fixed Costs&nbsp;&nbsp;=&nbsp;&nbsp;EMI share + Document share&nbsp;&nbsp;(EMI: one instalment per month)</Formula>
             <Formula>Net Profit&nbsp;&nbsp;=&nbsp;&nbsp;Gross Profit − Running Costs − Fixed Costs</Formula>
             <p className="text-xs text-text-secondary">
-              Diesel and Tyres use the Running Cost Calculator&rsquo;s per-km figures for the selected mode; maintenance, EMI and
-              documents come from real records. Costs over time stop at today, so a period running into the future never charges
-              months that haven&rsquo;t happened. Click any truck row for the full step-by-step breakdown.
+              <b>Maintenance</b> counts only approved bills; a scheduled job with no cost yet isn&rsquo;t counted until it&rsquo;s
+              done and approved. <b>EMI</b> is every loan on Finance → EMI Tracking, one instalment per calendar month. Only part of
+              an instalment is counted when the month is cut short — the current month (up to today), a From/To date in the middle of
+              a month, the month a loan starts or ends, or the month a truck was sold (up to the sale date) — split by its days. Such
+              trucks show a <b>part EMI</b> tag; hover it, or open the truck row, to see the full instalment and which days
+              weren&rsquo;t counted and why. <b>Documents</b> are each one&rsquo;s cost spread over the days it&rsquo;s valid, also up
+              to today and the sale date. <b>AdBlue</b> is ₹0 for a truck with fewer than 2 AdBlue fills. Click any truck row for the
+              full step-by-step breakdown.
             </p>
           </GuideSection>
 
           <GuideSection title="Cost/KM modes" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
             <p>
-              Switch to the <b>Manual</b>, <b>Basic</b>, or <b>Advanced</b> tab above for how each one sources its Cost/KM figure —
-              the number that drives every &ldquo;Truck Expenses&rdquo; and &ldquo;Final Profit&rdquo; column on this page.
+              The mode decides the costs per km on Trip Profitability (and diesel and tyres on Truck Profitability). <b>Advanced</b> is
+              built from each truck&rsquo;s own records and is the one to trust; <b>Basic</b> uses the settings; <b>Manual</b> uses figures
+              typed into the Running Cost Calculator. See each tab above.
             </p>
           </GuideSection>
         </>
@@ -269,17 +353,18 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
         <>
           <GuideSection title="How Manual mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
             <p>
-              Every cost input — diesel price/litre, mileage, tyre cost, EMI, maintenance (including AdBlue) and compliance cost per km — is
-              typed in by hand on the <b>Running Cost Calculator</b> page. One set of values is applied uniformly to whichever trucks
-              you assign it to; nothing is auto-fetched.
+              The costs per km are the figures typed into the <b>Running Cost Calculator</b> → Manual for each truck — diesel price and
+              mileage, AdBlue, tyres, EMI, maintenance and documents. Diesel here uses the typed price and mileage, not the fuel fills.
+              Use it for &ldquo;what if&rdquo; checks with your own numbers.
             </p>
           </GuideSection>
           <GuideSection title="What that means here">
             <p>
-              Truck Expenses = Total KM × the Cost/KM you manually entered for that truck under Manual mode. If you haven&rsquo;t set a
-              value for a truck yet, its Truck Expenses / Final Profit columns show <span className="text-text-tertiary">—</span>.
+              Truck Expenses = Total KM × the costs per km typed for that truck. A truck with nothing typed yet shows
+              <span className="text-text-tertiary"> —</span>. On Truck Profitability, Manual changes only diesel, AdBlue and tyres —
+              EMI, maintenance and documents there are always the real bills.
             </p>
-            <p className="text-xs text-text-secondary">Best for: quick, rough what-if estimates without needing live fleet data.</p>
+            <p className="text-xs text-text-secondary">Best for: what-if estimates. For real figures use Advanced.</p>
           </GuideSection>
         </>
       )}
@@ -288,17 +373,18 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
         <>
           <GuideSection title="How Basic mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
             <p>
-              Blends auto-fetched defaults with a few editable fields: diesel price is pulled from Maintenance → Fuel History
-              (&ldquo;Set Base Litre Cost&rdquo;) and tyre cost comes from Admin → Tyre Cost Configuration. EMI fields (amount, per-day, per-km) stay manually editable, falling back to a
-              fetched value only if left blank.
+              Uses the <b>settings</b> instead of each truck&rsquo;s history: EMI, documents and maintenance per km are the monthly cost ÷
+              the km a month its tyre layout is set to run (km/day × 26, Admin → Truck Run Configuration); tyres use the tyre cost per km of
+              its tyre layout. Diesel and AdBlue are the same as Advanced (the month&rsquo;s diesel price paid ÷ the truck&rsquo;s
+              mileage; AdBlue price ÷ the truck&rsquo;s AdBlue km per litre, ₹0 until 2 fills).
             </p>
           </GuideSection>
           <GuideSection title="What that means here">
             <p>
-              Truck Expenses = Total KM × the Cost/KM computed under Basic mode for that truck. It updates automatically when the
-              underlying fuel price or tyre configuration changes, but still needs a value to be present for each truck.
+              If the km/day setting is higher than the trucks really run, Basic spreads the costs over too many km and trips look better
+              than they are — keep the settings close to reality.
             </p>
-            <p className="text-xs text-text-secondary">Best for: day-to-day estimates that track real fuel/tyre pricing without full per-truck automation.</p>
+            <p className="text-xs text-text-secondary">Best for: a quick view based on how far each tyre layout is expected to run.</p>
           </GuideSection>
         </>
       )}
@@ -306,20 +392,22 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
       {tab === "Advanced" && (
         <>
           <GuideSection title="How Advanced mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
-            <p>Fully automatic and read-only — nothing is typed in. Every input is strictly fetched per truck:</p>
+            <p>Fully automatic — built from each truck&rsquo;s own records, as they were in each trip&rsquo;s month:</p>
             <ul className="ml-4 list-disc space-y-1 text-xs text-text-secondary">
-              <li>Mileage — lifetime average (km/L) from Maintenance → Fuel History</li>
-              <li>Tyre cost/km — Tyre Management → View Tyre Data</li>
-              <li>Maintenance cost/km — Truck Maintenance → Full Status</li>
-              <li>Compliance cost/km — Compliance &amp; Renewals → View Cost Breakdown</li>
-              <li>EMI — fetched directly, no manual override</li>
+              <li>Diesel — the month&rsquo;s price paid ÷ the truck&rsquo;s mileage from its fuel fills (only readings between 1.5 and
+                6 km/L count, and odd fills far from the truck&rsquo;s usual are left out)</li>
+              <li>Tyres — the tyres fitted that month: cost ÷ expected range</li>
+              <li>EMI, documents, maintenance — the month&rsquo;s cost ÷ the truck&rsquo;s normal km a month (the average of the months it
+                worked, in the last 6; a part month — its first month, the current month or the month it was sold — is scaled up to a
+                full month so it doesn&rsquo;t pull the average down)</li>
+              <li>Maintenance per month — the truck&rsquo;s normal monthly maintenance over the 12 months up to the trip&rsquo;s month</li>
+              <li>AdBlue — the AdBlue price per litre ÷ the truck&rsquo;s AdBlue km per litre (₹0 until it has 2+ fills)</li>
             </ul>
           </GuideSection>
           <GuideSection title="What that means here">
             <p>
-              Truck Expenses = Total KM × the Cost/KM computed under Advanced mode — the most accurate figure available, since it&rsquo;s
-              built entirely from each truck&rsquo;s own live records rather than a shared estimate. A truck with incomplete records (e.g. no
-              Fuel History entries) may still show <span className="text-text-tertiary">—</span> for that field.
+              The most accurate view. A trip whose truck has no fuel fills yet, or whose sheet has no km, can&rsquo;t be judged — the yellow
+              box on the page says what to fix.
             </p>
             <p className="text-xs text-text-secondary">Best for: final, audit-grade profitability figures once a truck&rsquo;s data is fully maintained.</p>
           </GuideSection>
@@ -344,10 +432,10 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {[
             { n: 1, title: "Pick a period", body: "Use a quick preset (This Month, Last 3 Months, …) or set a custom From/To date. Trips count in the period they were completed. Data loads automatically." },
-            { n: 2, title: "Choose a tab", body: "Trip Profitability lists every individual trip; Truck Profitability aggregates everything per truck for the period." },
-            { n: 3, title: "Pick a Cost/KM mode", body: "Manual, Basic or Advanced — controls the diesel, tyre and Cost/KM figures — Trip tab: Diesel Expenses, Gross Profit, Truck Expenses, Final Profit; Truck tab: Diesel, Gross Profit, Running Costs, Net Profit. Set actual values first on the Running Cost Calculator page (see the mode tabs above for how each one works)." },
+            { n: 2, title: "Choose a tab", body: "Trip Profitability: was each trip a good deal (steady costs per km)? Truck Profitability: what did each truck really make (the real bills)? Their totals differ on purpose — \"Why the two tabs differ\" explains it." },
+            { n: 3, title: "Pick a cost mode", body: "Advanced (the default) is built from each truck's own records — use it for real figures. Basic uses the km/day and tyre settings; Manual uses figures typed into the Running Cost Calculator. See the mode tabs above." },
             { n: 4, title: "Expand a truck row", body: "In Truck Profitability, click any row to open a step-by-step Net Profit breakdown — diesel, tyres, maintenance, EMI loans, documents, and the trip list behind the numbers. In Trip Profitability, click any trip for its own breakdown." },
-            { n: 5, title: "Read the summary cards", body: "Total Trips/Trucks, Profitable count, Hire Revenue, Gross Profit and Net/Final Profit — a snapshot before you dig into the table." },
+            { n: 5, title: "Read the cards and the yellow box", body: "The cards give the totals; Profitable / Non-Profitable filter the table. The yellow box lists what holds the figures back (trips with no km, documents with no cost…) with a link to fix each. Hover any shortened amount for the exact figure." },
             { n: 6, title: "Export a report", body: "Click \"View\" top-right to preview both Trip and Truck Profitability for the selected period/mode, then download as Excel or PDF." },
           ].map((s) => (
             <div key={s.n} className="flex gap-3">
@@ -364,9 +452,9 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
       {tab === "Manual" && (
         <div className="space-y-4">
           <GuideSection title="Getting started with Manual mode" icon={<MousePointerClick className="h-3.5 w-3.5" />}>
-            <p>1. Go to <b>Running Cost Calculator</b> → switch to the Manual tab.</p>
-            <p>2. Type in diesel price/litre, mileage, tyre cost, EMI and maintenance figures for a truck.</p>
-            <p>3. Come back here, select the <b>Manual</b> mode pill next to the tab bar — Truck Expenses / Final Profit fill in immediately.</p>
+            <p>1. Go to <b>Running Cost Calculator</b> → Manual.</p>
+            <p>2. Type in each truck&rsquo;s diesel price and mileage, AdBlue, tyre, EMI, maintenance and document costs.</p>
+            <p>3. Come back here and pick <b>Manual</b> — Truck Expenses and Final Profit use those figures.</p>
           </GuideSection>
           <p className="text-xs text-text-secondary">Nothing here is fetched automatically, so revisit the Calculator whenever diesel prices or other costs change.</p>
         </div>
@@ -375,22 +463,22 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
       {tab === "Basic" && (
         <div className="space-y-4">
           <GuideSection title="Getting started with Basic mode" icon={<MousePointerClick className="h-3.5 w-3.5" />}>
-            <p>1. Make sure Maintenance → Fuel History has a base litre cost set, and Admin → Tyre Cost Configuration is filled in.</p>
-            <p>2. Go to <b>Running Cost Calculator</b> → Basic tab — fuel/tyre pull in automatically; fill in the EMI fields if they&rsquo;re blank.</p>
-            <p>3. Come back here and select the <b>Basic</b> mode pill — figures update to match.</p>
+            <p>1. Set realistic km per day for each tyre layout in Admin → Truck Run Configuration.</p>
+            <p>2. Fill in the tyre quantities for each layout (Admin → tyre settings).</p>
+            <p>3. Pick <b>Basic</b> here — EMI, documents and maintenance are spread over those km.</p>
           </GuideSection>
-          <p className="text-xs text-text-secondary">A lighter-touch option than Manual — most inputs stay current on their own.</p>
+          <p className="text-xs text-text-secondary">If the km/day settings are higher than the trucks really run, trips will look better than they are.</p>
         </div>
       )}
 
       {tab === "Advanced" && (
         <div className="space-y-4">
           <GuideSection title="Getting started with Advanced mode" icon={<MousePointerClick className="h-3.5 w-3.5" />}>
-            <p>1. Make sure each truck has real records in Fuel History, Tyre Management, Truck Maintenance and Compliance &amp; Renewals.</p>
-            <p>2. Go to <b>Running Cost Calculator</b> → Advanced tab to confirm every field is populated (it&rsquo;s read-only — nothing to type).</p>
-            <p>3. Come back here and select the <b>Advanced</b> mode pill for the most accurate Truck Expenses / Final Profit figures.</p>
+            <p>1. Keep each truck&rsquo;s records up to date: fuel and AdBlue fills, tyres, approved maintenance bills, EMI loans and document costs.</p>
+            <p>2. Make sure trip sheets have their start and end km.</p>
+            <p>3. <b>Advanced</b> is the default here — the most accurate figures.</p>
           </GuideSection>
-          <p className="text-xs text-text-secondary">If a truck is missing source data, its Truck Expenses / Final Profit will show as &ldquo;—&rdquo; until that data exists.</p>
+          <p className="text-xs text-text-secondary">Anything missing is listed in the yellow box on the page, with a link to where it&rsquo;s fixed.</p>
         </div>
       )}
     </ModalShell>
@@ -432,15 +520,53 @@ function DisposalChip({ disposal }: { disposal: string | null }) {
   );
 }
 
+// ── Period / data warnings (both tabs) ───────────────────────────────────────────
+/** Things about the period or the data that hold its figures back — each with
+ *  where it's fixed. Shown on both tabs (the same yellow box as before). */
+function PeriodWarnings({ startDate, endDate, firstTripDate, health, mode, incompleteTrucks }: {
+  startDate: string; endDate: string; firstTripDate: string | null;
+  health: PlComputed["dataHealth"]; mode: Mode; incompleteTrucks?: number;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const startsBeforeData = !!firstTripDate && startDate < firstTripDate;
+  const endsInFuture = endDate > today;
+  const fix = (href: string, label: string) => (
+    <Link href={href} className="ml-1 font-semibold underline underline-offset-2 hover:text-warning-text">{label} →</Link>
+  );
+  const lines: ReactNode[] = [];
+  if (startsBeforeData) lines.push(
+    <>Trips are only recorded from {fmtDate(firstTripDate!)} — EMI and other costs before that date have no recorded trips to pay for them, so this period looks worse than it is. Pick a period starting on or after {fmtDate(firstTripDate!)} for a fair view.</>);
+  if (endsInFuture) lines.push(
+    <>This period runs past today — on Truck Profitability, EMI, documents and maintenance are counted only up to today ({fmtDate(today)}).</>);
+  if (health.noKmTrips) lines.push(
+    <>{health.noKmTrips} trip{health.noKmTrips === 1 ? " has" : "s have"} no km on {health.noKmTrips === 1 ? "its" : "their"} trip sheet, so Trip Profitability can&apos;t judge {health.noKmTrips === 1 ? "it" : "them"} (Truck Profitability still counts the hire).{fix("/trips/completed", "Add the km")}</>);
+  if (health.noDieselTrips) lines.push(
+    <>{health.noDieselTrips} trip{health.noDieselTrips === 1 ? "" : "s"} on {health.noDieselTrucks} truck{health.noDieselTrucks === 1 ? "" : "s"} can&apos;t be judged: no diesel cost per km (the truck needs at least 2 fuel fills).{fix("/maintenance/truck-fuel-record", "Fuel records")}</>);
+  if (incompleteTrucks) lines.push(
+    <>{incompleteTrucks} truck{incompleteTrucks !== 1 ? "s have" : " has"} no diesel or tyre cost per km in {mode} mode, so {incompleteTrucks !== 1 ? "their" : "its"} Net Profit leaves that out (marked with a warning icon).{fix("/insights/running-cost-calculator", "Running Cost Calculator")}</>);
+  if (health.documentsWithoutCost) lines.push(
+    <>{health.documentsWithoutCost} document{health.documentsWithoutCost === 1 ? " has" : "s have"} an expiry date but no cost entered, so {health.documentsWithoutCost === 1 ? "it counts" : "they count"} as ₹0.{fix("/maintenance/compliance", "Enter the costs")}</>);
+  if (!lines.length) return null;
+  return (
+    <div data-tour="pl-warnings" className="flex flex-col gap-1.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-xs text-warning-text-strong">
+      {lines.map((l, i) => (
+        <p key={i} className="flex items-start gap-1.5"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{l}</span></p>
+      ))}
+    </div>
+  );
+}
+
 // ── Trip Profitability tab ─────────────────────────────────────────────────────
 function TripProfitabilityTab({
   trips,
   totals,
   mode,
+  warnings,
 }: {
   trips: EnrichedTrip[];
   totals: PlComputed["tripTotals"];
-  mode: "Manual" | "Basic" | "Advanced";
+  mode: Mode;
+  warnings: ReactNode;
 }) {
   const [sortKey, setSortKey] = useState<TripSortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -448,7 +574,7 @@ function TripProfitabilityTab({
   // table into exactly the trips each card counts (tripPl >=/< 0, among
   // countedTrips — the same set the cards' own "X / Y" figures are built
   // from, so the filtered list never shows something the card didn't count).
-  const [profitFilter, setProfitFilter] = useState<"all" | "profitable" | "non-profitable">("all");
+  const [profitFilter, setProfitFilter] = useState<"all" | "profitable" | "non-profitable" | "unjudged">("all");
   // Row clicked → Trip Breakdown window explaining that trip's numbers.
   const [breakdownTripId, setBreakdownTripId] = useState<number | null>(null);
 
@@ -465,14 +591,17 @@ function TripProfitabilityTab({
     const base =
       profitFilter === "all" ? trips :
       profitFilter === "profitable" ? trips.filter((t) => !t.excludedFromTotals && fp(t) != null && fp(t)! >= 0) :
+      profitFilter === "unjudged" ? trips.filter((t) => !t.excludedFromTotals && fp(t) == null) :
       trips.filter((t) => !t.excludedFromTotals && fp(t) != null && fp(t)! < 0);
+    // Trips with no figure sort last, whichever way.
+    const nums = (t: EnrichedTrip): number | null =>
+      sortKey === "hire" ? t.hireAmount : sortKey === "expense" ? t.totalExpense : sortKey === "pl" ? t.money.tripProfit
+        : sortKey === "gross" ? t.money.gross : sortKey === "final" ? t.money.finalProfit : null;
     return [...base].sort((a, b) => {
-      let d = 0;
-      if (sortKey === "date")    d = a.tripDate.localeCompare(b.tripDate);
-      if (sortKey === "hire")    d = a.hireAmount - b.hireAmount;
-      if (sortKey === "expense") d = a.totalExpense - b.totalExpense;
-      if (sortKey === "pl")      d = a.money.tripProfit - b.money.tripProfit;
-      return sortDir === "asc" ? d : -d;
+      if (sortKey === "date") return sortDir === "asc" ? a.tripDate.localeCompare(b.tripDate) : b.tripDate.localeCompare(a.tripDate);
+      const x = nums(a), y = nums(b);
+      if (x == null || y == null) return x == null && y == null ? 0 : x == null ? 1 : -1;
+      return sortDir === "asc" ? x - y : y - x;
     });
   }, [trips, sortKey, sortDir, profitFilter]);
 
@@ -481,6 +610,13 @@ function TripProfitabilityTab({
   // (with an "Under Review" badge) but is left out of every total.
   const flaggedCount = totals.flagged;
   const judged = totals.finalTrips;
+  // Why the trips that can't be judged can't be (counted trips only).
+  const unjudged = trips.filter((t) => !t.excludedFromTotals && t.money.finalProfit == null);
+  const reasons = Object.entries(unjudged.reduce<Record<string, number>>((acc, t) => {
+    const r = unjudgedReason(t);
+    acc[r] = (acc[r] ?? 0) + 1;
+    return acc;
+  }, {})).map(([r, n]) => `${n} ${r.toLowerCase()}`).join(", ");
 
   return (
     <div className="flex flex-col gap-5">
@@ -488,7 +624,7 @@ function TripProfitabilityTab({
       <div data-tour="pl-trip-cards" className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-7">
         <StatCard label="Total Trips"      value={String(totals.trips)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trips" value={`${totals.profitable} / ${judged}`}
-          sub={judged ? `${totals.profitablePct}% · after all costs${totals.unjudged ? ` · ${totals.unjudged} can't be worked out (no Cost/KM or no km)` : ""}` : `No cost-per-km set (${mode})`}
+          sub={judged ? `${totals.profitablePct}% · after all costs${totals.unjudged ? ` · ${totals.unjudged} can't be judged (${reasons})` : ""}` : `No cost-per-km set (${mode})`}
           icon={<TrendingUp className="h-4 w-4" />} color="emerald"
           onClick={() => setProfitFilter((f) => (f === "profitable" ? "all" : "profitable"))}
           active={profitFilter === "profitable"} />
@@ -497,31 +633,43 @@ function TripProfitabilityTab({
           icon={<TrendingDown className="h-4 w-4" />} color="red"
           onClick={() => setProfitFilter((f) => (f === "non-profitable" ? "all" : "non-profitable"))}
           active={profitFilter === "non-profitable"} />
-        <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} sub={`Expenses: ${fmt(totals.tripExpenses)}`}
+        <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} exact={totals.hire} sub={`Expenses: ${fmt(totals.tripExpenses)}`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
-        <StatCard label="Trip Profit" value={fmt(totals.tripProfit)} sub={totals.tripProfit >= 0 ? "Hire − Trip Expenses" : "Hire − Trip Expenses (Loss)"}
+        <StatCard label="Trip Profit" value={fmt(totals.tripProfit)} exact={totals.tripProfit} sub={totals.tripProfit >= 0 ? "Hire − Trip Expenses" : "Hire − Trip Expenses (Loss)"}
           icon={totals.tripProfit >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           color={totals.tripProfit >= 0 ? "emerald" : "red"} />
-        <StatCard label="Gross Profit" value={totals.grossTrips ? fmt(totals.gross) : "—"}
+        <StatCard label="Gross Profit" value={totals.grossTrips ? fmt(totals.gross) : "—"} exact={totals.grossTrips ? totals.gross : null}
           sub={totals.grossTrips
             ? `After diesel · ${totals.grossTrips} of ${totals.counted} trips`
             : `No mileage cost set (${mode})`}
           icon={totals.gross >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           color={!totals.grossTrips ? "slate" : (totals.gross >= 0 ? "emerald" : "red")} />
-        <StatCard label="Final Profit" value={totals.final != null ? fmt(totals.final) : "—"}
+        <StatCard label="Final Profit" value={totals.final != null ? fmt(totals.final) : "—"} exact={totals.final}
           sub={totals.final != null ? `After truck expenses · ${totals.finalTrips} of ${totals.counted} trips` : `No cost-per-km set (${mode})`}
           icon={(totals.final ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           color={totals.final == null ? "slate" : (totals.final >= 0 ? "emerald" : "red")} />
       </div>
 
+      {/* Trips that can't be judged: say so, and let them be listed. */}
+      {unjudged.length > 0 && profitFilter !== "unjudged" && (
+        <p className="-mt-2 text-xs text-text-secondary">
+          {unjudged.length} trip{unjudged.length === 1 ? "" : "s"} can&apos;t be judged ({reasons}).{" "}
+          <button type="button" onClick={() => setProfitFilter("unjudged")}
+            className="font-semibold text-accent-text underline-offset-2 hover:underline">Show them</button>
+        </p>
+      )}
+
+      {warnings}
+
       {profitFilter !== "all" && (
         <div className="flex items-center gap-2 text-xs">
           <span className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold",
-            profitFilter === "profitable" ? "bg-success-surface-strong text-success-text" : "bg-danger-surface-strong text-danger-text"
+            profitFilter === "profitable" ? "bg-success-surface-strong text-success-text"
+              : profitFilter === "unjudged" ? "bg-fill-2 text-text-secondary" : "bg-danger-surface-strong text-danger-text"
           )}>
-            {profitFilter === "profitable" ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            Showing: {profitFilter === "profitable" ? "Profitable" : "Non-Profitable"} trips only
+            {profitFilter === "profitable" ? <TrendingUp className="h-3 w-3" /> : profitFilter === "unjudged" ? <AlertCircle className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            Showing: {profitFilter === "profitable" ? "Profitable trips" : profitFilter === "unjudged" ? "Trips that can't be judged" : "Non-Profitable trips"} only
           </span>
           <button
             type="button"
@@ -565,11 +713,11 @@ function TripProfitabilityTab({
                     hint="Hire on the trip sheet, less any commission on the customer's route." />
                   <SortTh label="Trip Expenses"  col="expense" current={sortKey} dir={sortDir} onSort={toggleSort}
                     hint="Everything entered on the trip sheet: driver batta, toll, port pass, parking, mamol and other expenses." />
-                  <HintTh label="Trip Profit" hint="Hire − Trip Expenses" />
-                  <HintTh label="Diesel Expenses" hint="Trip km × the truck's diesel cost per km (diesel price ÷ km per litre) in the selected mode." />
-                  <HintTh label="Gross Profit" hint="Trip Profit − Diesel Expenses" />
-                  <HintTh label="Truck Expenses" hint="Trip km × the truck's Cost/KM without diesel (EMI, AdBlue, tyres, maintenance, documents) in the selected mode — diesel has its own column." />
-                  <HintTh label="Final Profit" hint="Gross Profit − Truck Expenses" />
+                  <SortTh label="Trip Profit"    col="pl"      current={sortKey} dir={sortDir} onSort={toggleSort} hint="Hire − Trip Expenses" />
+                  <HintTh label="Diesel Expenses" hint="Trip km × diesel per km: the average price paid per litre in the trip's month ÷ the truck's mileage (km per litre) then." />
+                  <SortTh label="Gross Profit"   col="gross"   current={sortKey} dir={sortDir} onSort={toggleSort} hint="Trip Profit − Diesel Expenses" />
+                  <HintTh label="Truck Expenses" hint="Trip km × steady costs per km: EMI, documents and maintenance (the truck's monthly cost ÷ its monthly km), plus AdBlue and tyres. Hover a figure to see the split." />
+                  <SortTh label="Final Profit"   col="final"   current={sortKey} dir={sortDir} onSort={toggleSort} hint="Gross Profit − Truck Expenses: the trip after all costs. A trip with no km or no diesel rate can't be judged." />
                 </tr>
               </thead>
               <PagedTbody className="divide-y divide-separator-border" items={sorted}>
@@ -622,8 +770,8 @@ function TripProfitabilityTab({
                         <p className="text-[11px] text-text-tertiary">{t.totalKm.toLocaleString("en-IN")} km</p>
                       )}
                     </td>
-                    <td className={cn("px-4 py-3 text-right text-body-semibold", t.excludedFromTotals ? "text-text-tertiary" : "text-accent-text")}>{fmt(t.hireAmount)}</td>
-                    <td className={cn("px-4 py-3 text-right text-xs", t.excludedFromTotals ? "text-text-tertiary" : "text-text-secondary")}>{fmt(t.totalExpense)}</td>
+                    <td className={cn("px-4 py-3 text-right text-body-semibold", t.excludedFromTotals ? "text-text-tertiary" : "text-accent-text")}><Amount v={t.hireAmount} /></td>
+                    <td className={cn("px-4 py-3 text-right text-xs", t.excludedFromTotals ? "text-text-tertiary" : "text-text-secondary")}><Amount v={t.totalExpense} /></td>
                     <td className="px-4 py-3 text-right">
                       {t.excludedFromTotals ? <span className="text-[11px] text-text-tertiary">Excluded *</span> : <PlBadge value={t.money.tripProfit} />}
                     </td>
@@ -631,7 +779,7 @@ function TripProfitabilityTab({
                       {t.excludedFromTotals ? <span className="text-text-tertiary">—</span> : (() => {
                         const { diesel, dieselRate } = t.money;
                         return diesel != null && dieselRate != null
-                          ? <span title={`${t.totalKm.toLocaleString("en-IN")} km × ₹${dieselRate.toFixed(2)}/km`}>{fmt(diesel)}</span>
+                          ? <span title={`${t.totalKm.toLocaleString("en-IN")} km × ₹${dieselRate.toFixed(2)}/km = ${fmtFull(diesel)}`}>{fmt(diesel)}</span>
                           : <span className="text-text-tertiary">—</span>;
                       })()}
                     </td>
@@ -644,18 +792,24 @@ function TripProfitabilityTab({
                       {t.excludedFromTotals ? <span className="text-text-tertiary">—</span> : (() => {
                         const te = t.money.truckExpenses;
                         if (te == null) return <span className="text-text-tertiary">—</span>;
+                        const sp = t.money.split;
                         return t.money.truckExpensesIncludeDiesel ? (
                           <span title="Includes diesel — no diesel figure to split it out in this mode" className="cursor-help">
                             <WarnIcon aria-label="Incomplete" className="mr-1 inline size-3.5 -translate-y-px text-warning-text" />{fmt(te)}
                           </span>
-                        ) : fmt(te);
+                        ) : (
+                          <span className="cursor-help" title={sp ? `${splitTitle([["EMI", sp.emi], ["Maintenance", sp.maintenance], ["Tyres", sp.tyre], ["AdBlue", sp.adblue], ["Documents", sp.compliance]])} = ${fmtFull(te)}` : fmtFull(te)}>
+                            {fmt(te)}
+                          </span>
+                        );
                       })()}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {t.excludedFromTotals ? <span className="text-[11px] text-text-tertiary">Excluded *</span> : (
                         t.money.finalProfit != null
                           ? <PlBadge value={t.money.finalProfit} />
-                          : <span className="text-text-tertiary text-xs">—</span>
+                          : <span className="whitespace-nowrap rounded-full bg-fill-2 px-2 py-0.5 text-[11px] font-medium text-text-secondary"
+                              title="This trip can't be judged — see the yellow box above for how to fix it.">{unjudgedReason(t)}</span>
                       )}
                     </td>
                   </tr>
@@ -666,17 +820,17 @@ function TripProfitabilityTab({
                   <td colSpan={6} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
                     Total ({totals.counted} of {totals.trips} trips)
                   </td>
-                  <td className="px-4 py-3 text-right text-body-semibold text-accent-text">{fmt(totals.hire)}</td>
-                  <td className="px-4 py-3 text-right text-caption-1-semibold text-text-primary">{fmt(totals.tripExpenses)}</td>
+                  <td className="px-4 py-3 text-right text-body-semibold text-accent-text"><Amount v={totals.hire} /></td>
+                  <td className="px-4 py-3 text-right text-caption-1-semibold text-text-primary"><Amount v={totals.tripExpenses} /></td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.tripProfit} /></td>
                   <td className="px-4 py-3 text-right text-caption-1-semibold text-text-primary">
-                    {totals.grossTrips ? fmt(totals.diesel) : <span className="text-text-tertiary">—</span>}
+                    {totals.grossTrips ? <Amount v={totals.diesel} /> : <span className="text-text-tertiary">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {totals.grossTrips ? <PlBadge value={totals.gross} /> : <span className="text-text-tertiary text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-caption-1-semibold text-text-primary">
-                    {totals.truckExpenses > 0 ? fmt(totals.truckExpenses) : <span className="text-text-tertiary">—</span>}
+                    {totals.truckExpenses > 0 ? <Amount v={totals.truckExpenses} /> : <span className="text-text-tertiary">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {totals.final != null ? <PlBadge value={totals.final} /> : <span className="text-text-tertiary text-xs">—</span>}
@@ -750,7 +904,7 @@ function TripsReconcile({ money, entry, mode }: { money: TruckMoney; entry: Truc
       <div>
         <p className="mb-2 text-caption-1-semibold text-text-tertiary">Trips tab vs this total</p>
         <p className="rounded-xl border border-separator-border bg-background-primary-default px-4 py-3 text-xs text-text-secondary">
-          This truck&apos;s trips have no Final Profit in {mode} mode (no Cost/KM for it in the Running Cost Calculator), so they can&apos;t be compared.
+          This truck&apos;s trips can&apos;t be judged in {mode} mode (no km on their sheets, or no diesel cost per km for the truck), so they can&apos;t be compared.
         </p>
       </div>
     );
@@ -760,15 +914,15 @@ function TripsReconcile({ money, entry, mode }: { money: TruckMoney; entry: Truc
     value: rc.emi,
     detail: rc.tripsJudged === 0
       ? `No trips in this period — the EMI (${fmt(rc.emiActual)}) is still paid.`
-      : `The loan is paid every day, even when the truck doesn't run: ${fmt(rc.emiActual)} for this period. Its trips carry only ${fmt(rc.emiOnTrips)} (km driven × EMI per km).`,
+      : `The real instalments for this period: ${fmt(rc.emiActual)} (paid even on days the truck doesn't run). Its trips carry ${fmt(rc.emiOnTrips)} at a steady EMI per km.`,
   });
   if (Math.abs(rc.maintenance) >= 0.01) lines.push({
-    label: "Maintenance: actual bills vs per-km rate",
+    label: "Maintenance: real bills vs normal",
     value: rc.maintenance,
-    detail: `Actual maintenance bills in this period: ${fmt(rc.maintenanceActual)}. The trips were charged ${fmt(rc.maintenanceOnTrips)} (km × the maintenance rate).`,
+    detail: `Real maintenance bills in this period: ${fmt(rc.maintenanceActual)}. The trips carry ${fmt(rc.maintenanceOnTrips)} at the truck's normal maintenance per km.`,
   });
   if (Math.abs(rc.documents) >= 0.01) lines.push({
-    label: "Documents: period share vs per-km rate",
+    label: "Documents: period share vs steady rate",
     value: rc.documents,
     detail: `This period's share of RC, insurance, permits…: ${fmt(rc.documentsActual)}. The trips were charged ${fmt(rc.documentsOnTrips)} (km × the documents rate).`,
   });
@@ -777,7 +931,7 @@ function TripsReconcile({ money, entry, mode }: { money: TruckMoney; entry: Truc
     value: rc.other,
     detail: [
       rc.tripsFlagged ? `${rc.tripsFlagged} trip${rc.tripsFlagged !== 1 ? "s" : ""} under audit review (left out of the Trips tab's totals)` : "",
-      rc.tripsCounted > rc.tripsJudged ? `${rc.tripsCounted - rc.tripsJudged} trip${rc.tripsCounted - rc.tripsJudged !== 1 ? "s" : ""} with no Final Profit (no Cost/KM)` : "",
+      rc.tripsCounted > rc.tripsJudged ? `${rc.tripsCounted - rc.tripsJudged} trip${rc.tripsCounted - rc.tripsJudged !== 1 ? "s" : ""} that can't be judged (no km on the sheet, or no diesel rate) — their hire and expenses count here only` : "",
       !rc.itemised && rc.tripsJudged > 0 ? `the trips' costs aren't itemised in ${mode} mode` : "",
     ].filter(Boolean).join("; ") || "Diesel, AdBlue or tyre rates differ between the two tabs.",
   });
@@ -814,9 +968,71 @@ function TripsReconcile({ money, entry, mode }: { money: TruckMoney; entry: Truc
         <p className="mt-1 text-[11px] text-text-tertiary">
           {same
             ? "Both tabs agree for this truck."
-            : `Both figures are right: this tab counts ${entry.registrationNumber || entry.truckId}'s actual costs for the whole period; the Trips tab charges each trip only for the km it drove.`}
+            : `Both figures are right: this tab counts ${entry.registrationNumber || entry.truckId}'s real costs for the whole period; the Trips tab judges each trip at steady costs per km.`}
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Why Trip Profitability and Truck Profitability end on different totals —
+ * both are right: trips are judged at steady costs per km; trucks pay the real
+ * bills. Trucks' net = trips' profit + each line below, exactly (the server's
+ * reconciliation, pl_compute.reconcile).
+ */
+function WhyTabsDiffer({ why, truckNet }: { why: NonNullable<PlComputed["truckTotals"]["whyDiffer"]>; truckNet: number }) {
+  const [open, setOpen] = useState(false);
+  const gap = truckNet - why.tripsFinal;
+  if (Math.abs(gap) < 1) return null;
+  const signed = (v: number) => `${v < 0 ? "−" : "+"}${fmt(Math.abs(v))}`;
+  const lines = [
+    { label: "EMI not covered by trips", value: why.emi,
+      detail: `EMI for days trucks stood idle or ran less than normal${why.idleTrucks ? ` (${why.idleTrucks} truck${why.idleTrucks === 1 ? "" : "s"} had no trips)` : ""}.` },
+    { label: "Repairs above (or below) normal", value: why.maintenance,
+      detail: "This period's real repair bills compared with the trucks' normal monthly maintenance." },
+    { label: "Documents", value: why.documents, detail: "Document costs falling in this period vs the steady share on trips." },
+    { label: why.noKmTrips ? `Trips with no km (${why.noKmTrips})` : "Other", value: why.other,
+      detail: why.noKmTrips
+        ? "Their trip sheets have no km, so Trip Profitability can't judge them; Truck Profitability still counts their hire. Add their km to fix."
+        : "Small items counted on one tab only." },
+  ].filter((l) => Math.abs(l.value) >= 1);
+  return (
+    <div data-tour="pl-why-differ" className="rounded-xl border border-separator-border bg-background-primary-default shadow-sm">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left text-sm">
+        <Info className="h-4 w-4 shrink-0 text-accent-text" />
+        <span className="font-semibold text-text-primary">Why the two tabs differ</span>
+        <span className="text-text-secondary">
+          Trips {signed(why.tripsFinal)} · Trucks {signed(truckNet)} · difference {signed(gap)}
+        </span>
+        <ChevronDown className={cn("ml-auto h-4 w-4 text-text-tertiary transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2 border-t border-separator-border px-4 py-3 text-sm">
+          <p className="text-xs text-text-secondary">
+            Trip Profitability judges each trip at <b>steady costs per km</b> (was the trip a good deal?). Truck Profitability
+            uses the <b>real bills</b> (what each truck really made). Both are right; the difference is made of:
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium text-text-primary">Trip Profitability: profit after all costs</span>
+            <span className="font-semibold tabular-nums">{signed(why.tripsFinal)}</span>
+          </div>
+          {lines.map((l) => (
+            <div key={l.label}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-text-primary">{l.label}</span>
+                <span className={cn("font-semibold tabular-nums", l.value < 0 ? "text-danger-text" : "text-success-text")}>{signed(l.value)}</span>
+              </div>
+              <p className="text-[11px] text-text-tertiary">{l.detail}</p>
+            </div>
+          ))}
+          <div className="flex items-center justify-between gap-3 border-t border-separator-border pt-2">
+            <span className="font-semibold text-text-primary">= Truck Profitability: net profit</span>
+            <span className={cn("font-semibold tabular-nums", truckNet >= 0 ? "text-success-text" : "text-danger-text")}>{signed(truckNet)}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -881,8 +1097,10 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
           <WaterfallRow scale={scale} label="= Trip Profit" value={money.tripProfit} kind="result" />
           <WaterfallRow scale={scale} label="Diesel" value={money.diesel} kind="out"
             detail={km <= 0 ? "No km driven." : money.dieselRate != null
-              ? `${km.toLocaleString("en-IN")} km × ₹${money.dieselRate.toFixed(2)} per km (Running Cost Calculator → ${mode} → Mileage)`
-              : `No Mileage cost per km for this truck in Running Cost Calculator → ${mode}.`} />
+              ? (mode === "Manual"
+                ? `${km.toLocaleString("en-IN")} km × ₹${money.dieselRate.toFixed(2)} per km (Running Cost Calculator → Manual → Mileage)`
+                : `${km.toLocaleString("en-IN")} km × ₹${money.dieselRate.toFixed(2)} per km on average — each trip at its month's diesel price paid ÷ the truck's mileage then (Fuel History)`)
+              : "No diesel cost per km — the truck needs at least 2 fuel fills in Fuel History."} />
           <WaterfallRow scale={scale} label="= Gross Profit" value={money.gross} kind="result" />
           <WaterfallRow scale={scale} label="AdBlue" value={money.adblue} kind="out"
             detail={km <= 0 ? "No km driven." : money.adblueRate != null
@@ -890,14 +1108,23 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
               : "No AdBlue rate yet — the truck needs at least 2 fills in Truck's AdBlue History (counted as ₹0)."} />
           <WaterfallRow scale={scale} label="Tyres" value={money.tyres} kind="out"
             detail={km <= 0 ? "No km driven." : money.tyreRate != null
-              ? `${km.toLocaleString("en-IN")} km × ₹${money.tyreRate.toFixed(2)} per km (Running Cost Calculator → ${mode} → Tyre Charges)`
-              : `No Tyre Charges per km for this truck in Running Cost Calculator → ${mode}.`} />
+              ? `${km.toLocaleString("en-IN")} km × ₹${money.tyreRate.toFixed(2)} per km (${mode === "Advanced"
+                ? "the tyres fitted on this truck in each trip's month: cost ÷ expected range"
+                : mode === "Basic" ? "the tyre cost per km of its tyre layout" : "Running Cost Calculator → Manual → Tyre Charges"})`
+              : `No tyre cost per km for this truck in ${mode} mode.`} />
           <WaterfallRow scale={scale} label="Maintenance" value={entry.maintenanceExpenses} kind="out"
-            detail={`${entry.maintenanceCount} maintenance record${entry.maintenanceCount !== 1 ? "s" : ""} in this period (Truck Maintenance).`} />
+            detail={`The real bills: ${entry.maintenanceCount} maintenance record${entry.maintenanceCount !== 1 ? "s" : ""} dated in this period (Truck Maintenance).`} />
           <WaterfallRow scale={scale} label="EMI" value={entry.emiShare} kind="out"
-            detail={emiDetails.length ? `This period's share of ${emiDetails.length} loan${emiDetails.length !== 1 ? "s" : ""} (Finance → EMI) — up to today.` : "No active loan."} />
+            detail={emiDetails.length ? (
+              <>
+                {emiDetails.map((e) => `${e.emiName} ${fmtFull(e.monthlyEmi)}`).join(" + ")} a month (each a row on Finance → EMI Tracking).
+                {emiGapText(emiDetails) && (
+                  <span className="mt-0.5 block font-medium text-warning-text">{emiGapText(emiDetails)}</span>
+                )}
+              </>
+            ) : "No active loan."} />
           <WaterfallRow scale={scale} label="Documents" value={entry.documentShare} kind="out"
-            detail={docs.length ? docs.map(([k, v]) => `${DOC_LABELS[k] ?? k} ${fmt(v)}`).join(" · ") : "None recorded."} />
+            detail={docs.length ? `This period's share of each document's cost: ${docs.map(([k, v]) => `${DOC_LABELS[k] ?? k} ${fmt(v)}`).join(" · ")}` : "No document costs entered (Compliance & Renewals)."} />
           <WaterfallRow scale={scale} label="= Net Profit" value={money.net} kind="result" />
         </div>
       </div>
@@ -921,10 +1148,22 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
                     <p className="text-body-semibold text-purple-text">{fmt(e.monthlyEmi)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-purple-text">Period Share</p>
-                    <p className="text-body-semibold text-purple-text-strong">{fmt(e.shareForPeriod)}</p>
+                    <p className="text-[10px] text-purple-text">Counted for this period</p>
+                    <p className="text-body-semibold text-purple-text-strong" title={fmtFull(e.shareForPeriod)}>
+                      {fmt(e.shareForPeriod)}
+                      {e.fullForPeriod - e.shareForPeriod >= 1 && (
+                        <span className="ml-1 text-[11px] font-normal text-purple-text">of {fmt(e.fullForPeriod)}</span>
+                      )}
+                    </p>
                   </div>
                 </div>
+                {e.uncounted.length > 0 && e.fullForPeriod - e.shareForPeriod >= 1 && (
+                  <ul className="mt-2 space-y-0.5 border-t border-purple-border pt-2 text-[11px] text-purple-text">
+                    {e.uncounted.map((g, j) => (
+                      <li key={j}>{fmtFull(g.amount)} for {dayRange(g.from, g.to)}: {GAP_WHY[g.reason]}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>
@@ -1028,35 +1267,54 @@ function TruckProfitabilityTab({
   data,
   totals,
   mode,
-  firstTripDate,
-  startDate,
-  endDate,
+  warnings,
 }: {
   data: PlComputedTruck[];
   totals: PlComputed["truckTotals"];
-  mode: "Manual" | "Basic" | "Advanced";
-  firstTripDate: string | null;
-  startDate: string;
-  endDate: string;
+  mode: Mode;
+  warnings: ReactNode;
 }) {
   const [expandedTruck, setExpandedTruck] = useState<string | null>(null);
   // Clicking "Profitable Trucks" / "Non-Profitable Trucks" drills the table
   // into exactly the trucks each card counts (Net Profit >=/< 0).
   const [profitFilter, setProfitFilter] = useState<"all" | "profitable" | "non-profitable">("all");
 
+  // Column sorting — none until a heading is clicked (then the server's order).
+  const [sortKey, setSortKey] = useState<TruckSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  function toggleSort(col: TruckSortKey) {
+    if (sortKey === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(col); setSortDir("desc"); }
+  }
+
   const rows = useMemo(() => data.map((e) => ({ entry: e, money: e.money })), [data]);
-  const filtered = profitFilter === "all" ? rows
+  const picked = profitFilter === "all" ? rows
     : profitFilter === "profitable" ? rows.filter((r) => r.money.net >= 0)
     : rows.filter((r) => r.money.net < 0);
+  const value = (r: (typeof rows)[number]): number | null => {
+    switch (sortKey) {
+      case "trips": return r.entry.tripCount;
+      case "km": return r.entry.totalKm;
+      case "hire": return r.entry.totalHireAmount;
+      case "expense": return r.entry.tripExpenses;
+      case "tripProfit": return r.money.tripProfit;
+      case "diesel": return r.money.diesel;
+      case "gross": return r.money.gross;
+      case "running": return r.money.running;
+      case "fixed": return r.money.fixed;
+      case "net": return r.money.net;
+      default: return null;
+    }
+  };
+  const filtered = sortKey == null ? picked : [...picked].sort((a, b) => {
+    const x = value(a), y = value(b);
+    if (x == null || y == null) return x == null && y == null ? 0 : x == null ? 1 : -1;
+    return sortDir === "asc" ? x - y : y - x;
+  });
   // Totals and counts come from the server, like every figure here.
   const idle = totals.idle;
-  const incompleteCount = totals.incomplete;
   const profitable = totals.profitable;
   const nonProfitable = totals.nonProfitable;
-
-  const today = new Date().toISOString().slice(0, 10);
-  const startsBeforeData = !!firstTripDate && startDate < firstTripDate;
-  const endsInFuture = endDate > today;
 
   return (
     <div className="flex flex-col gap-5">
@@ -1075,33 +1333,18 @@ function TruckProfitabilityTab({
           icon={<TrendingDown className="h-4 w-4" />} color="red"
           onClick={() => setProfitFilter((f) => (f === "non-profitable" ? "all" : "non-profitable"))}
           active={profitFilter === "non-profitable"} />
-        <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} sub={`${totals.trips} trips`}
+        <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} exact={totals.hire} sub={`${totals.trips} trips`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
-        <StatCard label="Gross Profit" value={fmt(totals.gross)} sub="After trip expenses & diesel"
+        <StatCard label="Gross Profit" value={fmt(totals.gross)} exact={totals.gross} sub="After trip expenses & diesel"
           icon={totals.gross >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           color={totals.gross >= 0 ? "emerald" : "red"} />
-        <StatCard label="Net Profit" value={fmt(totals.net)} sub="After every cost"
+        <StatCard label="Net Profit" value={fmt(totals.net)} exact={totals.net} sub="After every cost"
           icon={totals.net >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           color={totals.net >= 0 ? "emerald" : "red"} />
       </div>
 
       {/* Period / data warnings */}
-      {(startsBeforeData || endsInFuture || incompleteCount > 0) && (
-        <div data-tour="pl-warnings" className="flex flex-col gap-1.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-xs text-warning-text-strong">
-          {startsBeforeData && (
-            <p className="flex items-start gap-1.5"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Trips are only recorded from {fmtDate(firstTripDate!)} — EMI and other costs before that date have no recorded trips to pay for them, so this period looks worse than it is. Pick a period starting on or after {fmtDate(firstTripDate!)} for a fair view.</p>
-          )}
-          {endsInFuture && (
-            <p className="flex items-start gap-1.5"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              This period runs past today — EMI, documents and maintenance are counted only up to today ({fmtDate(today)}).</p>
-          )}
-          {incompleteCount > 0 && (
-            <p className="flex items-start gap-1.5"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {incompleteCount} truck{incompleteCount !== 1 ? "s have" : " has"} no diesel or tyre cost per km in {mode} mode, so their Net Profit leaves that out (marked with a warning icon). Set them in the Running Cost Calculator.</p>
-          )}
-        </div>
-      )}
+      {warnings}
 
       {profitFilter !== "all" && (
         <div className="flex items-center gap-2 text-xs">
@@ -1143,16 +1386,16 @@ function TruckProfitabilityTab({
                 <tr>
                   <th className="px-2 py-3" />
                   <th className="px-4 py-3 text-left text-caption-1-semibold text-text-secondary">Truck</th>
-                  <th className="px-4 py-3 text-center text-caption-1-semibold text-text-secondary">Trips</th>
-                  <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">KM</th>
-                  <HintTh label="Hire" hint="Hire from this truck's trip sheets in the period, less route commission." />
-                  <HintTh label="Trip Expenses" hint="Everything entered on those trip sheets (batta, toll, port pass, …)." />
-                  <HintTh label="Trip Profit" hint="Hire − Trip Expenses" />
-                  <HintTh label="Diesel" hint="KM × the truck's Mileage cost per km in the Running Cost Calculator (selected mode)." />
-                  <HintTh label="Gross Profit" hint="Trip Profit − Diesel" />
-                  <HintTh label="Running Costs" hint="AdBlue and Tyres (KM × their per-km cost from the Running Cost Calculator) + Maintenance records in the period." />
-                  <HintTh label="Fixed Costs" hint="EMI share + document share (RC, FC, insurance, permits…) for the period, up to today." />
-                  <HintTh label="Net Profit" hint="Gross Profit − Running Costs − Fixed Costs" />
+                  <SortTh label="Trips" col="trips" current={sortKey} dir={sortDir} onSort={toggleSort} align="center" />
+                  <SortTh label="KM" col="km" current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="Hire" col="hire" current={sortKey} dir={sortDir} onSort={toggleSort} hint="Hire from this truck's trip sheets in the period, less route commission." />
+                  <SortTh label="Trip Expenses" col="expense" current={sortKey} dir={sortDir} onSort={toggleSort} hint="Everything entered on those trip sheets (batta, toll, port pass, …)." />
+                  <SortTh label="Trip Profit" col="tripProfit" current={sortKey} dir={sortDir} onSort={toggleSort} hint="Hire − Trip Expenses" />
+                  <SortTh label="Diesel" col="diesel" current={sortKey} dir={sortDir} onSort={toggleSort} hint="The sum of its trips' diesel: each trip's km × that month's diesel price paid ÷ the truck's mileage then." />
+                  <SortTh label="Gross Profit" col="gross" current={sortKey} dir={sortDir} onSort={toggleSort} hint="Trip Profit − Diesel" />
+                  <SortTh label="Running Costs" col="running" current={sortKey} dir={sortDir} onSort={toggleSort} hint="AdBlue and tyres for the km driven + the real maintenance bills in the period. Hover a figure to see the split." />
+                  <SortTh label="Fixed Costs" col="fixed" current={sortKey} dir={sortDir} onSort={toggleSort} hint="The real EMI instalments (one per month, every loan) + the period's share of each document's cost, up to today. Hover a figure to see the split." />
+                  <SortTh label="Net Profit" col="net" current={sortKey} dir={sortDir} onSort={toggleSort} hint="Gross Profit − Running Costs − Fixed Costs: what the truck really made." />
                 </tr>
               </thead>
               <PagedTbody items={filtered}>
@@ -1189,17 +1432,29 @@ function TruckProfitabilityTab({
                       <td className="px-4 py-3 text-right text-xs text-text-secondary tabular-nums">
                         {entry.totalKm > 0 ? entry.totalKm.toLocaleString("en-IN") : <span className="text-text-tertiary">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-accent-text">{fmt(entry.totalHireAmount)}</td>
-                      <td className="px-4 py-3 text-right text-xs text-text-secondary">{fmt(entry.tripExpenses)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-accent-text"><Amount v={entry.totalHireAmount} /></td>
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary"><Amount v={entry.tripExpenses} /></td>
                       <td className="px-4 py-3 text-right"><PlBadge value={money.tripProfit} /></td>
                       <td className="px-4 py-3 text-right text-xs text-text-secondary">
-                        {money.diesel != null ? fmt(money.diesel) : <span className="text-text-tertiary">—</span>}
+                        {money.diesel != null ? <Amount v={money.diesel} /> : <span className="text-text-tertiary">—</span>}
                       </td>
                       <td className="px-4 py-3 text-right">
                         {money.gross != null ? <PlBadge value={money.gross} /> : <span className="text-text-tertiary text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-text-secondary">{fmt(money.running)}</td>
-                      <td className="px-4 py-3 text-right text-xs text-text-secondary">{fmt(money.fixed)}</td>
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary">
+                        <span className="cursor-help" title={`${splitTitle([["Maintenance", entry.maintenanceExpenses], ["Tyres", money.tyres], ["AdBlue", money.adblue]])} = ${fmtFull(money.running)}`}>{fmt(money.running)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-text-secondary">
+                        <span className="cursor-help" title={`${splitTitle([["EMI", entry.emiShare], ["Documents", entry.documentShare]])} = ${fmtFull(money.fixed)}${emiGapText(entry.emiDetails ?? []) ? `\nEMI: ${emiGapText(entry.emiDetails ?? [])}` : ""}`}>
+                          {fmt(money.fixed)}
+                          {(() => {
+                            const full = (entry.emiDetails ?? []).reduce((s, l) => s + l.fullForPeriod, 0);
+                            return full - entry.emiShare >= 1
+                              ? <span className="ml-1 rounded-full bg-warning-surface px-1.5 py-px text-[10px] font-semibold text-warning-text" title="Less than the full EMI instalments is counted here — hover for why">part EMI</span>
+                              : null;
+                          })()}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {money.incomplete.length > 0 && (
                           <span title={`Missing: ${money.incomplete.join("; ")}`} className="mr-1 inline-flex cursor-help text-warning-text"><WarnIcon className="size-3.5" /></span>
@@ -1227,13 +1482,13 @@ function TruckProfitabilityTab({
                   </td>
                   <td className="px-4 py-3 text-center text-accent-text">{totals.trips}</td>
                   <td className="px-4 py-3 text-right text-xs text-text-primary tabular-nums">{totals.km > 0 ? totals.km.toLocaleString("en-IN") : "—"}</td>
-                  <td className="px-4 py-3 text-right text-accent-text">{fmt(totals.hire)}</td>
-                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.tripExpenses)}</td>
+                  <td className="px-4 py-3 text-right text-accent-text"><Amount v={totals.hire} /></td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary"><Amount v={totals.tripExpenses} /></td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.tripProfit} /></td>
-                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.diesel)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary"><Amount v={totals.diesel} /></td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.gross} /></td>
-                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.running)}</td>
-                  <td className="px-4 py-3 text-right text-xs text-text-primary">{fmt(totals.fixed)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary"><Amount v={totals.running} /></td>
+                  <td className="px-4 py-3 text-right text-xs text-text-primary"><Amount v={totals.fixed} /></td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totals.net} /></td>
                 </tr>
               </tfoot>
@@ -1243,8 +1498,8 @@ function TruckProfitabilityTab({
       </div>
 
       <p className="text-[11px] text-text-tertiary">
-        Net Profit = Hire − Trip Expenses − Diesel − AdBlue − Tyres − Maintenance − EMI − Documents. Diesel, AdBlue and Tyres use the Running Cost Calculator&rsquo;s
-        per-km figures for the selected mode; everything else comes from real records. Click a row to see the full breakdown.
+        Net Profit = Hire − Trip Expenses − Diesel − AdBlue − Tyres − Maintenance − EMI − Documents. Diesel, AdBlue and tyres are for the km
+        driven (diesel at each month&rsquo;s price paid); maintenance, EMI and documents are the real costs of the period. Click a row to see the full breakdown.
       </p>
     </div>
   );
@@ -1260,7 +1515,18 @@ export default function PLSummaryPage() {
   const [loading, setLoading]                = useState(false);
   const [error, setError]                    = useState<string | null>(null);
   const [tab, setTab]                        = useState<Tab>("trips");
-  const [mode, setMode]                      = useState<"Manual" | "Basic" | "Advanced">("Manual");
+  // Opens in Advanced (built from each truck's own records); each person's last choice is remembered.
+  const [mode, setModeState]                 = useState<Mode>("Advanced");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(MODE_KEY);
+      if (saved === "Manual" || saved === "Basic" || saved === "Advanced") setModeState(saved);
+    } catch { /* private window — Advanced it is */ }
+  }, []);
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    try { localStorage.setItem(MODE_KEY, m); } catch { /* not remembered, still switched */ }
+  };
   const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[]; search: string } | null>(null);
   const [preparingExport, setPreparingExport] = useState(false);
   const [showHowCalculated, setShowHowCalculated] = useState(false);
@@ -1440,6 +1706,25 @@ export default function PLSummaryPage() {
               <p className="text-title-3-semibold text-text-primary truncate">
                 {tab === "trips" ? "Trip Profitability" : "Truck Profitability"}
               </p>
+              {/* A period that isn't over: say how much of it has happened. */}
+              {(() => {
+                const today = new Date().toISOString().slice(0, 10);
+                if (endDate <= today || startDate > today) return null;
+                const days = (a: string, b: string) => Math.round((new Date(`${b}T00:00:00`).getTime() - new Date(`${a}T00:00:00`).getTime()) / 86_400_000) + 1;
+                const sameMonth = startDate.slice(0, 7) === endDate.slice(0, 7);
+                const label = sameMonth ? new Date(`${startDate}T00:00:00`).toLocaleDateString("en-IN", { month: "long" }) : "This period";
+                return (
+                  <p className="mt-0.5 text-xs font-semibold text-warning-text">
+                    {label} so far: {days(startDate, today)} of {days(startDate, endDate)} days — on Truck Profitability, EMI and other costs count only up to today.
+                  </p>
+                );
+              })()}
+              {/* What this tab answers. */}
+              <p className="mt-0.5 text-xs text-text-secondary">
+                {tab === "trips"
+                  ? "Was each trip a good deal? Each trip is judged at steady costs per km, whether the truck was busy or quiet that month."
+                  : "What did each truck really make? The real bills: full EMI instalments (idle days too), actual repair bills and documents."}
+              </p>
             </div>
             <div className="flex items-center gap-2 rounded-xl border border-accent-border bg-accent-surface px-4 py-2.5 shadow-sm shrink-0">
               <CalendarDays className="h-4 w-4 text-accent-text shrink-0" />
@@ -1493,10 +1778,18 @@ export default function PLSummaryPage() {
             </div>
           )}
 
-          {tab === "trips"  && <TripProfitabilityTab trips={computed.trips} totals={computed.tripTotals} mode={mode} />}
+          {computed.truckTotals.whyDiffer && (
+            <WhyTabsDiffer why={computed.truckTotals.whyDiffer} truckNet={computed.truckTotals.net} />
+          )}
+
+          {tab === "trips"  && (
+            <TripProfitabilityTab trips={computed.trips} totals={computed.tripTotals} mode={mode}
+              warnings={<PeriodWarnings startDate={startDate} endDate={endDate} firstTripDate={firstTripDate} health={computed.dataHealth} mode={mode} />} />
+          )}
           {tab === "trucks" && (
             <TruckProfitabilityTab data={computed.trucks} totals={computed.truckTotals} mode={mode}
-              firstTripDate={firstTripDate} startDate={startDate} endDate={endDate} />
+              warnings={<PeriodWarnings startDate={startDate} endDate={endDate} firstTripDate={firstTripDate} health={computed.dataHealth}
+                mode={mode} incompleteTrucks={computed.truckTotals.incomplete} />} />
           )}
         </>
       )}
@@ -1508,9 +1801,9 @@ export default function PLSummaryPage() {
           <p className="mt-2 text-xs text-text-tertiary max-w-sm mx-auto leading-relaxed">
             Trip Profit = Hire − Trip Expenses
             <br />
-            Gross Profit = Trip Profit − Diesel Expenses (KM × Mileage Cost/KM)
+            Gross Profit = Trip Profit − Diesel (km × diesel per km)
             <br />
-            Final Profit = Gross Profit − Truck Expenses
+            Final Profit = Gross Profit − EMI, maintenance, tyres, AdBlue and documents per km
           </p>
         </div>
       )}
@@ -1525,6 +1818,10 @@ export default function PLSummaryPage() {
           blob={exportPreview.blob}
           sheets={exportPreview.sheets}
           onClose={() => setExportPreview(null)}
+          // The full report as a PDF (summary, trucks, trips) — not the sheet on screen.
+          onPdf={computed ? () => downloadPlReportPdf({
+            computed, startDate, endDate, mode, search: exportPreview.search, filename: exportPreview.filename,
+          }) : undefined}
         />
       )}
     </div>

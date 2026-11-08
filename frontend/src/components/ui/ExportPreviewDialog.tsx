@@ -15,6 +15,8 @@ type Props = {
   blob: Blob;
   sheets: PreviewSheet[];
   onClose: () => void;
+  /** A page's own PDF report (e.g. Profitability), instead of printing the sheet on screen. */
+  onPdf?: () => Promise<void>;
 };
 
 const PREVIEW_ROW_LIMIT = 200;
@@ -22,7 +24,7 @@ const PDF_ROW_LIMIT = 3000;
 
 // Read-only preview of an export (same data the Excel file contains) with the
 // choice to download it as Excel (the original file) or PDF (rendered here).
-export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: Props) {
+export function ExportPreviewDialog({ title, filename, blob, sheets, onClose, onPdf }: Props) {
   const [active, setActive] = useState(0);
   const [pdfBusy, setPdfBusy] = useState(false);
   const sheet = sheets[active] ?? { name: "", rows: [] };
@@ -30,7 +32,19 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: 
   const shown = useMemo(() => body.slice(0, PREVIEW_ROW_LIMIT), [body]);
 
   async function handlePdf() {
-    if (!header || pdfBusy) return;
+    if (pdfBusy) return;
+    if (onPdf) {
+      setPdfBusy(true);
+      try {
+        await onPdf();
+      } catch {
+        showError("Failed to generate PDF.");
+      } finally {
+        setPdfBusy(false);
+      }
+      return;
+    }
+    if (!header) return;
     setPdfBusy(true);
     try {
       const { default: jsPDF } = await import("jspdf");
@@ -177,7 +191,9 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: 
 
         {/* Footer */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-separator-border px-6 py-3.5">
-          <p className="text-xs text-text-tertiary">Downloads include every row{sheets.length > 1 ? " and sheet" : ""}.</p>
+          <p className="text-xs text-text-tertiary">
+            Downloads include every row{sheets.length > 1 ? " and sheet" : ""}{onPdf ? " · the PDF is the full report (summary, trucks and trips)" : ""}.
+          </p>
           <div className="flex items-center gap-2">
           <button
             type="button"
@@ -190,7 +206,7 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: 
           <button
             type="button"
             onClick={handlePdf}
-            disabled={pdfBusy || !header || body.length === 0}
+            disabled={pdfBusy || (!onPdf && (!header || body.length === 0))}
             className="flex items-center gap-2 rounded-full border border-danger-border bg-danger-surface px-4 py-2 text-body-semibold text-danger-text transition duration-200 hover:bg-danger-surface-strong hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}

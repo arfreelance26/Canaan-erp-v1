@@ -240,6 +240,13 @@ type FuelHistoryViewDialogProps = {
 // Recompute FuelStats from a logs array (used for instant optimistic updates)
 // ---------------------------------------------------------------------------
 
+// A loaded truck can't do worse or better than this: a gap between two fills
+// outside it is a typing mistake or a missing fill, and is left out of the
+// mileage. Mirrors FUEL_KML_MIN / FUEL_KML_MAX in backend/routers/maintenance.py.
+const FUEL_KML_MIN = 1.5;
+const FUEL_KML_MAX = 6.0;
+const isPlausible = (mileage: number) => mileage >= FUEL_KML_MIN && mileage <= FUEL_KML_MAX;
+
 // Modified Z-score outlier filter (MAD-based) — mirrors backend _iqr_filter.
 // Robust for small datasets where standard IQR fences are distorted by the outlier.
 // Threshold 3.5 = Iglewicz-Hoaglin standard recommendation.
@@ -271,8 +278,8 @@ function computeStatsFromLogs(logsArr: FuelLog[]): FuelStats {
     if (dist > 0 && litres > 0) rawIntervals.push({ distance: dist, litres, mileage: dist / litres });
   }
 
-  // IQR outlier removal — mirrors backend _iqr_filter
-  const intervals = _iqrFilter(rawIntervals);
+  // Impossible gaps out, then outlier removal — mirrors the backend.
+  const intervals = _iqrFilter(rawIntervals.filter((r) => isPlausible(r.mileage)));
 
   const totalDistance = intervals.reduce((s, r) => s + r.distance, 0);
   const totalFuel     = intervals.reduce((s, r) => s + r.litres, 0);
@@ -515,9 +522,19 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                             </td>
                             <td className="px-6 py-4 text-right">
                               {Number(log.mileage) > 0 ? (
-                                <span className="font-semibold text-text-primary">
-                                  {Number(log.mileage).toFixed(2)} km/L
-                                </span>
+                                isPlausible(Number(log.mileage)) ? (
+                                  <span className="font-semibold text-text-primary">
+                                    {Number(log.mileage).toFixed(2)} km/L
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex flex-col items-end gap-0.5"
+                                    title={`Not possible for a truck (outside ${FUEL_KML_MIN}–${FUEL_KML_MAX} km/L): a wrong odometer reading here or on the fill before, or a fill that was never entered. Left out of the mileage.`}
+                                  >
+                                    <span className="font-semibold text-text-tertiary line-through">{Number(log.mileage).toFixed(2)} km/L</span>
+                                    <span className="rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">Ignored — check</span>
+                                  </span>
+                                )
                               ) : (
                                 <span className="text-text-tertiary">-</span>
                               )}

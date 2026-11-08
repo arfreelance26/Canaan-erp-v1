@@ -173,7 +173,7 @@ def _compliance_per_day_all(db: Session) -> dict[int, float]:
     """Per-truck total compliance cost per WORKING day — mirrors the Cost
     Breakdown dialog's "Per Day" total: Σ (expense ÷ validity days) per
     document, restated per working day (× 30.44 ÷ 26) like every other per-day
-    cost in the app. Validity days = most-recent history entry → expiry date.
+    cost in the app. From the document records, like the P&L (compliance_docs_all).
     {truck.id: ₹/working day}."""
     from cost_units import per_working_day_from_calendar
 
@@ -197,63 +197,56 @@ COMPLIANCE_COST_DOCS = [
 ]
 
 
-def compliance_docs_all(db: Session) -> dict[int, list[dict]]:
+def compliance_docs_all(db: Session, truck_ids: set[int] | None = None) -> dict[int, list[dict]]:
     """Every truck's 7 documents with what each costs per calendar day
     (expense ÷ validity days; None when it can't be worked out, with why) —
-    behind _compliance_per_day_all and the calculator's "How is this
-    calculated?" window. Validity days = the document's most recent
-    set/renewed date (ComplianceUpdateHistory) → its expiry date."""
-    from datetime import date as _date, datetime
+    behind _compliance_per_day_all, the calculator's "How is this
+    calculated?" window and Compliance → View Cost Breakdown.
 
-    # All compliance history, most-recent entry per (truck_id, document_type).
-    # Store only the DATE portion — mirrors the frontend daysBetween() which strips
-    # the time component with setHours(0,0,0,0) before computing the difference.
-    history_map: dict[int, dict[str, _date]] = {}
-    for row in db.query(models.ComplianceUpdateHistory).filter(models.ComplianceUpdateHistory.action.is_(None)):
-        issued_date = row.updated_at.date() if isinstance(row.updated_at, datetime) else row.updated_at
-        prev = history_map.setdefault(row.truck_id, {}).get(row.document_type)
-        if prev is None or issued_date > prev:
-            history_map[row.truck_id][row.document_type] = issued_date
-    # A "Valid from" typed in on the current version beats the day it was
-    # entered — same start-date rule as the P&L (see compliance_cost.py).
-    from compliance_cost import HISTORY_LABEL
-    latest_ids = (
-        db.query(func.max(models.TruckComplianceRecord.id))
-        .group_by(models.TruckComplianceRecord.truck_id, models.TruckComplianceRecord.doc_type)
-    )
-    for tid, doc, valid_from in db.query(
-        models.TruckComplianceRecord.truck_id, models.TruckComplianceRecord.doc_type, models.TruckComplianceRecord.valid_from,
-    ).filter(models.TruckComplianceRecord.id.in_(latest_ids), models.TruckComplianceRecord.valid_from.isnot(None)):
-        if doc in HISTORY_LABEL:
-            history_map.setdefault(tid, {})[HISTORY_LABEL[doc]] = valid_from
-    docs_spec = COMPLIANCE_COST_DOCS
+    Built from the same document records as the P&L (compliance_cost.py):
+    each document's period that covers today, else its latest one — its cost,
+    its start ("Valid from", else the day it was entered) and its expiry."""
+    from datetime import date as _date
+    from compliance_cost import HISTORY_LABEL, document_periods
+
+    key_for = {label: key for key, label in HISTORY_LABEL.items()}
+    periods = document_periods(db, truck_ids)
+    today = _date.today()
+    q = db.query(models.Truck)
+    if truck_ids is not None:
+        q = q.filter(models.Truck.id.in_(truck_ids))
     out: dict[int, list[dict]] = {}
-    for truck in db.query(models.Truck).all():
-        truck_history = history_map.get(truck.id, {})
+    for truck in q.all():
+        mine = periods.get(truck.id, [])
         rows = []
-        for exp_field, date_field, doc_type in docs_spec:
-            expense = float(getattr(truck, exp_field) or 0)
-            expiry  = getattr(truck, date_field)
-            issued_date = truck_history.get(doc_type)
-            row = {"label": doc_type, "expense": expense, "issued": issued_date, "expiry": expiry,
-                   "validity_days": None, "per_calendar_day": None, "skipped": None}
-            if expense <= 0:
-                row["skipped"] = "no cost entered"
-            elif not expiry:
-                row["skipped"] = "no expiry date"
-            elif not issued_date:
-                row["skipped"] = "no date it was last set or renewed"
-            else:
-                # Both sides are pure dates — matches frontend daysBetween() exactly
-                validity_days = (expiry - issued_date).days
-                if validity_days <= 0:
-                    row["skipped"] = "expiry is not after the date it was set"
-                else:
-                    row["validity_days"] = validity_days
-                    row["per_calendar_day"] = expense / validity_days
-            rows.append(row)
+        for _exp_field, date_field, doc_type in COMPLIANCE_COST_DOCS:
+            held = [p for p in mine if p.doc == key_for.get(doc_type)]
+            current = next((p for p in reversed(held) if not p.skipped and p.start <= today < p.end), None)                 or (held[-1] if held else None)
+            if current is None:
+                rows.append({"label": doc_type, "expense": 0.0, "issued": None, "expiry": getattr(truck, date_field),
+                             "validity_days": None, "per_calendar_day": None, "skipped": "not entered"})
+                continue
+            counted = not current.skipped
+            rows.append({
+                "label": doc_type, "expense": current.expense, "issued": current.start, "expiry": current.end,
+                "validity_days": current.days if counted else None,
+                "per_calendar_day": current.expense / current.days if counted else None,
+                "skipped": current.skipped,
+            })
         out[truck.id] = rows
     return out
+
+
+@router.get("/{truck_id}/compliance-cost", tags=["Trucks"])
+def get_truck_compliance_cost(truck_id: int, db: Session = Depends(get_db)):
+    """Compliance → View Cost Breakdown: each document's cost, its validity
+    period and its cost per calendar day — the same figures as the Running
+    Cost Calculator and Profitability (compliance_docs_all)."""
+    if not db.get(models.Truck, truck_id):
+        raise HTTPException(404, "Truck not found")
+    rows = compliance_docs_all(db, {truck_id}).get(truck_id, [])
+    iso = lambda d: d.isoformat() if d else None  # noqa: E731
+    return [{**r, "issued": iso(r["issued"]), "expiry": iso(r["expiry"])} for r in rows]
 
 
 @router.get("/compliance-per-km/all", tags=["Trucks"])

@@ -74,11 +74,11 @@ export function EmiInsightsDialog({ open, onClose, record }: EmiInsightsDialogPr
       : 0;
     const emiCostPerKm = dailyFinanceCost > 0 && kmPerDay > 0 ? dailyFinanceCost / kmPerDay : 0;
 
-    // EMI Cost Per KM (Advanced) = the month's EMI ÷ the month's km
-    // (Daily Finance Cost × 26 ÷ Monthly Distance Average from Truck Run
-    // Record), instead of Basic's admin-configured Km/Day figure.
-    const emiCostPerKmAdvanced = dailyFinanceCost > 0 && runStats.monthlyAvg > 0
-      ? (dailyFinanceCost * 26) / runStats.monthlyAvg
+    // EMI Cost Per KM (Advanced) = the month's EMI ÷ the truck's normal km a
+    // month (the months it worked, in the last 6), instead of Basic's
+    // admin-configured Km/Day figure.
+    const emiCostPerKmAdvanced = dailyFinanceCost > 0 && runStats.normalKm > 0
+      ? (dailyFinanceCost * 26) / runStats.normalKm
       : 0;
 
     return { tenure, emiAmt, amountPaid, remainingEmiAmount, totalEmiPayable, dailyFinanceCost, emiCostPerKm, kmPerDay, emiCostPerKmAdvanced };
@@ -148,9 +148,9 @@ export function EmiInsightsDialog({ open, onClose, record }: EmiInsightsDialogPr
               <p className="mt-0.5 text-[11px] leading-snug text-text-secondary">
                 {!record.truckRegistration
                   ? "No truck assigned to this EMI"
-                  : runStats.monthlyAvg === 0
+                  : runStats.normalKm === 0
                   ? "No trip run history for this truck yet"
-                  : "Daily Finance Cost × 26 ÷ Monthly Avg. Distance"}
+                  : "Daily Finance Cost × 26 ÷ normal km a month"}
                 {record.truckRegistration && missingSheetsNote(runStats) && (
                   <span className="block text-warning-text">{missingSheetsNote(runStats)}</span>
                 )}

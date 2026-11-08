@@ -86,7 +86,8 @@ def explain_truck(db: Session, truck: models.Truck, mode: str) -> dict:
     layout = truck.tyre_layout or ""
     reg = (truck.registration_number or "").strip().upper()
     stats = truck_run_stats_all(db).get(truck.truck_id) or {}
-    monthly_km = stats.get("monthly_avg") or 0.0
+    # Advanced divides by the truck's normal km a month (the months it worked, in the last 6).
+    monthly_km = stats.get("normal_km") or 0.0
 
     if mode == "Manual":
         manual, live = manual_cost_parts(db)
@@ -106,11 +107,11 @@ def explain_truck(db: Session, truck: models.Truck, mode: str) -> dict:
         v = getattr(metrics, attr, None) if metrics else None
         return float(v) if v not in (None, "") and float(v) > 0 else None
 
+    nm = stats.get("normal_months") or 0
     distance_input = _inp(
-        "Monthly Distance Average", f"{num(monthly_km)} km a month", "run_record",
-        f"{num(stats.get('total_distance'))} km from {stats.get('trips_with_distance', 0)} trip sheets over "
-        f"{(stats.get('months') or 0):.1f} months ({_fmt_date(_d(stats.get('first_trip_date')))} → {_fmt_date(_d(stats.get('data_until')))})"
-        if stats.get("trips_with_distance") else "no trip sheets yet",
+        "Normal km a month", f"{num(monthly_km)} km a month", "run_record",
+        f"the average of the {nm} month{'' if nm == 1 else 's'} it worked, in the last 6 (idle months left out)"
+        if nm else "no trip sheets yet",
     )
     kpd_input = _inp("km a day", f"{num(kpd_basic)} km/day (layout {layout or '—'})", "run_config")
     kpd_manual_input = _inp("km a day", f"{num(kpd_manual)} km/day (layout {layout or '—'}, typed)", "calculator")

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { useTheme } from "@/context/ThemeContext";
-import { SHORTCUTS, isTypingTarget, toggleShortcutPanel } from "@/lib/shortcuts";
+import { JOSHINE_PEEK_EVENT, SHORTCUTS, isTypingTarget, toggleShortcutPanel } from "@/lib/shortcuts";
 
 // The To-do, Notes and Meetings panels, mounted app-wide (no button) so their shortcuts
 // work on every page. Loaded after the page, off the critical path.
@@ -13,7 +13,8 @@ const EventsButton = dynamic(() => import("./EventsButton").then((m) => m.Events
 
 /**
  * Listens for the app-wide shortcuts in lib/shortcuts.ts:
- * D toggles dark mode, T opens To-do, N opens Notes, M opens Meetings.
+ * D toggles dark mode, T opens To-do, N opens Notes, M opens Meetings,
+ * J sends Joshine down to peek (or brings it back).
  */
 export function KeyboardShortcuts() {
   const { toggleTheme } = useTheme();
@@ -31,6 +32,7 @@ export function KeyboardShortcuts() {
       else if (key === SHORTCUTS.todo.key) toggleShortcutPanel("todo");
       else if (key === SHORTCUTS.notes.key) toggleShortcutPanel("notes");
       else if (key === SHORTCUTS.meetings.key) toggleShortcutPanel("meetings");
+      else if (key === SHORTCUTS.joshine.key) window.dispatchEvent(new Event(JOSHINE_PEEK_EVENT));
       else return;
       e.preventDefault();
     };

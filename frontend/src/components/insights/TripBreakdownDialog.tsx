@@ -23,6 +23,26 @@ const fmt = (v: number) =>
 const fmtSigned = (v: number) => `${v < 0 ? "−" : ""}${fmt(v)}`;
 const fmtRate = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: v < 1 ? 4 : 2 })}`;
 const fmtKm = (v: number) => v.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+/** "2026-09" → "September 2026". */
+const monthName = (ym: string) =>
+  new Date(`${ym}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
+/** Where a steady EMI / documents / maintenance ₹/km comes from, in words. */
+function fixedSource(what: string, cost: number, mode: "Basic" | "Advanced",
+  f: { month: string; monthsUsed: number; rates: Record<"Basic" | "Advanced", { km: number }> }): string {
+  const km = f.rates[mode].km;
+  const whose = what === "maintenance" ? "normal monthly maintenance (12-month average)" : `${what} for ${monthName(f.month)}`;
+  if (cost <= 0) return what === "maintenance" ? "No maintenance bills on record for this truck." : `No ${what} due for this truck in ${monthName(f.month)}.`;
+  if (km <= 0) {
+    return mode === "Basic"
+      ? `No km/day set for this truck's tyre layout (Admin → Truck Run Configuration), so no ${what} per km.`
+      : `No km on record for this truck, so no ${what} per km.`;
+  }
+  const per = mode === "Basic"
+    ? `the ${fmtKm(km)} km a month its tyre layout is set to run (km/day × 26, Admin → Truck Run Configuration)`
+    : `its normal ${fmtKm(km)} km a month (average of the ${f.monthsUsed} month${f.monthsUsed === 1 ? "" : "s"} it worked, in the last 6)`;
+  return `The truck's ${whose}, ${fmt(cost)}, ÷ ${per}. The same rate whether the month was busy or quiet.`;
+}
 
 const PART_LABEL: Record<string, string> = {
   emi: "EMI",
@@ -49,7 +69,7 @@ const PART_SOURCE: Record<Mode, Record<string, string>> = {
   Advanced: {
     emi: "Finance → EMI (daily cost ÷ this truck's monthly average km)",
     adblue: "Truck's AdBlue History (manufacturer's AdBlue price ÷ km per litre)",
-    tyre: "Tyres fitted on this truck (cost ÷ expected range)",
+    tyre: "Tyres fitted on this truck in the trip's month (cost ÷ expected range)",
     maintenance: "Truck Maintenance (per day ÷ monthly average km)",
     compliance: "Compliance & Renewals (per day ÷ monthly average km)",
   },
@@ -157,7 +177,43 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
       .finally(() => setLoading(false));
   }, [open, tripId]);
 
-  const cost = data?.cost?.[mode];
+  const calc = data?.cost?.[mode];
+  // In Basic and Advanced, EMI, documents and maintenance are a steady ₹/km
+  // for the trip's month — as on the Trip Profitability row.
+  const fixed = data?.fixedMonth ?? null;
+  const fixedMode = mode === "Basic" || mode === "Advanced" ? mode : null;
+  const fr = fixed && fixedMode ? fixed.rates[fixedMode] : null;
+  const withFixed = calc && calc.partsKnown && fr
+    ? {
+        ...calc,
+        total: calc.total == null ? null
+          : calc.total - (calc.parts.emi ?? 0) - (calc.parts.compliance ?? 0) - (calc.parts.maintenance ?? 0)
+            + (fr.emi ?? 0) + (fr.documents ?? 0) + (fr.maintenance ?? 0),
+        parts: { ...calc.parts, emi: fr.emi, compliance: fr.documents, maintenance: fr.maintenance },
+      }
+    : calc;
+  // Diesel (and Advanced tyres) as of the trip's month: that month's price paid
+  // ÷ the truck's mileage then — as on the Trip Profitability row.
+  const run = fixedMode ? data?.runningMonth ?? null : null;
+  const cost = withFixed && run
+    ? {
+        ...withFixed,
+        dieselPrice: run.dieselPrice,
+        mileage: run.mileage,
+        priceSource: run.pricePaid
+          ? `the average price paid per litre in ${fixed ? monthName(fixed.month) : "that month"}'s fuel fills (Fuel History)`
+          : withFixed.priceSource,
+        mileageSource: `this truck's fuel fills up to the end of ${fixed ? monthName(fixed.month) : "that month"} (Fuel History)`,
+        total: withFixed.total == null ? null
+          : withFixed.total - (withFixed.parts.fuel ?? 0) + (run.dieselRate ?? 0)
+            + (fixedMode === "Advanced" && withFixed.partsKnown ? (run.tyreRate ?? 0) - (withFixed.parts.tyre ?? 0) : 0),
+        parts: {
+          ...withFixed.parts,
+          fuel: run.dieselRate,
+          ...(fixedMode === "Advanced" && withFixed.partsKnown ? { tyre: run.tyreRate } : {}),
+        },
+      }
+    : withFixed;
   const km = data?.km.total ?? 0;
   const hire = data?.hire.net ?? 0;
   const tripExp = data?.expenses.total ?? 0;
@@ -167,7 +223,8 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
   const truckExp = cost?.total != null && km > 0 ? km * cost.total : null;
   const other = truckExp != null ? truckExp - (diesel ?? 0) : null;
   const gross = diesel != null ? tripProfit - diesel : null;
-  const final = truckExp != null ? tripProfit - truckExp : null;
+  // No diesel rate: the trip can't be judged (as on the Trip Profitability row).
+  const final = truckExp != null && (diesel != null || km <= 0) ? tripProfit - truckExp : null;
   const scale = Math.max(hire, Math.abs(tripProfit), 1);
   const pct = (v: number | null) => (v == null ? 0 : (Math.abs(v) / scale) * 100);
 
@@ -315,7 +372,12 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
                             label={`${PART_LABEL[k]}: ${fmtKm(km)} km × ${rate != null ? fmtRate(rate) : "₹0"}/km`}
                             value={rate != null ? fmt(km * rate) : <span className="text-text-tertiary">not set</span>}
                           />
-                          <p className="text-[11px] text-text-tertiary">{PART_SOURCE[mode][k]}</p>
+                          <p className="text-[11px] text-text-tertiary">
+                            {(k === "emi" || k === "compliance" || k === "maintenance") && fixed && fixedMode
+                              ? fixedSource(k === "emi" ? "EMI" : k === "compliance" ? "documents" : "maintenance",
+                                  k === "emi" ? fixed.emi : k === "compliance" ? fixed.documents : fixed.maintenance, fixedMode, fixed)
+                              : PART_SOURCE[mode][k]}
+                          </p>
                         </div>
                       );
                     })

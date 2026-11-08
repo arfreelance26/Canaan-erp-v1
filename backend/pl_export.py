@@ -9,6 +9,9 @@ Sheets
   Trucks         one row per truck for the period (actual bills / EMI / documents)
   Rates          each truck's per-km rates — every per-km cost above looks its
                  rate up here, so a wrong rate is fixed in one place
+  Maintenance    every repair bill behind the Trucks sheet's maintenance
+  EMI            every loan behind the Trucks sheet's EMI: the full instalments,
+                 what's counted, and why any part isn't (emi_alloc.emi_gaps)
 
 Money cells are live Excel formulas (click one to see how it's worked out).
 Built to be sorted and filtered: plain numbers (the ₹ is in the column
@@ -148,10 +151,32 @@ DOCS = [("rc", "RC"), ("fc", "FC"), ("road_tax", "Road Tax"), ("insurance", "Ins
 # F Tyres, G Maintenance, H Documents.
 RATE_COL = {"diesel": 3, "adblue": 4, "emi": 5, "tyre": 6, "maintenance": 7, "compliance": 8}
 RATE_KEYS = tuple(RATE_COL)
+# Trips' steady ₹/km for these parts come from emi_alloc (the trip's month), not the Rates sheet.
+FIXED_PARTS = {"emi": "emi", "compliance": "documents", "maintenance": "maintenance"}
 # Truck Expenses on the Trips sheet — every Cost/KM part except diesel, with
 # its column there and how a note names it.
 TRIP_PARTS = ((12, "adblue", "AdBlue"), (13, "emi", "EMI"), (14, "tyre", "Tyres"),
               (15, "maintenance", "Maintenance"), (16, "compliance", "Documents"))
+
+
+# Why part of a loan's EMI isn't counted (emi_alloc.emi_gaps reasons) — as on the page.
+GAP_WHY = {
+    "future": "not over yet — it counts as those days pass",
+    "outside": "outside the dates picked",
+    "loan_start": "before the loan started",
+    "loan_end": "after the loan ended",
+    "sold": "after the truck left the fleet",
+}
+
+
+def _span(frm: str, to: str) -> str:
+    """'9–30 Nov' / '30 Oct – 2 Nov'."""
+    a, b = date.fromisoformat(frm), date.fromisoformat(to)
+    if a == b:
+        return a.strftime("%d %b").lstrip("0")
+    if (a.year, a.month) == (b.year, b.month):
+        return f"{a.day}–{b.strftime('%d %b').lstrip('0')}"
+    return f"{a.strftime('%d %b').lstrip('0')} – {b.strftime('%d %b').lstrip('0')}"
 
 
 def _lookup(km_ref, truck_ref, part):
@@ -223,20 +248,47 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
     rate_s = Sheet(wb, "Rates")
 
     # ── Rates ────────────────────────────────────────────────────────────────
-    rate_s.header(1, ["Truck ID", "Registration", "Diesel (₹/km)", "AdBlue (₹/km)", "EMI (₹/km)", "Tyres (₹/km)",
+    rate_s.header(1, ["Truck ID", "Registration", "Diesel (₹/km)", "AdBlue (₹/km)", "EMI (₹/km, EMI ÷ normal km)", "Tyres (₹/km)",
                       "Maintenance (₹/km)", "Documents (₹/km)", "Total per km (₹)", "Cost/KM used (₹)", "Check",
                       "Where to fix a wrong rate"])
     rates: dict[str, dict] = {}
     where = f"Running Cost Calculator → {mode}"
+    # EMI and documents aren't the calculator's per km here: each trip uses
+    # a steady ₹/km for its month (emi_alloc.py). This sheet shows the
+    # period's average — what the truck's counted trips carry ÷ their km.
+    fixed_pk: dict[str, dict] = {}
+    for tid in {t["truck_id"] for t in res["trips"]}:
+        mine = [t for t in res["trips"] if t["truck_id"] == tid and not t.get("excluded_from_totals")
+                and t["money"].get("fixed_month") is not None and float(t.get("total_km") or 0) > 0]
+        k = sum(float(t["total_km"]) for t in mine)
+        if mine:
+            fixed_pk[tid] = {part: ((v / k) if (v := sum((t["money"]["split"] or {}).get(part) or 0 for t in mine)) and k else None)
+                             for part in FIXED_PARTS}
     for i, e in enumerate(trucks):
         r = i + 2
         tid = e["truck_id"]
         p = parts.get(tid) or {}
         known = bool(p.get("parts_known"))
         rate = {"diesel": diesel_pk.get(tid), **{k: (p.get(k) if known else None) for k in RATE_KEYS if k != "diesel"}}
-        rates[tid] = {**rate, "known": known, "cpk": cpk.get(tid)}
-        total = sum(v or 0 for v in rate.values())
         used = cpk.get(tid)
+        if known and tid in fixed_pk:
+            for part, v in fixed_pk[tid].items():
+                if used is not None:
+                    used = used - (rate[part] or 0) + (v or 0)
+                rate[part] = v
+        # Diesel (and Advanced tyres) are worked out per month (emi_alloc.
+        # month_running_costs): this sheet shows the period's average.
+        tm = e["money"]
+        if mode in ("Basic", "Advanced") and float(e.get("total_km") or 0) > 0:
+            swaps = {"diesel": tm.get("diesel_rate")}
+            if mode == "Advanced" and known:
+                swaps["tyre"] = tm.get("tyre_rate")
+            for part, v in swaps.items():
+                if used is not None:
+                    used = used - (rate[part] or 0) + (v or 0)
+                rate[part] = v
+        rates[tid] = {**rate, "known": known, "cpk": used}
+        total = sum(v or 0 for v in rate.values())
         rate_s.put(r, 1, tid, bold=True)
         rate_s.put(r, 2, _reg(e.get("registration_number")))
         for k, c in RATE_COL.items():
@@ -296,14 +348,34 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         c = rt.get("cpk")
         d_rate = rt.get("diesel")
         diesel = m["diesel"] or 0.0
-        trip_s.put(r, 11, diesel, formula="=" + _lookup(f"H{r}", f"C{r}", "diesel"), fmt=MONEY, color=grey)
+        dm = m.get("diesel_month")
+        if dm is not None:
+            # The trip's month's diesel price ÷ the truck's mileage then (not the Rates sheet's average).
+            d_rate = dm["diesel_rate"]
+            trip_s.put(r, 11, diesel, formula=f"=H{r}*{d_rate:.6f}" if d_rate else None, fmt=MONEY, color=grey)
+        else:
+            trip_s.put(r, 11, diesel, formula="=" + _lookup(f"H{r}", f"C{r}", "diesel"), fmt=MONEY, color=grey)
         missing = ["Diesel"] if d_rate is None else []
         profit = None
         if c is None or km <= 0:
             if c is None:
                 notes.append(f"Profit not calculated: Cost/KM not available for {mode} mode")
         elif m["split"]:
+            fm = m.get("fixed_month")
             for col, part, label in TRIP_PARTS:
+                if part in FIXED_PARTS and fm is not None:
+                    # A steady ₹/km for the trip's month (emi_alloc.py) — the
+                    # month's own rate, not the Rates sheet's.
+                    rate = fm["rate"][FIXED_PARTS[part]]
+                    trip_s.put(r, col, m["split"][part] or 0.0, formula=f"=H{r}*{rate:.6f}" if rate else None, fmt=MONEY, color=grey)
+                    continue
+                if part == "tyre" and dm is not None and mode == "Advanced":
+                    # Tyres fitted at the end of the trip's month.
+                    rate = (m.get("split_rates") or {}).get("tyre")
+                    trip_s.put(r, col, m["split"][part] or 0.0, formula=f"=H{r}*{rate:.6f}" if rate else None, fmt=MONEY, color=grey)
+                    if rate is None:
+                        missing.append(label)
+                    continue
                 trip_s.put(r, col, m["split"][part] or 0.0, formula="=" + _lookup(f"H{r}", f"C{r}", part), fmt=MONEY, color=grey)
                 # (AdBlue not set is normal until a truck has 2 AdBlue fills — not noted.)
                 if rt.get(part) is None and part != "adblue":
@@ -313,6 +385,9 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
                         missing.append(label)
             profit = m["final_profit"]
             trip_s.put(r, 17, profit, formula=f"=I{r}-J{r}-K{r}-L{r}-M{r}-N{r}-O{r}-P{r}", fmt=MONEY, bold=True, color=grey)
+        elif m["final_profit"] is None:
+            # Can't be judged (no diesel cost per km) — as on the page.
+            notes.append("Profit not calculated: no diesel cost per km for this truck (needs 2+ fuel fills)")
         else:
             lump = m["truck_expenses"]
             profit = m["final_profit"]
@@ -394,12 +469,13 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
     # ── Trucks ───────────────────────────────────────────────────────────────
     n_docs = len(DOCS)
     truck_s.groups(1, [(1, 5, "TRUCK", "trip"), (6, 6, "MONEY IN", "in"), (7, 13, "MONEY OUT", "out"),
-                       (14, 14, "RESULT", "result"), (15, 14 + n_docs, "DOCUMENTS — BREAKDOWN", "docs"),
-                       (15 + n_docs, 15 + n_docs, "INFO", "info")])
+                       (14, 14, "RESULT", "result"), (15, 15, "EMI", "info"),
+                       (16, 15 + n_docs, "DOCUMENTS — BREAKDOWN", "docs"),
+                       (16 + n_docs, 16 + n_docs, "INFO", "info")])
     truck_s.header(2, ["Truck ID", "Registration", "Status", "Trips", "KM", "Hire (₹)", "Trip Expenses (₹)",
-                       "Diesel (₹)", "AdBlue (₹)", "Tyres (₹)", "Maintenance bills (₹)", "EMI share (₹)", "Documents (₹)",
-                       "Profit after all costs (₹)", *[f"{l} (₹)" for _, l in DOCS], "Notes"])
-    D1, Dn = get_column_letter(15), get_column_letter(14 + n_docs)
+                       "Diesel (₹)", "AdBlue (₹)", "Tyres (₹)", "Maintenance bills (₹)", "EMI counted (₹)", "Documents (₹)",
+                       "Profit after all costs (₹)", "EMI full instalments (₹)", *[f"{l} (₹)" for _, l in DOCS], "Notes"])
+    D1, Dn = get_column_letter(16), get_column_letter(15 + n_docs)
     t_first, t_last = 3, 2 + len(trucks)
     t_total = t_last + 2
     for i, e in enumerate(trucks):
@@ -420,6 +496,11 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
             notes.append("No tyre rate (counted as 0)")
         if int(e.get("flagged_trip_count") or 0):
             notes.append(f"{e['flagged_trip_count']} trip(s) under audit review — not counted")
+        # Less than the full EMI counted: how much isn't, and why (as on the page).
+        emi_full = sum(float(d.get("full_for_period") or 0) for d in e.get("emi_details") or [])
+        for d in e.get("emi_details") or []:
+            for g in d.get("uncounted") or []:
+                notes.append(f"EMI ₹{g['amount']:,.2f} for {_span(g['from'], g['to'])} not counted — {GAP_WHY[g['reason']]}")
         truck_s.put(r, 1, tid, bold=True)
         truck_s.put(r, 2, _reg(e.get("registration_number")))
         truck_s.put(r, 3, e.get("disposal") or "Active")
@@ -427,21 +508,25 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         truck_s.put(r, 5, km, fmt=KM)
         truck_s.put(r, 6, hire, fmt=MONEY)
         truck_s.put(r, 7, texp, fmt=MONEY)
-        truck_s.put(r, 8, diesel, formula="=" + _lookup(f"E{r}", f"A{r}", "diesel"), fmt=MONEY)
+        month_rates = mode in ("Basic", "Advanced") and km > 0
+        truck_s.put(r, 8, diesel, fmt=MONEY, formula=(f"=E{r}*{m['diesel_rate']:.6f}" if m.get("diesel_rate") else None)
+                    if month_rates else "=" + _lookup(f"E{r}", f"A{r}", "diesel"))
         truck_s.put(r, 9, adblue, formula="=" + _lookup(f"E{r}", f"A{r}", "adblue"), fmt=MONEY)
-        truck_s.put(r, 10, tyres, formula="=" + _lookup(f"E{r}", f"A{r}", "tyre"), fmt=MONEY)
+        truck_s.put(r, 10, tyres, fmt=MONEY, formula=(f"=E{r}*{m['tyre_rate']:.6f}" if m.get("tyre_rate") else None)
+                    if month_rates and mode == "Advanced" else "=" + _lookup(f"E{r}", f"A{r}", "tyre"))
         truck_s.put(r, 11, maint, fmt=MONEY)
         truck_s.put(r, 12, emi, fmt=MONEY)
         truck_s.put(r, 13, doc_total, formula=f"=SUM({D1}{r}:{Dn}{r})", fmt=MONEY)
         truck_s.put(r, 14, m["net"],
                     formula=f"=F{r}-G{r}-H{r}-I{r}-J{r}-K{r}-L{r}-M{r}", fmt=MONEY, bold=True)
+        truck_s.put(r, 15, emi_full or None, fmt=MONEY)
         for j, (k, _) in enumerate(DOCS):
-            truck_s.put(r, 15 + j, docs[k] or None, fmt=MONEY)
-        truck_s.put(r, 15 + n_docs, "; ".join(notes))
+            truck_s.put(r, 16 + j, docs[k] or None, fmt=MONEY)
+        truck_s.put(r, 16 + n_docs, "; ".join(notes))
     truck_s.put(t_total, 1, "TOTAL", bold=True, fill=FILL["total"])
-    for col in range(2, 16 + n_docs):
+    for col in range(2, 17 + n_docs):
         truck_s.ws.cell(row=t_total, column=col).fill = _fill(FILL["total"])
-    for col in [4, 5, *range(6, 15 + n_docs)]:
+    for col in [4, 5, *range(6, 16 + n_docs)]:
         L = get_column_letter(col)
         fmt = None if col == 4 else KM if col == 5 else MONEY
         truck_s.put(t_total, col, sum(truck_s.value(rr, col) for rr in range(t_first, t_last + 1)),
@@ -449,10 +534,10 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
     if part_of_truck:
         truck_s.put(t_total + 2, 1, "Each truck's figures are for the whole period, including trips not matching "
                                     "the search — bills, EMI and documents can't be split by trip.", color="808080")
-    truck_s.widths([11, 15, 9, 7, 9, 14, 14, 13, 12, 12, 14, 12, 12, 17, *[12] * n_docs, 45])
+    truck_s.widths([11, 15, 9, 7, 9, 14, 14, 13, 12, 12, 14, 13, 12, 17, 15, *[12] * n_docs, 60])
     truck_s.ws.freeze_panes = "C3"
     if trucks:
-        truck_s.ws.auto_filter.ref = f"A2:{get_column_letter(15 + n_docs)}{t_last}"
+        truck_s.ws.auto_filter.ref = f"A2:{get_column_letter(16 + n_docs)}{t_last}"
         rng = f"N{t_first}:N{t_last}"
         truck_s.ws.conditional_formatting.add(rng, CellIsRule(operator="greaterThanOrEqual", formula=["0"], fill=_fill("E2EFDA"), font=Font(color="00612E", bold=True)))
         truck_s.ws.conditional_formatting.add(rng, CellIsRule(operator="lessThan", formula=["0"], fill=_fill("FDE2E1"), font=Font(color="C00000", bold=True)))
@@ -460,7 +545,7 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
     # ── Summary ──────────────────────────────────────────────────────────────
     s = summary
     s.put(1, 1, "Profitability Report", bold=True, size=16, color=NAVY)
-    s.put(2, 1, f"{_d(start.isoformat())} to {_d(end.isoformat())}  ·  Cost/KM mode: {mode}")
+    s.put(2, 1, f"{_d(start.isoformat())} to {_d(end.isoformat())}  ·  Cost mode: {mode}")
     s.put(3, 1, f"Downloaded {datetime.now(IST).strftime('%d-%m-%Y %I:%M %p')}", color="808080")
     if search:
         s.put(4, 1, f'Search: "{search}" (only matching trips are in this report)', bold=True, color="C00000")
@@ -472,7 +557,7 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
     n_review = len(trips) - n_counted
     losses = sum(1 for rr in counted_rows if (rr, 17) in trip_s.values and trip_s.value(rr, 17) < 0)
     running = tot(13) + tot(14) + tot(15) + tot(16)
-    s.put(5, 1, "THE BIG PICTURE (counted trips)", bold=True, color="FFFFFF", fill=NAVY)
+    s.put(5, 1, "TRIP PROFITABILITY — was each trip a good deal? (counted trips, steady costs per km)", bold=True, color="FFFFFF", fill=NAVY)
     s.put(5, 2, "", fill=NAVY)
     big = [
         ("Trips", n_counted, f'=COUNTIF(Trips!$R${first}:$R${last},"Counted")', None),
@@ -492,7 +577,37 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         s.put(r, 2, v, formula=f if trips else None, fmt=fmt, bold=True,
               color=("00612E" if (v or 0) >= 0 else "C00000") if is_profit else None)
 
-    r = 16
+    # Truck Profitability: the real bills, from the Trucks sheet's TOTAL row.
+    r = 6 + len(big) + 1
+    s.put(r, 1, "TRUCK PROFITABILITY — what did each truck really make? (the real bills)", bold=True, color="FFFFFF", fill=NAVY)
+    s.put(r, 2, "", fill=NAVY)
+
+    def ttot(col):
+        return truck_s.value(t_total, col)
+
+    t_rows = range(t_first, t_last + 1)
+    truck_lines = [
+        ("Trucks", len(trucks), None, None),
+        ("Trucks with no trips (idle)", sum(1 for e in trucks if not e.get("trip_count")), None, None),
+        ("Hire (money in) (₹)", ttot(6), f"=Trucks!F{t_total}", MONEY),
+        ("Trip expenses (₹)", ttot(7), f"=Trucks!G{t_total}", MONEY),
+        ("Diesel (₹)", ttot(8), f"=Trucks!H{t_total}", MONEY),
+        ("AdBlue + Tyres (₹)", ttot(9) + ttot(10), f"=Trucks!I{t_total}+Trucks!J{t_total}", MONEY),
+        ("Maintenance bills (₹)", ttot(11), f"=Trucks!K{t_total}", MONEY),
+        ("EMI counted (₹)", ttot(12), f"=Trucks!L{t_total}", MONEY),
+        ("Documents (₹)", ttot(13), f"=Trucks!M{t_total}", MONEY),
+        ("Profit after all costs (₹)", ttot(14), f"=Trucks!N{t_total}", MONEY),
+        ("Trucks that made a loss", sum(1 for rr in t_rows if truck_s.value(rr, 14) < 0),
+         f'=COUNTIF(Trucks!$N${t_first}:$N${t_last},"<0")', None),
+    ]
+    for j, (label, v, f, fmt) in enumerate(truck_lines):
+        rr = r + 1 + j
+        is_profit = label.startswith("Profit")
+        s.put(rr, 1, label, bold=is_profit)
+        s.put(rr, 2, v, formula=f if trucks else None, fmt=fmt, bold=True,
+              color=("00612E" if (v or 0) >= 0 else "C00000") if is_profit else None)
+    r = r + 1 + len(truck_lines) + 1
+
     s.put(r, 1, "HOW ONE TRIP IS WORKED OUT", bold=True, color="FFFFFF", fill=NAVY)
     s.put(r, 2, "", fill=NAVY)
     if example:
@@ -501,13 +616,26 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
 
         def per_km(part, label, col):
             rate = rt.get(part)
+            fm = t["money"].get("fixed_month")
+            if part in FIXED_PARTS and fm:
+                rate = fm["rate"][FIXED_PARTS[part]]
+                if rate is not None:
+                    per = "its normal" if fm["mode"] == "Advanced" else "the km/day setting's"
+                    month = date.fromisoformat(f"{fm['month']}-01").strftime("%b %Y")
+                    whose = (f"the truck's normal maintenance (12-month average) ₹{fm['cost']['maintenance']:,.0f} a month"
+                             if part == "maintenance"
+                             else f"the truck's {label} for {month} ₹{fm['cost'][FIXED_PARTS[part]]:,.0f}")
+                    how = f"{km:,.0f} km × ₹{rate:.2f} per km = {whose} ÷ {per} {fm['km']:,.0f} km a month"
+                    return (f"− {label}  ({how})", km * rate, f"=Trips!{col}{er}", MONEY)
             how = f"{km:,.0f} km × ₹{rate:.2f} per km" if rate is not None else "no rate set — counted as 0"
             return (f"− {label}  ({how})", km * (rate or 0), f"=Trips!{col}{er}", MONEY)
         steps = [
             ("Trip", f"{t.get('trip_code')}  ·  {route}  ·  {km:,.0f} km", None, None),
             ("Hire (money in) (₹)", hire, f"=Trips!I{er}", MONEY),
             ("− Trip expenses (driver pay, toll, port pass, …)", texp, f"=Trips!J{er}", MONEY),
-            (f"− Diesel  ({km:,.0f} km × ₹{rt['diesel']:.2f} per km)", diesel, f"=Trips!K{er}", MONEY),
+            (f"− Diesel  ({km:,.0f} km × ₹{t['money']['diesel_rate']:.2f} per km"
+             + (f" = ₹{t['money']['diesel_month']['diesel_price']:.2f} a litre ÷ {t['money']['diesel_month']['mileage']:.2f} km/L"
+                if t["money"].get("diesel_month") else "") + ")", diesel, f"=Trips!K{er}", MONEY),
             per_km("adblue", "AdBlue", "L"),
             per_km("emi", "EMI", "M"),
             per_km("tyre", "Tyres", "N"),
@@ -528,6 +656,61 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         s.put(r + 1, 1, "No counted trip in this period has its truck's rates set, so there's no example to show.")
         r += 2
 
+    # Why the Trips and Trucks sheets end on different profits (no search only).
+    why = res["truck_totals"].get("why_differ")
+    if why:
+        r += 1
+        s.put(r, 1, "WHY THE TRIPS AND TRUCKS SHEETS DIFFER", bold=True, color="FFFFFF", fill=NAVY)
+        s.put(r, 2, "", fill=NAVY)
+        idle = why["idle_trucks"]
+        lines = [
+            ("Trips: profit after all costs, at steady costs per km (₹)", why["trips_final"]),
+            ("+ EMI — trips' steady share minus the instalments really due "
+             f"(negative: EMI for idle days and quiet months{f'; {idle} truck(s) had no trips' if idle else ''}) (₹)", why["emi"]),
+            ("+ Maintenance — trips' normal share minus this period's real bills "
+             "(negative: repairs above normal) (₹)", why["maintenance"]),
+            ("+ Documents — trips' steady share minus this period's real share (₹)", why["documents"]),
+            (f"+ Trips the Trips sheet can't judge — {why['no_km_trips']} with no km on the trip sheet "
+             "(their hire and expenses count on Trucks only; add their km to fix) (₹)" if why["no_km_trips"]
+             else "+ Other (₹)", why["other"]),
+            ("= Trucks: net profit (₹)", res["truck_totals"]["net"]),
+        ]
+        for j, (label, v) in enumerate(lines):
+            rr = r + 1 + j
+            last_line = j == len(lines) - 1
+            s.put(rr, 1, label, bold=last_line or j == 0, wrap=True)
+            s.put(rr, 2, v, fmt=MONEY, bold=last_line or j == 0)
+            if last_line:
+                s.ws.cell(row=rr, column=1).border = Border(top=THIN)
+                s.ws.cell(row=rr, column=2).border = Border(top=THIN)
+        r = r + 1 + len(lines)
+
+    # Worth knowing: a period that isn't over, and what in the data holds the figures back.
+    today = date.today()
+    worth = []
+    if end > today >= start:
+        days_all, days_so_far = (end - start).days + 1, (today - start).days + 1
+        worth.append(f"The period isn't over: {days_so_far} of {days_all} days so far. On Trucks, EMI and other costs count "
+                     f"only up to today ({_d(today.isoformat())}) — the EMI sheet shows what's left and why.")
+    dh = res.get("data_health") or {}
+    if dh.get("no_km_trips"):
+        worth.append(f"{dh['no_km_trips']} trip(s) have no km on their trip sheet, so they can't be judged on Trips "
+                     "(Trucks still counts their hire). Add the km on the trip sheets.")
+    if dh.get("no_diesel_trips"):
+        worth.append(f"{dh['no_diesel_trips']} trip(s) on {dh['no_diesel_trucks']} truck(s) can't be judged: no diesel cost per km "
+                     "(the truck needs at least 2 fuel fills).")
+    if dh.get("documents_without_cost"):
+        worth.append(f"{dh['documents_without_cost']} document(s) have an expiry date but no cost entered, so they count as ₹0 "
+                     "(Compliance & Renewals).")
+    if worth:
+        r += 1
+        s.put(r, 1, "WORTH KNOWING", bold=True, color="FFFFFF", fill="C55A11")
+        s.put(r, 2, "", fill="C55A11")
+        for j, text in enumerate(worth):
+            s.put(r + 1 + j, 1, f"{j + 1}.", bold=True)
+            s.put(r + 1 + j, 2, text, wrap=True)
+        r = r + 1 + len(worth)
+
     r += 1
     s.put(r, 1, "WHAT'S IN THIS FILE", bold=True, color="FFFFFF", fill=NAVY)
     s.put(r, 2, "", fill=NAVY)
@@ -539,11 +722,18 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         ("AdBlue", "Like diesel: the truck's AdBlue km per litre (from Truck's AdBlue History) and its "
                    "manufacturer's AdBlue price. ₹0 until a truck has at least 2 AdBlue fills."),
         ("Trip Expenses", "Every expense line of each trip sheet. Check says OK when they add up."),
-        ("Trucks", "One row per truck for the whole period, using the actual bills, EMI and documents."),
-        ("Rates", "Each truck's cost per km. Every per-km cost looks its rate up here — fix a wrong rate once."),
+        ("Trucks", "One row per truck for the whole period: the real bills — maintenance on the date the work was done, "
+                   "one EMI instalment per month (a month cut by the dates, today, a loan's start/end or a sale is split "
+                   "by days; Notes say what isn't counted and why), documents spread over the days they're valid."),
+        ("Maintenance", "Every approved repair bill in the period, per truck — they add up to the Trucks sheet's maintenance."),
+        ("EMI", "Every loan per truck: the full instalments for the months in the period, what's counted, and why any part isn't."),
+        ("Rates", "Each truck's average cost per km for the period (diesel and the steady EMI / maintenance / documents "
+                  "rates vary by month, so each trip's own cell uses its month's rate)."),
         ("Tip", "Click any amount to see how it's worked out (it's a formula)."),
-        ("Good to know", "Trips charge maintenance, EMI and documents at an average per km; Trucks use the real "
-                         "bills in this period — so the two sheets' totals differ, and both are right."),
+        ("Good to know", "Trips are judged at steady costs per km: maintenance at the truck's normal monthly bills, and EMI "
+                         "and documents at that month's cost ÷ the truck's normal km a month. Trucks use the real bills and one "
+                         "EMI instalment per month — so the two sheets' totals differ (EMI on idle days, repairs above normal), "
+                         "and both are right. 'Why the sheets differ' above shows by how much."),
         ("Grey rows", "Trips under audit review — listed, but not counted until the review is done."),
     ]
     for j, (a, b) in enumerate(guide):
@@ -551,7 +741,69 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         s.put(r + 1 + j, 2, b, wrap=True)
     s.widths([58, 90])
 
-    for sh in (trip_s, exp_s, truck_s, rate_s):
+    # ── Maintenance: every bill behind the Trucks sheet's maintenance ──────────
+    maint_s = Sheet(wb, "Maintenance")
+    maint_s.header(1, ["Truck ID", "Registration", "Date", "Maintenance Type", "Repairs", "Description", "Cost (₹)"])
+    mr = 2
+    for e in trucks:
+        for m in e.get("maintenance_rows") or []:
+            maint_s.put(mr, 1, e["truck_id"], bold=True)
+            maint_s.put(mr, 2, _reg(e.get("registration_number")))
+            maint_s.put(mr, 3, _date(m.get("date")), fmt=DATE)
+            maint_s.put(mr, 4, m.get("maintenance_type") or "—")
+            maint_s.put(mr, 5, m.get("repair_type") or "—")
+            maint_s.put(mr, 6, m.get("description") or "", wrap=True)
+            maint_s.put(mr, 7, float(m.get("cost") or 0), fmt=MONEY)
+            mr += 1
+    if mr == 2:
+        maint_s.put(2, 1, "No maintenance bills in this period.", color="808080")
+    else:
+        m_total = mr + 1
+        maint_s.put(m_total, 1, "TOTAL", bold=True, fill=FILL["total"])
+        for col in range(2, 8):
+            maint_s.ws.cell(row=m_total, column=col).fill = _fill(FILL["total"])
+        maint_s.put(m_total, 7, sum(maint_s.value(rr, 7) for rr in range(2, mr)), formula=f"=SUM(G2:G{mr - 1})",
+                    fmt=MONEY, bold=True, fill=FILL["total"])
+        maint_s.ws.auto_filter.ref = f"A1:G{mr - 1}"
+    maint_s.widths([11, 15, 12, 18, 30, 50, 14])
+    maint_s.ws.freeze_panes = "C2"
+
+    # ── EMI: every loan behind the Trucks sheet's EMI ───────────────────────────
+    emi_s = Sheet(wb, "EMI")
+    emi_s.header(1, ["Truck ID", "Registration", "Loan", "Bank", "Monthly EMI (₹)", "Full instalments (₹)",
+                     "Counted (₹)", "Not counted (₹)", "Why not counted"])
+    er_ = 2
+    for e in trucks:
+        for d in e.get("emi_details") or []:
+            full, counted = float(d.get("full_for_period") or 0), float(d.get("share_for_period") or 0)
+            why = "; ".join(f"₹{g['amount']:,.2f} for {_span(g['from'], g['to'])}: {GAP_WHY[g['reason']]}"
+                            for g in d.get("uncounted") or [])
+            emi_s.put(er_, 1, e["truck_id"], bold=True)
+            emi_s.put(er_, 2, _reg(e.get("registration_number")))
+            emi_s.put(er_, 3, d.get("emi_name") or "—")
+            emi_s.put(er_, 4, d.get("bank_name") or "—")
+            emi_s.put(er_, 5, float(d.get("monthly_emi") or 0), fmt=MONEY)
+            emi_s.put(er_, 6, full, fmt=MONEY)
+            emi_s.put(er_, 7, counted, fmt=MONEY)
+            emi_s.put(er_, 8, full - counted, formula=f"=F{er_}-G{er_}", fmt=MONEY)
+            emi_s.put(er_, 9, why or "—", wrap=True)
+            er_ += 1
+    if er_ == 2:
+        emi_s.put(2, 1, "No loans for these trucks in this period.", color="808080")
+    else:
+        e_total = er_ + 1
+        emi_s.put(e_total, 1, "TOTAL", bold=True, fill=FILL["total"])
+        for col in range(2, 10):
+            emi_s.ws.cell(row=e_total, column=col).fill = _fill(FILL["total"])
+        for col in (6, 7, 8):
+            L = get_column_letter(col)
+            emi_s.put(e_total, col, sum(emi_s.value(rr, col) for rr in range(2, er_)), formula=f"=SUM({L}2:{L}{er_ - 1})",
+                      fmt=MONEY, bold=True, fill=FILL["total"])
+        emi_s.ws.auto_filter.ref = f"A1:I{er_ - 1}"
+    emi_s.widths([11, 15, 26, 20, 15, 17, 14, 15, 70])
+    emi_s.ws.freeze_panes = "C2"
+
+    for sh in (trip_s, exp_s, truck_s, rate_s, maint_s, emi_s):
         sh.ws.sheet_view.zoomScale = 90
     wb.calculation.fullCalcOnLoad = True
 
@@ -566,5 +818,7 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         exp_s.preview("Trip Expenses"),
         truck_s.preview("Trucks", first_row=2),
         rate_s.preview("Rates"),
+        maint_s.preview("Maintenance"),
+        emi_s.preview("EMI"),
     ]
     return buf.getvalue(), filename, preview

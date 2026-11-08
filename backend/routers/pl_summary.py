@@ -8,6 +8,7 @@ from sqlalchemy.exc import OperationalError
 from database import get_db, engine
 import models
 from compliance_cost import document_periods, share_in_range
+from emi_alloc import emi_gaps, loan_window
 
 # The trip sheet's expense lines, in the order the sheet shows them. Their
 # sum is total_expense (calcTripExpenses + halt pay on the trip sheet).
@@ -82,16 +83,11 @@ def _emi_share(
     start: date_type,
     end: date_type,
 ) -> float:
-    """Pro-rate a monthly EMI for the overlap of [start,end] with the EMI active window."""
-    if not emi_amount or not emi_start or not emi_end:
-        return 0.0
-    amt = float(emi_amount)
-    ov_start = max(start, emi_start)
-    ov_end = min(end, emi_end)
-    if ov_start > ov_end:
-        return 0.0
-    overlap_days = (ov_end - ov_start).days + 1
-    return round(amt * overlap_days / 30, 2)
+    """A monthly EMI's share of [start, end]: one instalment per calendar month
+    the loan runs (a 31-day month isn't 31/30 of an EMI); a month only partly
+    inside counts by its own days. See emi_alloc.py."""
+    from emi_alloc import emi_for_period
+    return emi_for_period(emi_amount, emi_start, emi_end, start, end)
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
@@ -227,18 +223,28 @@ def get_pl_summary(
         emi_total = 0.0
         emi_details = []
         for e in emi_by_reg.get((truck.registration_number or "").strip().upper(), []):
-            share = _emi_share(e.emi_amount, e.emi_start_date, e.emi_end_date, start_date, t_cost_end)
-            if share > 0:
+            loan_start, loan_end = loan_window(e)
+            share = _emi_share(e.emi_amount, loan_start, loan_end, start_date, t_cost_end)
+            # Why it may be less than the full instalments — said on the page.
+            gaps = emi_gaps(e.emi_amount, loan_start, loan_end, start_date, end_date, date_type.today(),
+                            truck.deleted_at.date() if truck.deleted_at is not None else None)
+            if share > 0 or gaps["full"] > 0:
                 emi_total += share
                 monthly_fc = float(e.monthly_finance_cost or 0)
                 daily_fc   = float(e.daily_finance_cost or 0)
                 # Pro-rate monthly_finance_cost over the period overlap (same day-fraction logic)
-                period_fc  = round(_emi_share(monthly_fc, e.emi_start_date, e.emi_end_date, start_date, t_cost_end), 2)
+                period_fc  = round(_emi_share(monthly_fc, loan_start, loan_end, start_date, t_cost_end), 2)
                 emi_details.append({
                     "emi_name":             e.emi_name,
                     "bank_name":            e.bank_name or "",
                     "monthly_emi":          float(e.emi_amount or 0),
                     "share_for_period":     round(share, 2),
+                    # One instalment per month the period touches, and every
+                    # part not counted with its reason (emi_alloc.emi_gaps).
+                    "full_for_period":      gaps["full"],
+                    "uncounted":            gaps["segments"],
+                    "loan_start":           loan_start.isoformat() if e.emi_start_date else None,
+                    "loan_end":             loan_end.isoformat() if loan_end.year < 9999 else None,
                     "monthly_finance_cost": monthly_fc,
                     "daily_finance_cost":   daily_fc,
                     "period_finance_cost":  period_fc,
@@ -332,6 +338,7 @@ def get_pl_summary(
             {
                 "date":             m.date.isoformat() if m.date else None,
                 "maintenance_type": m.maintenance_type or "",
+                "repair_type":      m.repair_type or "",
                 "description":      m.description or "",
                 "cost":             float(m.cost or 0),
             }
@@ -426,7 +433,38 @@ def get_trip_breakdown(trip_id: int, db: Session = Depends(get_db)):
         "flagged_for_recheck": bool(trip.flagged_for_recheck),
         "flagged_remark": trip.flagged_remark if trip.flagged_for_recheck else None,
         "cost": truck_cost_detail(db, truck) if truck else None,
+        # The truck's EMI, documents and normal km for the trip's month: the
+        # table charges this trip km × (cost ÷ normal km) for those two.
+        "fixed_month": _trip_fixed_month(db, trip, s),
+        # The diesel price that month, the truck's mileage then and (Advanced)
+        # its tyres then — what Basic / Advanced charge this trip's diesel and tyres at.
+        "running_month": _trip_running_month(db, s),
     }
+
+
+def _trip_day(db: Session, sheet):
+    return db.query(TRIP_DAY).select_from(models.TripSheet).join(models.Trip, models.Trip.id == models.TripSheet.trip_id)         .outerjoin(models.TripClosure, models.TripClosure.trip_id == models.TripSheet.trip_id)         .filter(models.TripSheet.id == sheet.id).scalar()
+
+
+def _trip_running_month(db: Session, sheet) -> dict | None:
+    import emi_alloc
+    day, vid = _trip_day(db, sheet), (sheet.vehicle_id or "").strip()
+    if not day or not vid:
+        return None
+    month = emi_alloc.trip_month(day)
+    return emi_alloc.month_running_costs(db, {(vid, month)}).get((vid, month))
+
+
+def _trip_fixed_month(db: Session, trip, sheet) -> dict | None:
+    import emi_alloc
+    day = db.query(TRIP_DAY).select_from(models.TripSheet).join(models.Trip, models.Trip.id == models.TripSheet.trip_id) \
+        .outerjoin(models.TripClosure, models.TripClosure.trip_id == models.TripSheet.trip_id) \
+        .filter(models.TripSheet.id == sheet.id).scalar()
+    vid = (sheet.vehicle_id or "").strip()
+    if not day or not vid:
+        return None
+    month = emi_alloc.trip_month(day)
+    return emi_alloc.month_rates(db, {(vid, month)}).get((vid, month))
 
 
 ExportMode = Literal["Manual", "Basic", "Advanced"]

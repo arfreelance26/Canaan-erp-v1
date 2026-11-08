@@ -367,6 +367,8 @@ def truck_run_stats_all(db: Session) -> dict[str, dict]:
         elif status == "Completed":
             t["missing"] += 1
 
+    from emi_alloc import normal_km_all
+    normal_all = normal_km_all(db)
     result: dict[str, dict] = {}
     for vehicle_id, t in per_truck.items():
         total = sum(t["km"])
@@ -374,7 +376,13 @@ def truck_run_stats_all(db: Session) -> dict[str, dict]:
         days = (data_until - first).days + 1 if first else 0
         months = max(days, DAYS_PER_MONTH) / DAYS_PER_MONTH if first else 0.0
         monthly = total / months if months > 0 else 0.0
+        normal, normal_months = normal_all.get(vehicle_id, (0.0, 0))
         result[vehicle_id] = {
+            # What Advanced divides monthly costs by: the average of the months it
+            # actually worked, in the last 6 (emi_alloc.normal_km) — idle months
+            # don't inflate the cost per km the way monthly_avg (all months) would.
+            "normal_km": round(normal, 1),
+            "normal_months": normal_months,
             "total_distance": round(total, 2),
             "trips_with_distance": len(t["km"]),
             "missing_sheets": t["missing"],
@@ -481,15 +489,25 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str, with_parts: bool
     maint_per_day_map  = get_maintenance_cost_per_day_all(db) if mode == "Advanced" else {}
     compliance_per_day_map = get_compliance_per_day_all(db) if mode == "Advanced" else {}
     compliance_map      = get_compliance_per_km_all(db)
-    monthly_avg_map     = _truck_run_monthly_avg_all(db) if mode == "Advanced" else {}
+    # Advanced divides monthly costs by each truck's NORMAL km a month (the
+    # months it worked, in the last 6 — emi_alloc.normal_km), not the lifetime
+    # average that idle months drag down.
+    if mode == "Advanced":
+        from emi_alloc import normal_km_all
+        monthly_avg_map = {tid: km for tid, (km, _) in normal_km_all(db).items()}
+    else:
+        monthly_avg_map = {}
 
 
     # Active EMI per truck registration — sums multiple loans.
     emi_by_reg: dict[str, dict[str, float]] = {}
+    from emi_alloc import loan_window
     for rec in db.query(models.EmiRecord).all():
         if not rec.truck_registration:
             continue
-        if rec.emi_end_date and rec.emi_end_date < _date.today():
+        # Running today: started, and not ended (no end date → start + tenure).
+        loan_start, loan_end = loan_window(rec)
+        if not (loan_start <= _date.today() <= loan_end):
             continue
         reg = rec.truck_registration.strip().upper()
         e = emi_by_reg.setdefault(reg, {"amount": 0.0, "per_day": 0.0})

@@ -23,6 +23,19 @@ router = APIRouter(tags=["Maintenance"])
 EXPIRING_SOON_DAYS = 30
 
 
+# A loaded truck can't do worse than this or better than this. A gap between
+# two fills outside it is a typing mistake (a wrong odometer digit) or a fill
+# that was never entered — it's left out before anything else is worked out,
+# so it can't distort the truck's mileage. Mirrored in FuelHistoryViewDialog.tsx.
+FUEL_KML_MIN = 1.5
+FUEL_KML_MAX = 6.0
+
+
+def plausible_fuel(intervals: list[dict]) -> list[dict]:
+    """Only the gaps between fills a truck could really have driven."""
+    return [r for r in intervals if FUEL_KML_MIN <= r["mileage"] <= FUEL_KML_MAX]
+
+
 def _iqr_filter(intervals: list[dict]) -> list[dict]:
     """Remove outlier intervals using the Modified Z-score (MAD-based) method.
 
@@ -496,7 +509,7 @@ def get_compliance(db: Session = Depends(get_db)):
     return result
 
 
-def maintenance_cost_summary_all(db: Session) -> dict[int, dict]:
+def maintenance_cost_summary_all(db: Session, as_of: date | None = None) -> dict[int, dict]:
     """Per-truck maintenance cost over the last 12 months — the ONE place it's
     worked out (Truck Maintenance → Full Status, the calculator, Profitability).
 
@@ -505,10 +518,12 @@ def maintenance_cost_summary_all(db: Session) -> dict[int, dict]:
     to today), capped at 12, minimum 1. Dividing by 12 regardless made a truck
     with 3 months of history look about 4 times cheaper to maintain.
         monthly = total ÷ months covered;  per day = monthly ÷ 26 working days
-    {truck.id: {total, months, monthly, daily, from, to}}."""
+    {truck.id: {total, months, monthly, daily, from, to}}.
+    as_of: the 12 months up to that day instead of today (Profitability
+    judges a past month's trips by the bills known by the end of that month)."""
     from cost_units import DAYS_PER_MONTH, WORKING_DAYS_PER_MONTH
 
-    today = date.today()
+    today = min(as_of, date.today()) if as_of else date.today()
     try:
         one_year_ago = today.replace(year=today.year - 1)
     except ValueError:
@@ -718,11 +733,18 @@ def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db
 @router.get("/maintenance/fuel-stats/all", tags=["Fuel Logs"])
 def get_all_fuel_stats(db: Session = Depends(get_db)):
     """Returns average mileage in km/L keyed by truck_id (as string) for every truck that has fuel logs."""
-    logs = (
-        db.query(models.FuelLog)
-        .order_by(models.FuelLog.truck_id, models.FuelLog.odometer.asc())
-        .all()
-    )
+    return fuel_mileage_all(db)
+
+
+def fuel_mileage_all(db: Session, until: date | None = None) -> dict[str, float]:
+    """Each truck's average mileage (km/L), keyed by trucks.id as a string —
+    from its fills up to `until` (all of them when None): fills in odometer
+    order, impossible gaps out (plausible_fuel), odd ones out (_iqr_filter),
+    then total km ÷ total litres."""
+    q = db.query(models.FuelLog)
+    if until is not None:
+        q = q.filter(models.FuelLog.date <= until)
+    logs = q.order_by(models.FuelLog.truck_id, models.FuelLog.odometer.asc()).all()
     # Group raw intervals per truck
     raw: dict[int, list[dict]] = {}
     prev: dict[int, models.FuelLog] = {}
@@ -735,10 +757,12 @@ def get_all_fuel_stats(db: Session = Depends(get_db)):
                 raw.setdefault(tid, []).append({"distance": dist, "litres": litres,
                                                  "mileage": dist / litres})
         prev[tid] = log
-    # Apply IQR filter per truck, then compute weighted average
+    # Impossible gaps out (plausible_fuel), then the outlier filter, then the weighted average.
     result = {}
     for tid, intervals in raw.items():
-        filtered = _iqr_filter(intervals)
+        filtered = _iqr_filter(plausible_fuel(intervals))
+        if not filtered:
+            continue
         total_d = sum(r["distance"] for r in filtered)
         total_f = sum(r["litres"]   for r in filtered)
         result[str(tid)] = round(total_d / total_f, 6) if total_f > 0 else 0
@@ -775,8 +799,9 @@ def get_fuel_stats(truck_id: int, db: Session = Depends(get_db)):
             raw_intervals.append({"distance": dist, "litres": litres, "cost": cost,
                                    "mileage": dist / litres})
 
-    # IQR outlier removal — keeps stat cards robust against bad odometer entries.
-    intervals = _iqr_filter(raw_intervals)
+    # Impossible gaps out (typos, missing fills), then outlier removal — keeps
+    # the stat cards robust against bad odometer entries.
+    intervals = _iqr_filter(plausible_fuel(raw_intervals))
 
     total_distance = sum(r["distance"] for r in intervals)
     total_fuel     = sum(r["litres"]   for r in intervals)

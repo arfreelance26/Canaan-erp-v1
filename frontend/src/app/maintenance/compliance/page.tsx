@@ -20,6 +20,24 @@ import { useNotifications } from "@/context/NotificationContext";
 import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PagedTbody } from "@/components/ui/PagedTbody";
+
+/** Each document: its date field, its cost field and its name. */
+const DOC_COSTS: [keyof Truck, keyof Truck, string][] = [
+  ["rcValidityDate", "rcExpenses", "RC"],
+  ["fcExpiryDate", "fcExpenses", "FC"],
+  ["roadTaxDate", "roadTaxExpenses", "Road Tax"],
+  ["nationalPermitDate", "nationalPermitExpenses", "National Permit"],
+  ["localPermitDate", "localPermitExpenses", "Local Permit"],
+  ["pollutionCertificateDate", "pollutionCertificateExpenses", "Pollution Cert."],
+  ["insuranceExpiryDate", "insuranceExpenses", "Insurance"],
+];
+
+/** The documents a truck holds (expiry date set) with no cost entered —
+ *  they count as ₹0 in Profitability and the Running Cost Calculator. */
+function docsWithoutCost(t: Truck): string[] {
+  return DOC_COSTS.filter(([date, cost]) => t[date] && !(Number(t[cost]) > 0)).map(([, , label]) => label);
+}
+
 export default function CompliancePage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
@@ -39,6 +57,8 @@ export default function CompliancePage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<ComplianceEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  // "No cost entered" card: show only the trucks with a document missing its cost.
+  const [onlyMissingCost, setOnlyMissingCost] = useState(false);
 
   // Fetched fresh every time it's opened, covering every compliance document
   // update ever logged — searching by registration/truck ID doubles as that
@@ -78,9 +98,13 @@ export default function CompliancePage() {
     return counts;
   }, [trucks]);
 
-  if (loading) return <PageSkeleton hasButton hasSearch statCards={3} columns={6} />;
+  if (loading) return <PageSkeleton hasButton hasSearch statCards={4} columns={6} />;
 
-  const filteredTrucks = trucks.filter((t) => !searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const missingCost = trucks.reduce((n, t) => n + docsWithoutCost(t).length, 0);
+  const trucksMissingCost = trucks.filter((t) => docsWithoutCost(t).length > 0).length;
+  const filteredTrucks = trucks.filter((t) =>
+    (!onlyMissingCost || docsWithoutCost(t).length > 0) &&
+    (!searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase())));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -127,7 +151,7 @@ export default function CompliancePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
           <p className="text-caption-1-medium text-text-secondary">Valid</p>
           <p className="mt-1 text-title-1-semibold text-success-text">{summary.Valid}</p>
@@ -140,7 +164,40 @@ export default function CompliancePage() {
           <p className="text-caption-1-medium text-text-secondary">Expired</p>
           <p className="mt-1 text-title-1-semibold text-danger-text">{summary.Expired}</p>
         </div>
+        {/* Documents held with no cost entered: they count as ₹0 in Profitability
+            and the Running Cost Calculator. Click to list just those trucks. */}
+        <button
+          type="button"
+          data-tour="compliance-no-cost"
+          onClick={() => setOnlyMissingCost((v) => !v)}
+          aria-pressed={onlyMissingCost}
+          disabled={missingCost === 0 && !onlyMissingCost}
+          title="Documents with an expiry date but no cost. Their cost counts as ₹0 in Profitability and the Running Cost Calculator until it's entered."
+          className={`rounded-xl border p-4 text-left transition-colors ${
+            onlyMissingCost
+              ? "border-warning-border-strong bg-warning-surface"
+              : "border-separator-border bg-background-primary-default hover:border-warning-border hover:bg-warning-surface/50"
+          } disabled:cursor-default disabled:hover:bg-background-primary-default`}
+        >
+          <p className="text-caption-1-medium text-text-secondary">No cost entered</p>
+          <p className={`mt-1 text-title-1-semibold ${missingCost ? "text-warning-text" : "text-success-text"}`}>{missingCost}</p>
+          <p className="mt-0.5 text-caption-2-regular text-text-tertiary">
+            {missingCost === 0
+              ? "Every document has its cost"
+              : onlyMissingCost
+                ? "Showing these trucks · click to show all"
+                : `on ${trucksMissingCost} truck${trucksMissingCost === 1 ? "" : "s"} · counts as ₹0 · click to list`}
+          </p>
+        </button>
       </div>
+
+      {onlyMissingCost && missingCost > 0 && (
+        <p className="-mt-2 text-xs text-warning-text-strong">
+          These trucks hold documents with no cost entered:{" "}
+          {trucks.filter((t) => docsWithoutCost(t).length).slice(0, 4).map((t) => `${t.registrationNumber} (${docsWithoutCost(t).join(", ")})`).join(" · ")}
+          {trucksMissingCost > 4 ? ` · and ${trucksMissingCost - 4} more` : ""}. Open a truck below and enter each document&apos;s cost.
+        </p>
+      )}
 
       <ComplianceTable trucks={filteredTrucks} onChanged={() => setRefreshKey((k) => k + 1)} />
 

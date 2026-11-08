@@ -183,7 +183,7 @@ export function appTourFor(role: string | undefined, { pagesOnly = false } = {})
       { target: "profile", title: "You", text: "Your profile, your edit and delete requests, notifications, and Log out.", expression: "love", side: "bottom", align: "end" },
       { title: "Shortcuts", text: `From any page, when you're not typing: ${SHORTCUTS.meetings.key} for meetings, ${SHORTCUTS.todo.key} for to-do, ${SHORTCUTS.notes.key} for notes, ${SHORTCUTS.theme.key} for dark mode, and Ctrl+K to search.`, expression: "sparkle" },
       { title: "Help as you go", text: "The first time you open a page or a big form, I'll offer to show you around it. Forms have a ? in their header to run it any time.", expression: "happy" },
-      { target: "joshine", title: "And that's me", text: "Click me to change how I look, or for a tour of the page you're on. I'll say hello each time you log in.", expression: "love", side: "left", align: "end" },
+      { target: "joshine", title: "And that's me", text: "Click me to change how I look, or for a tour of the page you're on. I'll say hello each time you log in. In the way? Press J, drag me down or use the little arrow on hover — I'll peek from the corner until you call me back.", expression: "love", side: "left", align: "end" },
     );
   }
 

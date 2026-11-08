@@ -68,10 +68,10 @@ export function TruckStatusDialog({ open, onClose, truckDbId, records, tyreLayou
     ? avgDailyCost / kmPerDay
     : null;
 
-  // Advanced = the month's cost ÷ the month's km (Avg/Day × 26 ÷ Monthly
-  // Distance Average) — no km/day involved, so it works without that setting.
-  const costPerKmAdvanced = avgDailyCost > 0 && runStats.monthlyAvg > 0
-    ? (avgDailyCost * 26) / runStats.monthlyAvg
+  // Advanced = the month's cost ÷ the truck's normal km a month (the months it
+  // worked, in the last 6) — no km/day involved, so it works without that setting.
+  const costPerKmAdvanced = avgDailyCost > 0 && runStats.normalKm > 0
+    ? (avgDailyCost * 26) / runStats.normalKm
     : null;
 
   const odometer = parseFloat(truck.odometer || "0") || 0;
@@ -211,8 +211,8 @@ export function TruckStatusDialog({ open, onClose, truckDbId, records, tyreLayou
               </p>
               <p className="text-[10px] text-accent-text">
                 Cost/km (Advanced) = Avg/day × 26 ÷ Monthly Distance Average
-                {runStats.monthlyAvg > 0
-                  ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
+                {runStats.normalKm > 0
+                  ? ` (${runStats.normalKm.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, the months it worked in the last 6)`
                   : " — no trip run history for this truck yet"}
                 {missingSheetsNote(runStats) && <span className="block text-warning-text">{missingSheetsNote(runStats)}</span>}
               </p>

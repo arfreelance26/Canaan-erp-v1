@@ -146,12 +146,12 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
     ? (Number(dailyFinanceCost) / kmPerDay).toFixed(4)
     : "";
 
-  // EMI Cost per Km (Advanced) = the month's EMI ÷ the month's km
-  // (Daily Finance Cost × 26 ÷ the truck's Monthly Distance Average).
+  // EMI Cost per Km (Advanced) = the month's EMI ÷ the truck's normal km a month
+  // (Daily Finance Cost × 26 ÷ the average of the months it worked, in the last 6).
   // Display-only — there is no backing DB column, so this is never persisted.
   const { stats: runStats } = useTruckRunStats(selectedTruck ?? null, open);
-  const emiCostPerKmAdvanced = dailyFinanceCost && runStats.monthlyAvg > 0
-    ? ((Number(dailyFinanceCost) * 26) / runStats.monthlyAvg).toFixed(4)
+  const emiCostPerKmAdvanced = dailyFinanceCost && runStats.normalKm > 0
+    ? ((Number(dailyFinanceCost) * 26) / runStats.normalKm).toFixed(4)
     : "";
 
   // Keep all computed values in form state so they are persisted to the API
@@ -349,9 +349,9 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               placeholder={
                 !form.truckRegistration
                   ? "Select a truck first"
-                  : runStats.monthlyAvg === 0
+                  : runStats.normalKm === 0
                   ? "No trip history for this truck yet"
-                  : "Daily Finance Cost × 26 ÷ monthly avg km"
+                  : "Daily Finance Cost × 26 ÷ normal km a month"
               }
             />
           </Field>
