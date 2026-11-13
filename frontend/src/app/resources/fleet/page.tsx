@@ -18,7 +18,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
 import { ComplianceAlertBanner } from "@/components/dashboard/ComplianceAlertBanner";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -148,7 +149,7 @@ export default function FleetPage() {
   }, []);
 
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
-  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon } = useComplianceAlerts(trucks);
+  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon, notUploadedItems, noCostItems } = useComplianceAlerts(trucks);
 
   // Load and refresh active edit approvals for non-Admin roles
   useEffect(() => {
@@ -519,6 +520,8 @@ export default function FleetPage() {
       <ComplianceAlertBanner
         expired={complianceExpired}
         expiringSoon={complianceExpiringSoon}
+        notUploaded={notUploadedItems}
+        noCost={noCostItems}
       />
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
@@ -547,7 +550,14 @@ export default function FleetPage() {
           ))}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <DownloadExcelButton path="/exports/trucks" filename="fleet.xlsx" />
+          {/* A file per truck: Summary + one sheet each, last 12 months, IDs masked (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Our_Fleet.xlsx"
+            title={`Our Fleet Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "fleet", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
         </div>
       </div>
 

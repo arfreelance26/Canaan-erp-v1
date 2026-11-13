@@ -1,7 +1,8 @@
 "use client";
 
 import { PillSearch } from "@/components/ui/PillSearch";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import React, { useEffect, useMemo, useState } from "react";
 import { Segmented } from "@/components/ui/Segmented";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -1018,14 +1019,19 @@ export default function CustomerProfitabilityPage() {
           <PillSearch placeholder="Search customers…" value={search} onChange={setSearch} />
           <div className="ml-auto flex flex-wrap items-center gap-3">
             <ModeSlider mode={mode} onChange={handleModeChange} />
-            <DownloadExcelButton
-              path="/exports/customer-profitability"
-              filename="customer_profitability.xlsx"
+            {/* The designed report (profit_reports.py): a ranking and a sheet per customer. */}
+            <ReportViewButton
+              path="/exports/resource-report"
+              filename="Customer_Profitability.xlsx"
+              title={`Customer Profitability Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"} — Cost/KM ${costMode}${search.trim() ? ` — "${search.trim()}"` : ""}`}
               params={{
-                cost_mode: costMode,
+                kind: "custprofit",
+                resource_type: costMode,
                 ...(dateFrom ? { from_date: dateFrom } : {}),
                 ...(dateTo ? { to_date: dateTo } : {}),
+                ...(search.trim() ? { search: search.trim() } : {}),
               }}
+              pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
             />
           </div>
         </div>

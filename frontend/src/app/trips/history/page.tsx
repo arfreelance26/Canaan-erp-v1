@@ -4,16 +4,20 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { RiHistoryLine as History, RiFileTextLine as FileText, RiFileList3Line as ClipboardList, RiReceiptLine as Receipt, RiDeleteBinLine as Trash2, RiStackLine as Layers, RiAddLine as Plus, RiPencilLine as Pencil, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { TripReport } from "@/lib/trip-report-pdf";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { TripCategoryTag } from "@/components/trips/TripCategoryTag";
+import { TripCategoryFilter } from "@/components/trips/TripCategoryFilter";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
-import type { Trip } from "@/types/trip";
+import type { Trip, TripCategory } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
@@ -45,22 +49,6 @@ type InvoicePreviewState = {
 
 const CURRENT_STATUSES = new Set(["Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
 
-const ALL_TRIP_STATUSES = ["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded", "Completed", "Cancelled"];
-
-// The export filters that reproduce what each summary card shows on this page.
-// Every scope sets `status` so trips deleted from the app never leak into the file.
-function exportScope(filter: "All" | "Assigned" | "Current" | "Completed" | "Invoiced" | "Waived Invoice" | "Cancelled"): Record<string, string> {
-  const notCancelled = ALL_TRIP_STATUSES.filter((s) => s !== "Cancelled").join(",");
-  switch (filter) {
-    case "Assigned":       return { status: "Assigned" };
-    case "Current":        return { status: [...CURRENT_STATUSES].join(",") };
-    case "Completed":      return { status: notCancelled, has_closure: "true" };
-    case "Invoiced":       return { status: ALL_TRIP_STATUSES.join(","), is_invoiced: "true" };
-    case "Waived Invoice": return { status: ALL_TRIP_STATUSES.join(","), invoice_waived: "true", is_invoiced: "false" };
-    case "Cancelled":      return { status: "Cancelled" };
-    default:               return { status: ALL_TRIP_STATUSES.join(",") };
-  }
-}
 
 const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
   "Booking Created": Plus,
@@ -114,6 +102,8 @@ export default function TripHistoryPage() {
   // Auditor only ever sees three of these cards, so default straight to one of
   // them instead of "All" — a card-less filter state would be confusing.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(isAuditor ? "Invoiced" : "All");
+  // Trip Category ("" = all): narrows the list, the stage cards' numbers and the View export.
+  const [categoryFilter, setCategoryFilter] = useState<TripCategory | "">("");
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<TripEditEventRow[]>([]);
@@ -186,6 +176,7 @@ export default function TripHistoryPage() {
   // stable identity to drive the lazy closure/sheet fetch below. The date range
   // beside View only scopes that export (exports.py) — the table lists every trip.
   const filteredTrips = useMemo(() => trips
+    .filter((t) => !categoryFilter || t.tripCategory === categoryFilter)
     .filter((t) => {
       if (statusFilter === "Assigned")  return t.status === "Assigned";
       if (statusFilter === "Current")   return CURRENT_STATUSES.has(t.status);
@@ -200,7 +191,7 @@ export default function TripHistoryPage() {
       const aInv = (a as any).isInvoiced === true ? 1 : 0;
       const bInv = (b as any).isInvoiced === true ? 1 : 0;
       return aInv - bInv;
-    }), [trips, statusFilter, searchQuery, trucks, drivers]);
+    }), [trips, categoryFilter, statusFilter, searchQuery, trucks, drivers]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -327,14 +318,16 @@ export default function TripHistoryPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={12} />;
 
+  // The stage cards count within the chosen Trip Category.
+  const inCategory = categoryFilter ? trips.filter((t) => t.tripCategory === categoryFilter) : trips;
   const counts = {
-    All:       trips.length,
-    Assigned:  trips.filter((t) => t.status === "Assigned").length,
-    Current:   trips.filter((t) => CURRENT_STATUSES.has(t.status)).length,
-    Completed: trips.filter((t) => (t as any).hasClosure === true && t.status !== "Cancelled").length,
-    Invoiced:  trips.filter((t) => (t as any).isInvoiced === true).length,
-    "Waived Invoice": trips.filter((t) => (t as any).invoiceWaived === true && (t as any).isInvoiced !== true).length,
-    Cancelled: trips.filter((t) => t.status === "Cancelled").length,
+    All:       inCategory.length,
+    Assigned:  inCategory.filter((t) => t.status === "Assigned").length,
+    Current:   inCategory.filter((t) => CURRENT_STATUSES.has(t.status)).length,
+    Completed: inCategory.filter((t) => (t as any).hasClosure === true && t.status !== "Cancelled").length,
+    Invoiced:  inCategory.filter((t) => (t as any).isInvoiced === true).length,
+    "Waived Invoice": inCategory.filter((t) => (t as any).invoiceWaived === true && (t as any).isInvoiced !== true).length,
+    Cancelled: inCategory.filter((t) => t.status === "Cancelled").length,
   };
 
   return (
@@ -370,6 +363,12 @@ export default function TripHistoryPage() {
           value={searchQuery}
           onChange={(v) => { setSearchQuery(v); setPage(1); }}
         />
+        <TripCategoryFilter
+          tour="history-category"
+          trips={trips}
+          value={categoryFilter}
+          onChange={(v) => { setCategoryFilter(v); setPage(1); }}
+        />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill
             from={exportFrom}
@@ -378,15 +377,20 @@ export default function TripHistoryPage() {
             onToChange={setExportTo}
           />
           {/* View follows the summary card currently selected (All / Assigned / Current / …), the dates and the search */}
-          <DownloadExcelButton
-            path="/exports/trips"
-            filename={`${statusFilter.toLowerCase().replace(/ /g, "_")}_trips.xlsx`}
+          {/* The category-wise report: Summary, a sheet per trip category, By Customer (+ its PDF).
+              Follows the stage card, category, dates and search. */}
+          <ReportViewButton
+            path="/exports/trip-report"
+            filename="Trip_History.xlsx"
+            title={`Trip History Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${statusFilter !== "All" ? ` — ${statusFilter}` : ""}${categoryFilter ? ` — ${categoryFilter}` : ""}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
             params={{
-              ...exportScope(statusFilter),
+              card: statusFilter,
+              ...(categoryFilter ? { trip_category: categoryFilter } : {}),
               ...(exportFrom ? { from_date: exportFrom } : {}),
               ...(exportTo ? { to_date: exportTo } : {}),
-              ...(searchQuery ? { search: searchQuery } : {}),
+              ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
             }}
+            pdf={(report, file) => import("@/lib/trip-report-pdf").then((m) => m.downloadTripReportPdf({ report: report as TripReport, filename: file }))}
           />
         </div>
       </div>
@@ -499,7 +503,7 @@ export default function TripHistoryPage() {
                     />
                   </th>
                 )}
-                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
+                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", ...(isAdmin ? ["Trip Summary"] : []), ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
                   <th key={col} className="px-4 py-2 text-caption-1-semibold text-text-secondary">
                     {col}
                   </th>
@@ -582,6 +586,7 @@ export default function TripHistoryPage() {
                       <span className="text-text-primary">{trip.origin}</span>
                       <span className="mx-1 text-text-tertiary">→</span>
                       <span className="text-text-primary">{trip.destination}</span>
+                      {trip.tripCategory && <TripCategoryTag category={trip.tripCategory} className="mt-1 block" />}
                     </td>
                     <td className="px-4 py-2 text-text-secondary">{containerRef(trip)}</td>
                     <td className="px-4 py-2 text-text-secondary">
@@ -605,7 +610,8 @@ export default function TripHistoryPage() {
                       {expense !== null ? `₹${expense.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-text-tertiary">—</span>}
                     </td>
 
-                    {/* P&L */}
+                    {/* P&L: profit is Admin only */}
+                    {isAdmin && (
                     <td className="px-4 py-2">
                       {pl !== null ? (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption-1-semibold ${
@@ -623,6 +629,7 @@ export default function TripHistoryPage() {
                         <span className="text-xs text-text-tertiary">No sheet</span>
                       )}
                     </td>
+                    )}
 
                     {!isFleetManager && (
                       <td className="px-4 py-2">

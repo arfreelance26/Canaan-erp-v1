@@ -31,6 +31,8 @@ import { useBirthday } from "@/context/BirthdayContext";
 import { useSeason } from "@/context/SeasonContext";
 import { useFounding } from "@/context/FoundingContext";
 import dynamic from "next/dynamic";
+import { NoticeBoard } from "./NoticeBoard";
+import { openNoticeBoard, useUnseenNotices } from "@/lib/notice-board";
 
 // Celebration decor only draws on festive days, so it loads on demand.
 const GoldWave = dynamic(() => import("./FoundingDecor").then((m) => m.GoldWave));
@@ -213,6 +215,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const isFinanceManager = user?.softwareDesignation === "Accounts";
   const isStaff          = user?.softwareDesignation === "Trip Sheet Register";
   const isMaintenance    = user?.softwareDesignation === "Maintenance";
+  // Maintenance Requests (fix a rejected record and send it back) is theirs.
+  const canOpenMaintenanceRequests = isAdmin || isMaintenance || isStaff;
+  // Notice Board (B): notices not seen yet show in the bell.
+  const unseenNotices = useUnseenNotices();
 
   // Compliance Alerts and Renewals & Payments no longer come through here —
   // see the comment where their bell sections used to render, further down.
@@ -749,6 +755,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               (isAdmin ? recentLeaveRequests.length + recentDeletionRequestNotifs.length : 0) +
               ((isAdmin || isFleetManager) ? recentEditRequestNotifs.length : 0) +
               recentMyDecidedRequests.length;
+            // New notices count on the Notice Board's own button, not here too.
             return (
               <button
                 type="button"
@@ -785,7 +792,8 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     maintRequestNotifs.length +
                     myWaitingJobs.length +
                     (isAdmin ? recentLeaveRequests.length + recentEditRequestNotifs.length + recentDeletionRequestNotifs.length : 0) +
-                    recentMyDecidedRequests.length;
+                    recentMyDecidedRequests.length +
+                    unseenNotices.length;
                   return count > 0 ? (
                     <span className="rounded-full bg-danger-surface-strong px-2 py-0.5 text-caption-2-semibold text-danger-text">
                       {count} unread
@@ -795,10 +803,51 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               </div>
 
               {/* Body */}
-              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 && reverificationAlerts.length === 0 && myWaitingJobs.length === 0 ? (
+              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 && reverificationAlerts.length === 0 && myWaitingJobs.length === 0 && unseenNotices.length === 0 ? (
                 <EmptyState size="compact" illustration="inbox-empty" title="No notifications yet" description="Role-specific alerts coming soon" />
               ) : (
                 <div className="max-h-[420px] overflow-y-auto">
+
+                  {/* ── Notice Board (B) — notices I haven't opened yet ── */}
+                  {unseenNotices.length > 0 && (
+                    <div>
+                      <p className="flex items-center justify-between px-4 pt-3 pb-1 text-caption-2-semibold text-accent-text">
+                        <span>Notice Board</span>
+                        <span className="font-normal text-text-tertiary">press B</span>
+                      </p>
+                      <ul className="divide-y divide-separator-border">
+                        {unseenNotices.slice(0, NOTIF_ROW_CAP).map((n) => (
+                          <li key={`notice-${n.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => { setIsNotifOpen(false); openNoticeBoard(n.id); }}
+                              className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent-surface-strong/60"
+                            >
+                              <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", n.important ? "bg-danger-solid" : "bg-accent-solid")} />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-[12px] font-semibold text-text-primary">
+                                  {n.authorName}{n.important && <span className="ml-1.5 text-danger-text">· Important</span>}
+                                </p>
+                                <p className="truncate text-[11px] text-text-secondary">
+                                  {n.title || n.preview || (n.imageCount ? "Posted a picture" : "")}
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-text-tertiary">{timeAgo(n.createdAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {unseenNotices.length > NOTIF_ROW_CAP && (
+                        <button
+                          type="button"
+                          onClick={() => { setIsNotifOpen(false); openNoticeBoard(); }}
+                          className="w-full px-4 py-2 text-left text-caption-2-semibold text-accent-text hover:bg-fill-2"
+                        >
+                          +{unseenNotices.length - NOTIF_ROW_CAP} more on the Notice Board
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* ── Edit Requests (Admin + Commercial Manager) — always on top ──
                       Grouped by requester + capped: dozens of individual
@@ -1355,6 +1404,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                               onClick={() => {
                                 setMyDecidedRequests((prev) => prev.filter((n) => n.key !== notif.key));
                                 setIsNotifOpen(false);
+                                if (isMaint && canOpenMaintenanceRequests) router.push(`/personal/edit-delete-requests?tab=maintenance&focus=${notif.id}`);
                               }}
                               className={cn(
                                 "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors",
@@ -1392,7 +1442,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                   {isMaint
                                     ? (approved
                                         ? "It's now on the truck's record."
-                                        : `Reason: ${notif.rejectReason ?? "—"} — submit a corrected record.`)
+                                        : `Reason: ${notif.rejectReason ?? "—"} — ${canOpenMaintenanceRequests ? "fix it in My Requests and send it back." : "submit a corrected record."}`)
                                     : approved
                                     ? (isEdit ? "Please make your changes within 8 hours." : "The record has been deleted.")
                                     : "Contact the Admin if you have questions."}
@@ -1411,7 +1461,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                             onClick={() => { setIsNotifOpen(false); router.push("/personal/edit-delete-requests"); }}
                             className="text-caption-1-medium text-text-secondary hover:text-text-primary transition-colors"
                           >
-                            +{recentMyDecidedRequests.length - NOTIF_ROW_CAP} more — view all in Edit & Delete Requests →
+                            +{recentMyDecidedRequests.length - NOTIF_ROW_CAP} more — view all in My Requests →
                           </button>
                         </div>
                       )}
@@ -1435,6 +1485,9 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
             </div>
           )}
         </div>}
+
+        {/* Notice Board — megaphone button beside the bell (B opens it too) */}
+        <NoticeBoard />
 
         <div className="h-6 w-px bg-separator-border" />
 

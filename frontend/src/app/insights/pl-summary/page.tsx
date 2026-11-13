@@ -18,6 +18,7 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { downloadPlReportPdf } from "@/lib/pl-report-pdf";
+import { ProfitabilityViewMenu, PROFITABILITY_TITLE, type ProfitabilityPart } from "@/components/reports/ProfitabilityViewMenu";
 import { PagedTbody } from "@/components/ui/PagedTbody";
 
 // Dialogs load on demand, after the page has drawn (next/dynamic).
@@ -1527,7 +1528,7 @@ export default function PLSummaryPage() {
     setModeState(m);
     try { localStorage.setItem(MODE_KEY, m); } catch { /* not remembered, still switched */ }
   };
-  const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[]; search: string } | null>(null);
+  const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[]; search: string; part: ProfitabilityPart } | null>(null);
   const [preparingExport, setPreparingExport] = useState(false);
   const [showHowCalculated, setShowHowCalculated] = useState(false);
   const [showQuickStart, setShowQuickStart]  = useState(false);
@@ -1564,24 +1565,25 @@ export default function PLSummaryPage() {
   useAutoRefresh(refreshAll, 30000);
 
   /** View → the audit report, built on the server (backend/pl_export.py) for
-   * this period, Cost/KM mode and search: Summary · Trips · Trip Expenses · Trucks ·
-   * Rates, formatted, with live formulas. The preview comes from the server
-   * too — it works the formulas out (the file stores them unevaluated). */
-  async function openExportPreview() {
+   * this period, Cost/KM mode and search, formatted, with live formulas — Trip
+   * Profitability, Truck Profitability or both, as picked under View. The
+   * preview comes from the server too — it works the formulas out (the file
+   * stores them unevaluated). */
+  async function openExportPreview(part: ProfitabilityPart) {
     if (!computed || preparingExport) return;
     setPreparingExport(true);
     try {
       const typed = search.trim();
-      const qs = new URLSearchParams({ start_date: startDate, end_date: endDate, mode, ...(typed ? { search: typed } : {}) }).toString();
+      const qs = new URLSearchParams({ start_date: startDate, end_date: endDate, mode, part, ...(typed ? { search: typed } : {}) }).toString();
       const [file, preview] = await Promise.all([
         fetchExcel(`/pl-summary/export?${qs}`, `Profitability_${fmtDate(startDate)}_to_${fmtDate(endDate)}.xlsx`),
         plSummaryApi.getExportPreview(qs),
       ]);
-      setExportPreview({ blob: file.blob, filename: file.filename, sheets: preview.sheets, search: typed });
+      setExportPreview({ blob: file.blob, filename: file.filename, sheets: preview.sheets, search: typed, part });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Could not prepare the export.";
       const problem = problemFromMessage(message);
-      if (problem) reportProblem({ ...problem, onRetry: openExportPreview });
+      if (problem) reportProblem({ ...problem, onRetry: () => openExportPreview(part) });
       else showError(message);
     } finally {
       setPreparingExport(false);
@@ -1645,13 +1647,8 @@ export default function PLSummaryPage() {
             How is it Calculated
           </button>
           {computed && (
-            <button
-              type="button" onClick={openExportPreview} disabled={preparingExport}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-              {preparingExport ? "Preparing…" : "View"}
-            </button>
+            // Trip Profitability, Truck Profitability or both — the tab on screen first.
+            <ProfitabilityViewMenu current={tab} busy={preparingExport} onPick={openExportPreview} />
           )}
         </div>
       </div>
@@ -1813,14 +1810,14 @@ export default function PLSummaryPage() {
 
       {exportPreview && (
         <ExportPreviewDialog
-          title={`Profitability Report — ${fmtDate(startDate)} to ${fmtDate(endDate)}${exportPreview.search ? ` — "${exportPreview.search}"` : ""}`}
+          title={`${PROFITABILITY_TITLE[exportPreview.part]} — ${fmtDate(startDate)} to ${fmtDate(endDate)}${exportPreview.search ? ` — "${exportPreview.search}"` : ""}`}
           filename={exportPreview.filename}
           blob={exportPreview.blob}
           sheets={exportPreview.sheets}
           onClose={() => setExportPreview(null)}
-          // The full report as a PDF (summary, trucks, trips) — not the sheet on screen.
+          // The report as a PDF (its summary and list(s)) — not the sheet on screen.
           onPdf={computed ? () => downloadPlReportPdf({
-            computed, startDate, endDate, mode, search: exportPreview.search, filename: exportPreview.filename,
+            computed, startDate, endDate, mode, search: exportPreview.search, filename: exportPreview.filename, part: exportPreview.part,
           }) : undefined}
         />
       )}

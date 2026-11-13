@@ -1,6 +1,8 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { useEffect, useMemo, useState } from "react";
 import { RiCalendarCloseLine as CalendarOff, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiCalendar2Line as CalendarDays, RiArrowLeftSLine as ChevronLeft, RiArrowRightSLine as ChevronRight, RiLoader4Line as Loader2, RiHistoryLine as History, RiPencilLine as Pencil } from "@remixicon/react";
 import { attendanceApi, type HolidayEditEventRow } from "@/lib/api";
@@ -159,6 +161,13 @@ export default function HolidaysPage() {
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
+        <ReportViewButton
+          path="/exports/resource-report"
+          filename={`Staff_Holidays_${year}.xlsx`}
+          title={`Staff Holidays Report — ${year}`}
+          params={{ kind: "holidays", year: String(year) }}
+          pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+        />
         </div>
       </div>
 
@@ -168,8 +177,8 @@ export default function HolidaysPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="pl-3 text-caption-1-medium text-text-secondary">Date</label>
-            <div className={`${FIELD} flex w-[150px] items-center [&>div]:w-full [&_.border-gold-solid]:!border-0 [&_.border-gold-solid]:!bg-transparent [&_.border-gold-solid]:!px-0 [&_.border-gold-solid]:!py-1 [&_.border-gold-solid]:!shadow-none [&_.border-brand-gold_svg]:!text-text-secondary [&_input]:!text-text-primary [&_input::placeholder]:!text-text-tertiary`}>
-              <DatePickerInput value={newDate} onChange={setNewDate} placeholder="Pick a date" />
+            <div className={`${FIELD} flex w-[160px] items-center px-3`}>
+              <DatePickerInput value={newDate} onChange={setNewDate} placeholder="Pick a date" variant="bare" aria-label="Holiday date" />
             </div>
           </div>
           <div className="flex min-w-[200px] flex-1 flex-col gap-1.5">

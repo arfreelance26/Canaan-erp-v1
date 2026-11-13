@@ -23,7 +23,8 @@ import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 
@@ -507,7 +508,14 @@ export default function CustomersPage() {
           <div className="flex flex-wrap items-center gap-3">
             <PillSearch placeholder="Search customers..." value={searchQuery} onChange={setSearchQuery} />
             <div className="ml-auto flex flex-wrap items-center gap-3">
-            <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
+            {/* Summary + a sheet per customer type, Destinations, Pricing (+ Final Pricing for Admin/Accounts), 12 months' trips (+ its PDF). */}
+            <ReportViewButton
+              path="/exports/resource-report"
+              filename="Our_Customers.xlsx"
+              title={`Our Customers Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+              params={{ kind: "customers", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+              pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+            />
             <button
               type="button"
               onClick={handleAddCustomer}
@@ -549,7 +557,14 @@ export default function CustomersPage() {
           <div className="flex flex-wrap items-center gap-3">
             <PillSearch placeholder="Search pricing..." value={searchQuery} onChange={setSearchQuery} />
             <div className="ml-auto flex flex-wrap items-center gap-3">
-            <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
+            {/* Summary + a sheet per customer type, Destinations, Pricing (+ Final Pricing for Admin/Accounts), 12 months' trips (+ its PDF). */}
+            <ReportViewButton
+              path="/exports/resource-report"
+              filename="Our_Customers.xlsx"
+              title={`Our Customers Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+              params={{ kind: "customers", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+              pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+            />
             <button
               type="button"
               onClick={handleAddPricing}
@@ -599,7 +614,14 @@ export default function CustomersPage() {
           <div className="flex flex-wrap items-center gap-3">
             <PillSearch placeholder="Search destinations..." value={searchQuery} onChange={setSearchQuery} />
             <div className="ml-auto flex flex-wrap items-center gap-3">
-            <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
+            {/* Summary + a sheet per customer type, Destinations, Pricing (+ Final Pricing for Admin/Accounts), 12 months' trips (+ its PDF). */}
+            <ReportViewButton
+              path="/exports/resource-report"
+              filename="Our_Customers.xlsx"
+              title={`Our Customers Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+              params={{ kind: "customers", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+              pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+            />
             <button
               type="button"
               onClick={handleAddDestination}
@@ -649,7 +671,14 @@ export default function CustomersPage() {
               Accounts-adjusted hire amounts used for Driver Batta calculation.
             </p>
             <div className="ml-auto flex flex-wrap items-center gap-3">
-              <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
+              {/* Summary + a sheet per customer type, Destinations, Pricing (+ Final Pricing for Admin/Accounts), 12 months' trips (+ its PDF). */}
+            <ReportViewButton
+              path="/exports/resource-report"
+              filename="Our_Customers.xlsx"
+              title={`Our Customers Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+              params={{ kind: "customers", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+              pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+            />
               <button
                 type="button"
                 onClick={() => { setEditingFinalPricing(null); setFinalPricingDialogOpen(true); }}

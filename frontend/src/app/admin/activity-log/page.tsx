@@ -33,7 +33,9 @@ import dynamic from "next/dynamic";
 import { PagedTbody } from "@/components/ui/PagedTbody";
 
 // Dialogs load on demand, after the page has drawn (next/dynamic).
+// The Staff Work Report is also on Reports Center; here it opens on the day being viewed.
 const WorkReportDialog = dynamic(() => import("@/components/activity/WorkReportDialog").then((m) => m.WorkReportDialog));
+
 const PAGE_SIZE = 50;
 const EXPORT_LIMIT = 500; // the most GET /activity/events returns in one call
 const FALLBACK_POLL_MS = 30_000;

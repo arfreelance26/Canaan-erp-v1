@@ -1,5 +1,6 @@
 """Finance (EMI, recurring payments, driver/staff compensation), P&L summary
 and truck compliance documents (renew, correct, undo, files)."""
+import json
 from datetime import date, timedelta
 
 import pytest
@@ -72,8 +73,26 @@ def test_pl_summary(api, api_as, world):
     assert "no_such_trip_zz" in nothing["filename"]
     assert "spreadsheet" in res.headers["content-type"] or res.content[:2] == b"PK"
     trip = sheeted_trip(api, world)
-    breakdown = api_as("Accounts").get(f"/pl-summary/trip-breakdown/{trip['id']}")
-    assert breakdown
+    assert api.get(f"/pl-summary/trip-breakdown/{trip['id']}")
+
+
+@pytest.mark.parametrize("role", ["Accounts", "Auditor", "Commercial Manager", "Assistant Commercial Manager",
+                                  "Maintenance", "Trip Sheet Register", "Yard Supervisor"])
+def test_profit_is_admin_only(api, api_as, world, role):
+    """Profitability, its Trip Breakdown and the Trip History report's Trip
+    Summary (hire − expenses) never reach anyone but Admin."""
+    window = {"start_date": "2020-01-01", "end_date": "2030-12-31"}
+    trip = sheeted_trip(api, world)
+    user = api_as(role)
+    for path in ("/pl-summary", "/pl-summary/computed", "/pl-summary/export-preview", "/pl-summary/export"):
+        user.get(path, params=window, expect=403)
+    user.get(f"/pl-summary/trip-breakdown/{trip['id']}", expect=403)
+    if role in ("Accounts", "Commercial Manager", "Assistant Commercial Manager"):   # they have Trip History
+        rep = user.get("/exports/trip-report/preview")
+        assert '"summary"' not in json.dumps(rep["report"])
+        assert not any("Trip Summary" in str(c) for sh in rep["sheets"] for row in sh.get("rows", []) for c in row)
+    admin = api.get("/exports/trip-report/preview")
+    assert admin["report"]["show_profit"] is True and "summary" in admin["report"]["totals"]
 
 
 # ---------------------------------------------------------------- compliance documents

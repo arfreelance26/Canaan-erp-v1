@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { TruckMaintenanceTable } from "@/components/maintenance/TruckMaintenanceTable";
+import { TruckViewToggle, useTruckView } from "@/components/fleet/TruckTiles";
 import { trucksApi, maintenanceApi, maintenanceRequestsApi, type MaintenanceRecordEditEventRow } from "@/lib/api";
 import { RiToolsLine as Wrench, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
@@ -10,7 +11,8 @@ import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { MaintenanceRequest } from "@/types/maintenance-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { MaintenanceReport } from "@/lib/maintenance-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -57,6 +59,7 @@ export default function TruckMaintenancePage() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useTruckView("truck-maintenance");
   // ?search=<registration> — a maintenance alert in the bell opens its truck.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("search");
@@ -214,21 +217,27 @@ export default function TruckMaintenancePage() {
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
+        <TruckViewToggle view={view} onChange={setView} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/maintenance-records"
-            filename="maintenance_records.xlsx"
+          {/* The truck-wise report: Summary, All Trucks, a sheet per truck, By Vendor (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/maintenance-report"
+            filename="Truck_Maintenance.xlsx"
+            title={`Truck Maintenance Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
             params={{
               ...(exportFrom ? { from_date: exportFrom } : {}),
               ...(exportTo ? { to_date: exportTo } : {}),
+              ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
             }}
+            pdf={(report, file) => import("@/lib/maintenance-report-pdf").then((m) => m.downloadMaintenanceReportPdf({ report: report as MaintenanceReport, filename: file }))}
           />
         </div>
       </div>
 
       <TruckMaintenanceTable
         trucks={filteredTrucks}
+        view={view}
         records={datedRecords}
         onUpdateRecord={handleUpdateRecord}
         onScheduledRecords={handleScheduledRecords}

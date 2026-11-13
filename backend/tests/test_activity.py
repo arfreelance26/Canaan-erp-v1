@@ -18,7 +18,7 @@ def token(staff):
 
 
 @pytest.mark.parametrize("method,path,kind", [
-    ("GET", "/exports/trips", "export"),          # an Excel download is a GET, but counts as an export
+    ("GET", "/exports/trip-report", "export"),          # an Excel download is a GET, but counts as an export
     ("GET", "/maintenance/records/export", "export"),
     ("POST", "/trucks", "save"),
     ("PUT", "/trucks/4", "save"),

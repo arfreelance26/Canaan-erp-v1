@@ -19,8 +19,10 @@ import {
   SHAPE_LABELS,
   type JoshineSettings,
   type JoshineShape,
+  JOSHINE_BEHAVIOURS,
 } from "@/lib/joshine";
 import { cx } from "@/utils/cx";
+import { Segmented } from "@/components/ui/Segmented";
 import { JoshineFace } from "./JoshineFace";
 
 /**
@@ -80,6 +82,7 @@ export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, p
     <div
       ref={panelRef}
       role="dialog"
+      data-joshine-ui
       aria-label={`Customise ${settings.name}`}
       onKeyDown={(e) => e.key === "Escape" && onClose()}
       style={{ bottom: petSize + 32, maxHeight: `calc(100dvh - ${petSize + 56}px)` }}
@@ -221,6 +224,20 @@ export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, p
             onChange={(size) => onChange({ size: size as number })}
             className="min-w-0 flex-1"
           />
+        </div>
+
+        {/* Adjust Joshine's Behaviour: Energetic (everything) or Calm (gentle touches only) — lib/joshine.ts BEHAVIOUR_RULES */}
+        <div className="flex flex-col gap-2 rounded-2xl border border-separator-border bg-background-secondary-default px-4 py-3">
+          <span className="text-body-medium text-text-secondary">Adjust {settings.name || "Joshine"}&apos;s Behaviour</span>
+          <Segmented
+            label={`${settings.name || "Joshine"}'s behaviour`}
+            value={settings.behaviour}
+            onChange={(behaviour) => onChange({ behaviour })}
+            options={JOSHINE_BEHAVIOURS.map((b) => ({ value: b.value, label: b.label }))}
+          />
+          <span className="text-caption-1-regular text-text-tertiary">
+            {JOSHINE_BEHAVIOURS.find((b) => b.value === settings.behaviour)?.hint}
+          </span>
         </div>
 
         {/* "Tea time, right?" at 11 AM and 4 PM */}

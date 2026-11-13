@@ -69,7 +69,9 @@ export function TruckComplianceView({ truck, onClose }: { truck: Truck; onClose:
 
   const docs = COMPLIANCE_DOCS.map((d) => {
     const date = truck[d.dateKey] as string;
-    const state: State = date ? getComplianceStatus(date, d.statusField) : "Missing";
+    // With a date the status is never "Not Uploaded"; no date is this view's own "Missing".
+    const status = date ? getComplianceStatus(date, d.statusField) : "Not Uploaded";
+    const state: State = status === "Not Uploaded" ? "Missing" : status;
     const cost = parseFloat(truck[d.expensesKey] as string);
     return {
       meta: d,

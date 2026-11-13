@@ -11,6 +11,8 @@ import type { TripClosureData } from "@/types/trip-closure";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { showError } from "@/lib/feedback";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import dynamic from "next/dynamic";
@@ -331,6 +333,19 @@ export default function PnlMileagePage() {
             </button>
           )}
           <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          {/* The designed report (profit_reports.py): by month, category, customer and truck, a sheet per month. */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Trip_Summary.xlsx"
+            title={`Trip Summary Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{
+              kind: "tripsummary",
+              ...(dateFrom ? { from_date: dateFrom } : {}),
+              ...(dateTo ? { to_date: dateTo } : {}),
+              ...(search.trim() ? { search: search.trim() } : {}),
+            }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
         </div>
       </div>
 

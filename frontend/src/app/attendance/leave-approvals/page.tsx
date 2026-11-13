@@ -11,7 +11,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/feedback";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ApprovalsReport } from "@/lib/approvals-report-pdf";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { RiCheckboxCircleLine as CheckCircle2, RiHistoryLine as History, RiSendPlaneLine as Send, RiCheckLine as Check, RiCloseLine as X } from "@remixicon/react";
@@ -249,13 +250,13 @@ export default function LeaveApprovalsPage() {
         <PillSearch value={search} onChange={setSearch} placeholder="Search by applicant name" />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/leave-requests"
-            filename="leave_requests.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The report: Summary + a sheet per group, follows the tab, search and dates (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/approvals-report"
+            filename="Leave_Approvals.xlsx"
+            title={`Leave Approvals Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}`}
+            params={{ kind: "leave", tab: filter, ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/approvals-report-pdf").then((m) => m.downloadApprovalsReportPdf({ report: report as ApprovalsReport, filename: file }))}
           />
         </div>
       </div>

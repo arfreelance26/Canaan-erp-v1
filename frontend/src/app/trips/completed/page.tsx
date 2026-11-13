@@ -14,13 +14,16 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/feedback";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
+import { TRIP_CATEGORY_LABEL } from "@/components/trips/TripCategoryTag";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+import { TripCategoryFilter, inTripCategory, type TripCategoryChoice } from "@/components/trips/TripCategoryFilter";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import dynamic from "next/dynamic";
@@ -64,6 +67,7 @@ export default function CompletedTripsPage() {
   const [closedTripIds, setClosedTripIds] = useState<Set<string>>(new Set());
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [category, setCategory] = useState<TripCategoryChoice>("");
   useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
@@ -153,7 +157,10 @@ export default function CompletedTripsPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
-  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
+  // Waiting to be closed and matching the search — counted before the category.
+  const waiting = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers))
+    .filter((trip) => !(trip as any).hasClosure && !closedTripIds.has(trip.id));
+  const filteredTrips = waiting.filter((t) => inTripCategory(t, category));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -184,18 +191,22 @@ export default function CompletedTripsPage() {
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
+        <TripCategoryFilter tour="trip-category-filter" trips={waiting} value={category} onChange={setCategory} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           {/* Only completed trips still waiting to be closed — the same ones the table below lists */}
-          <DownloadExcelButton
-            path="/exports/trips"
-            filename="completed_trips.xlsx"
-            params={{ status: "Completed", has_closure: "false" }}
+          {/* The designed report: Summary, a sheet per stage, and its PDF (trip_pages_report.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Completed_Trips.xlsx"
+            title={`Completed Trips Report${category ? ` — ${TRIP_CATEGORY_LABEL[category]}` : ""}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "trips_completed", ...(category ? { trip_category: category } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>
 
       <TripTable
-        trips={filteredTrips.filter((trip) => !(trip as any).hasClosure && !closedTripIds.has(trip.id))}
+        trips={filteredTrips}
         drivers={drivers}
         trucks={trucks}
         customers={customers}

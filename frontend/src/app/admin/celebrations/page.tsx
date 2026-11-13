@@ -14,7 +14,6 @@ import { inputClass } from "@/components/ui/Field";
 import { showError, showToast } from "@/lib/feedback";
 import { formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
-import { FestivalGreetings } from "@/components/celebrations/FestivalGreetings";
 
 const FOUNDED_YEAR = 2015;
 
@@ -279,8 +278,6 @@ export default function CelebrationsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-        {/* Festival greetings — Joshine's greeting on festival days */}
-        {data.festivals && <FestivalGreetings festivals={data.festivals} onSaved={load} />}
 
         {/* Upcoming */}
         <section className="rounded-2xl border border-separator-border bg-background-primary-default p-5 shadow-sm xl:col-span-2">

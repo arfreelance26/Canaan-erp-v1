@@ -34,6 +34,9 @@ type MaintenanceRecordFormDialogProps = {
   requireReason?: boolean;
   /** Add-costs mode: a job from Scheduled Records, prefilled; its costs are now required. */
   scheduledJob?: MaintenanceRequest | null;
+  /** Re-verification mode: a rejected request, prefilled, fixed and sent back
+   *  (Maintenance Requests). Its proof files were removed on rejection. */
+  rejectedRequest?: MaintenanceRequest | null;
 };
 
 type PickedProof = { key: string; file: File; kind: "image" | "pdf"; url: string | null };
@@ -104,13 +107,18 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
 
 export function MaintenanceRecordFormDialog({
   open, onClose, onSave, truck, saving = false, editRecord = null, requireReason = false, scheduledJob = null,
+  rejectedRequest = null,
 }: MaintenanceRecordFormDialogProps) {
   const isEdit = editRecord !== null;
   const addingCosts = !isEdit && scheduledJob !== null;
+  const resubmitting = !isEdit && !addingCosts && rejectedRequest !== null;
+  // Filled in from an existing request (a scheduled job or a rejected one).
+  const fromRequest = addingCosts ? scheduledJob : resubmitting ? rejectedRequest : null;
+  const prefilled = fromRequest !== null;
   // "Do you know the cost yet?" — Not yet saves the job to Scheduled Records,
   // its costs added later. Nothing is counted until then (and approval).
   const [costKnown, setCostKnown] = useState(true);
-  const scheduling = !isEdit && !addingCosts && !costKnown;
+  const scheduling = !isEdit && !prefilled && !costKnown;
   const [form, setForm] = useState<Omit<MaintenanceRecord, "id" | "truckId">>(emptyForm);
   const [reason, setReason] = useState("");
   // Shown once Submit is pressed with no repair picked (chips can't use `required`).
@@ -207,8 +215,8 @@ export function MaintenanceRecordFormDialog({
     setCostsChecked(false);
     setSameForAll(false);
     setCostKnown(true);
-    if (scheduledJob && !editRecord) {
-      const job = scheduledJob;
+    if (fromRequest) {
+      const job = fromRequest;
       setForm({
         ...emptyForm,
         date: job.date,
@@ -253,7 +261,7 @@ export function MaintenanceRecordFormDialog({
       setRemindOn(false);
       setRemindAfter("");
     }
-  }, [open, truck?.id, editRecord, scheduledJob]);
+  }, [open, truck?.id, editRecord, scheduledJob, rejectedRequest]);
 
   const imageCount = proofs.filter((p) => p.kind === "image").length;
   const pdfCount = proofs.filter((p) => p.kind === "pdf").length;
@@ -311,7 +319,7 @@ export function MaintenanceRecordFormDialog({
   // before these fields existed would otherwise restore without them, flipping
   // their inputs from controlled to uncontrolled (undefined value).
   // Drafts are for new records only — an edit always starts from the saved record.
-  useFormDraft(draftKey, open && !isEdit && !addingCosts, form, (draft) => {
+  useFormDraft(draftKey, open && !isEdit && !prefilled, form, (draft) => {
     setForm({ ...emptyForm, ...draft });
     const target = Number(draft.remindAtOdometer || 0);
     setRemindOn(target > 0);
@@ -334,7 +342,7 @@ export function MaintenanceRecordFormDialog({
   const remindTarget = form.remindAtOdometer ? Number(form.remindAtOdometer) : null;
   const remindFloor = Math.max(currentOdometer ?? 0, enteredOdometer ?? 0);
   const remindUnchanged = (isEdit && (form.remindAtOdometer ?? "") === (editRecord?.remindAtOdometer ?? ""))
-    || (addingCosts && (form.remindAtOdometer ?? "") === (scheduledJob?.remindAtOdometer != null ? String(scheduledJob.remindAtOdometer) : ""));
+    || (prefilled && (form.remindAtOdometer ?? "") === (fromRequest?.remindAtOdometer != null ? String(fromRequest.remindAtOdometer) : ""));
   const remindError = !remindOn
     ? ""
     : remindTarget === null || remindTarget <= 0
@@ -383,7 +391,7 @@ export function MaintenanceRecordFormDialog({
       setCostsChecked(true);
       return;
     }
-    if (!isEdit && !addingCosts) clearFormDraft(draftKey);
+    if (!isEdit && !prefilled) clearFormDraft(draftKey);
     const first = lines[0];
     onSave(
       {
@@ -410,10 +418,10 @@ export function MaintenanceRecordFormDialog({
     );
   }
 
-  const title = isEdit ? "Edit Maintenance Record" : addingCosts ? "Add Costs" : "Update Maintenance Record";
+  const title = isEdit ? "Edit Maintenance Record" : addingCosts ? "Add Costs" : resubmitting ? "Fix Rejected Record" : "Update Maintenance Record";
   const submitLabel = saving
     ? (isEdit ? (requireReason ? "Submitting…" : "Saving…") : scheduling ? "Saving…" : proofs.length ? "Submitting & uploading…" : "Submitting…")
-    : isEdit ? (requireReason ? "Submit Edit Request" : "Save Changes") : scheduling ? "Save to Scheduled Records" : "Submit for Approval";
+    : isEdit ? (requireReason ? "Submit Edit Request" : "Save Changes") : scheduling ? "Save to Scheduled Records" : resubmitting ? "Submit for Re-Verification" : "Submit for Approval";
   const costsLeft = missingCost.filter(Boolean).length;
 
   return (
@@ -430,7 +438,7 @@ export function MaintenanceRecordFormDialog({
           </div>
         )}
         {/* New records: is the cost known yet? Not yet → Scheduled Records. */}
-        {!isEdit && !addingCosts && (
+        {!isEdit && !prefilled && (
           <div data-tour="maintenance-cost-known" className={`rounded-xl border px-4 py-3 transition-colors ${scheduling ? "border-teal-border bg-teal-surface" : "border-separator-border bg-fill-1"}`}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
@@ -466,6 +474,22 @@ export function MaintenanceRecordFormDialog({
         {!isEdit && (scheduling ? (
           <div className="rounded-lg border border-teal-border bg-teal-surface px-4 py-2.5 text-xs text-teal-text-strong">
             This job is saved to the truck&apos;s <span className="font-semibold">Scheduled Records</span>. Add the costs there when the bill arrives; it then goes for approval and lands on its start date, so the P&amp;L of that day stays right. Nothing is counted until then.
+          </div>
+        ) : resubmitting ? (
+          <div className="rounded-lg border border-danger-border bg-danger-surface px-4 py-2.5 text-xs text-danger-text-strong">
+            <span className="font-semibold">
+              Rejected{rejectedRequest?.decidedByName ? <> by {rejectedRequest.decidedByName}</> : null}
+              {rejectedRequest?.decidedAt ? <> on {formatDate(rejectedRequest.decidedAt)}</> : null}:
+            </span>{" "}
+            &ldquo;{rejectedRequest?.rejectReason || "No reason given"}&rdquo;
+            <span className="mt-1 block text-text-secondary">
+              Fix what&apos;s needed below and attach the Proof of Payment again (the earlier files were removed on rejection). It goes back to <span className="font-semibold">Maintenance Approvals</span> for re-verification.
+            </span>
+            {rejectedRequest?.source === "Trip Sheet" && (
+              <span className="mt-1.5 block rounded-md border border-warning-border bg-warning-surface px-2.5 py-1.5 text-warning-text-strong">
+                This came from trip sheet <span className="font-semibold">{rejectedRequest.tripIdStr || "—"}</span>. Fixing it here doesn&apos;t change the sheet — if the cost or date on the sheet was wrong, correct the sheet&apos;s repair line too.
+              </span>
+            )}
           </div>
         ) : addingCosts ? (
           <div className="rounded-lg border border-teal-border bg-teal-surface px-4 py-2.5 text-xs text-teal-text-strong">
@@ -799,7 +823,7 @@ export function MaintenanceRecordFormDialog({
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => { if (!isEdit && !addingCosts) clearFormDraft(draftKey); onClose(); }}
+            onClick={() => { if (!isEdit && !prefilled) clearFormDraft(draftKey); onClose(); }}
             className="btn-interactive rounded-lg border border-separator-border px-4 py-2 text-body-medium text-text-primary transition duration-200 hover:bg-fill-2"
           >
             Cancel

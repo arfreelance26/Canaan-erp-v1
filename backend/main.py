@@ -1100,6 +1100,9 @@ def _run_staff_history_migrations():
             "ALTER TABLE cfs_yard_entries ADD COLUMN deleted_at DATETIME NULL",
             "ALTER TABLE deletion_approval_requests ADD COLUMN requester_seen_at DATETIME NULL",
             "ALTER TABLE edit_approval_requests ADD COLUMN requester_seen_at DATETIME NULL",
+            "ALTER TABLE maintenance_requests ADD COLUMN resubmit_count INT NOT NULL DEFAULT 0",
+            "ALTER TABLE maintenance_requests ADD COLUMN previous_reject_reason TEXT NULL",
+            "ALTER TABLE maintenance_requests ADD COLUMN resubmitted_at DATETIME NULL",
         ):
             # Re-running is expected on every deploy; only "already exists" is ignored.
             if _enum_change_drops_data(conn, ddl):
@@ -2173,8 +2176,13 @@ async def notes_request_size(request: Request, call_next):
     bodies (no Content-Length) are refused for the same reason; browsers
     always send a length for these JSON requests."""
     path = request.url.path
-    if request.method in ("POST", "PATCH", "PUT") and path.startswith(("/notes", "/todos")):
-        if path.startswith("/todos"):
+    # Notice Board pictures are multipart and capped by the upload route itself.
+    is_notice_image = path.startswith("/notices/") and path.rstrip("/").endswith("/images")
+    if request.method in ("POST", "PATCH", "PUT") and path.startswith(("/notes", "/todos", "/notices")) and not is_notice_image:
+        if path.startswith("/notices"):
+            from routers.notices import MAX_REQUEST_BYTES
+            too_large = "This notice is too large to post."
+        elif path.startswith("/todos"):
             from routers.todos import MAX_REQUEST_BYTES
             too_large = "This task is too large to save."
         else:
@@ -2296,8 +2304,9 @@ app.include_router(dashboard.router, dependencies=AUTH)
 app.include_router(branches.router, dependencies=AUTH)
 app.include_router(repair_types.router, dependencies=AUTH)
 app.include_router(sac_codes.router, dependencies=AUTH)
-app.include_router(pl_summary.router, dependencies=FINANCE)
-app.include_router(pl_summary.breakdown_router, dependencies=[Depends(require_roles("Accounts", "Auditor"))])
+# Profitability and its Trip Breakdown show profit: Admin only (require_roles() = Admin).
+app.include_router(pl_summary.router, dependencies=[Depends(require_roles())])
+app.include_router(pl_summary.breakdown_router, dependencies=[Depends(require_roles())])
 app.include_router(exports.router, dependencies=AUTH)
 app.include_router(edit_approvals.router, dependencies=AUTH)
 app.include_router(notifications.router, dependencies=AUTH)
@@ -2326,6 +2335,8 @@ from routers import events as _events_router
 app.include_router(_events_router.router, dependencies=AUTH)
 from routers import notes as _notes_router
 app.include_router(_notes_router.router, dependencies=AUTH)
+from routers import notices as _notices_router
+app.include_router(_notices_router.router, dependencies=AUTH)
 from routers import celebrations as _celebrations_router
 app.include_router(_celebrations_router.router, dependencies=AUTH)
 from routers import maintenance_requests as _maintenance_requests_router

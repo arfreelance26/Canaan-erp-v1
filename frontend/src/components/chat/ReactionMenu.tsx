@@ -27,6 +27,7 @@ export function ReactionMenu({
   current,
   onPick,
   onClose,
+  zIndexClass = "z-[60]",
 }: {
   /** The button that opened the menu — the menu positions itself next to it. */
   anchor: HTMLElement;
@@ -36,6 +37,8 @@ export function ReactionMenu({
   current: string | null;
   onPick: (emoji: string) => void;
   onClose: () => void;
+  /** Stacking class — the Notice Board's dropdown sits above the default. */
+  zIndexClass?: string;
 }) {
   const [stage, setStage] = useState<"quick" | "full">("quick");
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -85,7 +88,7 @@ export function ReactionMenu({
   if (!pos || typeof document === "undefined") return null;
 
   return createPortal(
-    <div ref={ref} className="fixed z-[60]" style={{ top: pos.top, left: pos.left }}>
+    <div ref={ref} data-reaction-menu className={cn("fixed", zIndexClass)} style={{ top: pos.top, left: pos.left }}>
       {stage === "quick" ? (
         <div
           role="menu"

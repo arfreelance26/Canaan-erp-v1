@@ -1,4 +1,4 @@
-import { RiTimerLine as Timer, RiFolderOpenLine as FolderOpen, RiCake3Line as PartyPopper, RiDashboardLine as LayoutDashboard, RiClipboardLine as ClipboardCheck, RiFileList3Line as ClipboardList, RiCalendarCheckLine as CalendarCheck, RiRouteLine as Route, RiSendPlaneLine as Send, RiGroupLine as Users, RiProfileLine as IdCard, RiToolsLine as Wrench, RiTruckLine as Truck, RiBuilding2Line as Building2, RiShakeHandsLine as Handshake, RiRecordCircleLine as CircleDot, RiStackLine as Boxes, RiShieldCheckLine as ShieldCheck, RiBankLine as Landmark, RiWallet3Line as Wallet, RiMoneyRupeeCircleLine as Banknote, RiGasStationLine as Fuel, RiGitBranchLine as GitBranch, RiArrowRightUpLine as TrendingUp, RiPriceTag3Line as Tag, RiHistoryLine as History, RiBarChartBoxLine as BarChart3, RiFileShieldLine as FileCheck, RiShieldFlashLine as ShieldAlert, RiShieldCrossLine as ShieldX, RiBarChart2Line as BarChart2, RiReceiptLine as Receipt, RiUserFollowLine as UserCheck, RiCalendarCloseLine as CalendarOff, RiCalculatorLine as Calculator, RiDropLine as Droplets, RiLockLine as Lock, RiCoinsLine as Coins, RiDashboard3Line as Gauge, RiPieChartLine as PieChart, RiMap2Line as Map, RiNavigationLine as Navigation, RiMoneyDollarCircleLine as DollarSign, RiLineChartLine as LineChart, RiMessage3Line as MessageSquare, RiMoneyRupeeCircleLine as IndianRupee, RiDeleteBinLine as Trash2, RiRefreshLine as RefreshCw, RiArchiveLine as Archive, RiPulseLine as Activity, RiFlagLine as Flag, RiVerifiedBadgeLine as BadgeCheck, RiHourglassLine as Hourglass, RiComputerLine as Monitor, RiNotification3Line as Bell, RiFileChart2Line as FileChart, type RemixiconComponentType as LucideIcon } from "@remixicon/react";
+import { RiTimerLine as Timer, RiFolderOpenLine as FolderOpen, RiCake3Line as PartyPopper, RiDashboardLine as LayoutDashboard, RiClipboardLine as ClipboardCheck, RiFileList3Line as ClipboardList, RiCalendarCheckLine as CalendarCheck, RiRouteLine as Route, RiSendPlaneLine as Send, RiGroupLine as Users, RiProfileLine as IdCard, RiToolsLine as Wrench, RiTruckLine as Truck, RiBuilding2Line as Building2, RiShakeHandsLine as Handshake, RiRecordCircleLine as CircleDot, RiStackLine as Boxes, RiShieldCheckLine as ShieldCheck, RiBankLine as Landmark, RiWallet3Line as Wallet, RiMoneyRupeeCircleLine as Banknote, RiGasStationLine as Fuel, RiGitBranchLine as GitBranch, RiArrowRightUpLine as TrendingUp, RiPriceTag3Line as Tag, RiHistoryLine as History, RiBarChartBoxLine as BarChart3, RiFileShieldLine as FileCheck, RiShieldFlashLine as ShieldAlert, RiShieldCrossLine as ShieldX, RiBarChart2Line as BarChart2, RiReceiptLine as Receipt, RiUserFollowLine as UserCheck, RiCalendarCloseLine as CalendarOff, RiCalculatorLine as Calculator, RiDropLine as Droplets, RiLockLine as Lock, RiCoinsLine as Coins, RiDashboard3Line as Gauge, RiPieChartLine as PieChart, RiMap2Line as Map, RiNavigationLine as Navigation, RiMoneyDollarCircleLine as DollarSign, RiLineChartLine as LineChart, RiMessage3Line as MessageSquare, RiMoneyRupeeCircleLine as IndianRupee, RiDeleteBinLine as Trash2, RiRefreshLine as RefreshCw, RiArchiveLine as Archive, RiPulseLine as Activity, RiFlagLine as Flag, RiVerifiedBadgeLine as BadgeCheck, RiHourglassLine as Hourglass, RiComputerLine as Monitor, RiNotification3Line as Bell, RiFileChart2Line as FileChart, RiFolderChartLine as FolderChart, type RemixiconComponentType as LucideIcon } from "@remixicon/react";
 
 export type NavItem = {
   label: string;
@@ -17,6 +17,7 @@ export const sidebarSections: NavSection[] = [
     items: [
       { label: "Dashboard", href: "/", icon: LayoutDashboard },
       { label: "Recap Report", href: "/overview/recap-report", icon: FileChart },
+      { label: "Reports Center", href: "/overview/reports-center", icon: FolderChart },
     ],
   },
   {
@@ -24,7 +25,7 @@ export const sidebarSections: NavSection[] = [
     items: [
       { label: "Mark Attendance", href: "/attendance/mark", icon: UserCheck },
       { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
-      { label: "Edit & Delete Requests", href: "/personal/edit-delete-requests", icon: FileCheck },
+      { label: "My Requests", href: "/personal/edit-delete-requests", icon: FileCheck },
       { label: "Notifications", href: "/personal/notifications", icon: Bell },
     ],
   },
@@ -39,13 +40,21 @@ export const sidebarSections: NavSection[] = [
       { label: "Running Cost Calculator", href: "/insights/running-cost-calculator", icon: Calculator },
       { label: "Trip Profitability Calculator", href: "/insights/trip-profitability-calculator", icon: PieChart },
       { label: "Trip Planner", href: "/insights/trip-planner", icon: Route },
+      { label: "Customer Profitability Analytics", href: "/insights/customer-profitability-analytics", icon: LineChart },
+    ],
+  },
+  {
+    // Read-only views of what's entered elsewhere, one card per truck.
+    title: "Records",
+    items: [
       { label: "Fleet Summary", href: "/insights/fleet-summary", icon: Map },
       { label: "Trip Summary", href: "/trips/pnl-mileage", icon: BarChart2 },
       { label: "Truck Maintenance Record", href: "/maintenance/truck-records", icon: Wrench },
       { label: "Truck Fuel Record", href: "/maintenance/truck-fuel-record", icon: Fuel },
+      { label: "Truck Run Record", href: "/maintenance/truck-run-record", icon: Activity },
       { label: "Truck EMI Record", href: "/finance/truck-emi-record", icon: Landmark },
       { label: "Truck Compliance Record", href: "/maintenance/truck-compliance-record", icon: ShieldCheck },
-      { label: "Customer Profitability Analytics", href: "/insights/customer-profitability-analytics", icon: LineChart },
+      { label: "Proof and Documents", href: "/finance/documents", icon: FolderOpen },
     ],
   },
   {
@@ -57,17 +66,22 @@ export const sidebarSections: NavSection[] = [
     ],
   },
   {
-    title: "Attendance & Approvals",
+    title: "Attendance",
     items: [
       { label: "Driver Attendance", href: "/attendance/drivers", icon: ClipboardCheck },
       { label: "Staff Attendance", href: "/attendance/staff", icon: ClipboardList },
       { label: "Staff Holidays", href: "/attendance/holidays", icon: CalendarOff },
-      { label: "Payment Requests", href: "/attendance/payment-requests", icon: IndianRupee },
       { label: "Leave Approvals", href: "/attendance/leave-approvals", icon: CalendarCheck },
+      { label: "Attendance Report", href: "/attendance/report", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Approvals",
+    items: [
+      { label: "Payment Requests", href: "/attendance/payment-requests", icon: IndianRupee },
       { label: "Edit Approvals", href: "/attendance/edit-approvals", icon: ShieldAlert },
       { label: "Deletion Approvals", href: "/attendance/deletion-approvals", icon: ShieldX },
       { label: "Maintenance Approvals", href: "/attendance/maintenance-approvals", icon: Wrench },
-      { label: "Attendance Report", href: "/attendance/report", icon: BarChart3 },
     ],
   },
   {
@@ -117,7 +131,6 @@ export const sidebarSections: NavSection[] = [
       { label: "Truck Maintenance", href: "/maintenance/trucks", icon: Wrench },
       { label: "Truck's Fuel History", href: "/maintenance/fuel-history", icon: Fuel },
       { label: "Truck's Adblue History", href: "/admin/adblue", icon: Droplets },
-      { label: "Truck Run Record", href: "/maintenance/truck-run-record", icon: Activity },
       { label: "Tyre Archive", href: "/maintenance/tyre-archive", icon: Archive },
     ],
   },
@@ -138,7 +151,6 @@ export const sidebarSections: NavSection[] = [
       { label: "Staff Compensation", href: "/finance/staff-compensation", icon: Banknote },
       { label: "EMI Tracking", href: "/finance/emi-tracking", icon: Landmark },
       { label: "Compliance & Renewals", href: "/maintenance/compliance", icon: ShieldCheck },
-      { label: "Proof and Documents", href: "/finance/documents", icon: FolderOpen },
     ],
   },
   {
@@ -260,6 +272,7 @@ export const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/retread-queue",
     "/maintenance/discarded-tyres",
     "/maintenance/trucks",
+    "/maintenance/requests",
     "/maintenance/fuel-history",
     "/admin/adblue",
     "/admin/maintenance",
@@ -291,6 +304,7 @@ export const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
     "/admin/repairs",
     "/trips/pending-audit",
+    "/maintenance/requests",
     "/personal/edit-delete-requests",
     "/personal/notifications",
   ],

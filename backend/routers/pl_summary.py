@@ -502,11 +502,12 @@ def export_profitability(
     end_date: date_type = Query(...),
     mode: ExportMode = Query("Advanced"),
     search: str = Query("", max_length=100),
+    part: Literal["both", "trips", "trucks"] = Query("both", description="View's choice: Trip Profitability, Truck Profitability or both"),
     db: Session = Depends(get_db),
 ):
     """Profitability → View → Excel: the audit report (pl_export.py)."""
     import pl_export
-    data, filename, _ = pl_export.build(db, start_date, end_date, mode, search)
+    data, filename, _ = pl_export.build(db, start_date, end_date, mode, search, part)
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -520,12 +521,13 @@ def export_profitability_preview(
     end_date: date_type = Query(...),
     mode: ExportMode = Query("Advanced"),
     search: str = Query("", max_length=100),
+    part: Literal["both", "trips", "trucks"] = Query("both", description="View's choice: Trip Profitability, Truck Profitability or both"),
     db: Session = Depends(get_db),
 ):
     """What the export's sheets show (its formulas worked out), for the in-app
     preview — openpyxl can't store a formula's result in the file itself."""
     import pl_export
-    _, filename, sheets = pl_export.build(db, start_date, end_date, mode, search)
+    _, filename, sheets = pl_export.build(db, start_date, end_date, mode, search, part)
     return {"filename": filename, "sheets": sheets}
 
 

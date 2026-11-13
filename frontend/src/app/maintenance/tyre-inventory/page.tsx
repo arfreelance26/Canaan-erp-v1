@@ -15,7 +15,8 @@ import { trucksApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Dialog } from "@/components/ui/Dialog";
@@ -256,13 +257,13 @@ export default function TyreInventoryPage() {
         <PillSearch placeholder="Search tyres..." value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/tyre-inventory"
-            filename="tyre_inventory.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The designed report (tyre_reports.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Tyre_Inventory.xlsx"
+            title={`Tyre Inventory Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${statusFilter !== "All" ? ` — ${statusFilter === "Attached" ? "Fitted" : "In stock"}` : ""}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "tyre_inventory", ...(statusFilter !== "All" ? { stage: statusFilter === "Attached" ? "Fitted" : "In stock" } : {}), ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>

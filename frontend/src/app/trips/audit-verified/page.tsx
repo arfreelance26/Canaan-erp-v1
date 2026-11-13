@@ -4,8 +4,10 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { RiVerifiedBadgeLine as BadgeCheck, RiArrowDownSLine as ChevronDown, RiShieldFlashLine as ShieldAlert, RiFlagLine as Flag, RiArrowGoBackLine as Undo2, RiCheckboxCircleLine as CheckCircle2, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { tripsApi, type AuditVerifiedTrip, type TripRecheckEvent } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ApprovalsReport } from "@/lib/approvals-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { AuditHistoryButton } from "@/components/audit/AuditHistoryButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate, formatDateTime, inDateRange } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
@@ -106,14 +108,18 @@ export default function AuditVerifiedTripsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center gap-3.5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
-          <BadgeCheck className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Audit Verified Trips</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Trips Audit has reviewed and signed off on</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-success-border bg-success-surface text-success-text shadow-sm">
+            <BadgeCheck className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Audit Verified Trips</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Trips Audit has reviewed and signed off on</p>
+          </div>
         </div>
+        {/* Admin only: every audit action logged on this page's trips */}
+        <AuditHistoryButton scope="verified" />
       </div>
 
       {/* Toolbar: search on the left, Verified On range (filters the list and the View export) + View on the right */}
@@ -121,14 +127,13 @@ export default function AuditVerifiedTripsPage() {
         <PillSearch placeholder="Search by trip ID, driver, or verifier…" value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
-          <DownloadExcelButton
-            path="/exports/audit-verified"
-            filename="audit_verified_trips.xlsx"
-            params={{
-              ...(dateFrom ? { from_date: dateFrom } : {}),
-              ...(dateTo ? { to_date: dateTo } : {}),
-              ...(search ? { search } : {}),
-            }}
+          {/* The report: Summary + a sheet per driver, follows the search and dates (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/approvals-report"
+            filename="Audit_Verified_Trips.xlsx"
+            title={`Audit Verified Trips Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "verified", ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/approvals-report-pdf").then((m) => m.downloadApprovalsReportPdf({ report: report as ApprovalsReport, filename: file }))}
           />
         </div>
       </div>

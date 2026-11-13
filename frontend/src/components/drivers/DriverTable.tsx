@@ -20,6 +20,7 @@ const STATUS_PILL: Record<ComplianceStatus, string> = {
   Valid:           "bg-success-surface text-success-text ring-success-border",
   "Expiring Soon": "bg-warning-surface text-warning-text ring-warning-border",
   Expired:         "bg-danger-surface text-danger-text ring-danger-border",
+  "Not Uploaded":  "bg-fill-2 text-text-secondary ring-separator-border",
 };
 
 function ProofBadge({ fileName }: { fileName: string | null }) {

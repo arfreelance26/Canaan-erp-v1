@@ -1212,6 +1212,12 @@ class MaintenanceRequest(Base):
     reject_reason = Column(Text, nullable=True)
     record_id = Column(Integer, ForeignKey("maintenance_records.id", ondelete="SET NULL"), nullable=True)
     requester_seen_at = Column(DateTime, nullable=True)             # decision shown to the submitter
+    # Rejected, then fixed and sent back by its submitter (Maintenance
+    # Requests → Submit for Re-Verification): how often, the last rejection's
+    # reason (shown to the approver) and when it came back.
+    resubmit_count = Column(Integer, nullable=False, default=0, server_default="0")
+    previous_reject_reason = Column(Text, nullable=True)
+    resubmitted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -2732,3 +2738,75 @@ class DefaultBattaEditEvent(Base):
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+# ── Notice Board (B) ─────────────────────────────────────────────────────────
+# A company-wide board: anyone posts, everyone reads (routers/notices.py).
+# utf8mb4 throughout — notices and reactions carry emoji, and on a non-strict
+# MySQL a narrower column would quietly store them as '?'.
+
+class Notice(Base):
+    """One notice on the board. Kept until its author or Admin deletes it, or
+    until `expires_at` (Remove after…) passes."""
+    __tablename__ = "notices"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True, index=True)
+    author_name = Column(String(100), nullable=False)        # snapshot, like chat's sender_name
+    author_role = Column(String(50), nullable=True)
+    title = Column(String(200), nullable=False, default="")
+    body = Column(Text, nullable=False, default="")
+    important = Column(Boolean, nullable=False, default=False, server_default="0")
+    pinned = Column(Boolean, nullable=False, default=False, server_default="0")
+    expires_at = Column(DateTime, nullable=True, index=True)
+    edited_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    images = relationship("NoticeImage", lazy="selectin", cascade="all, delete-orphan",
+                          passive_deletes=True, order_by="NoticeImage.id")
+    reactions = relationship("NoticeReaction", lazy="selectin", cascade="all, delete-orphan",
+                             passive_deletes=True, order_by="NoticeReaction.id")
+
+    __table_args__ = ({"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_unicode_ci"},)
+
+
+class NoticeImage(Base):
+    """A picture pasted into a notice (checked by its real bytes)."""
+    __tablename__ = "notice_images"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    notice_id = Column(Integer, ForeignKey("notices.id", ondelete="CASCADE"), nullable=False, index=True)
+    mime = Column(String(40), nullable=False)
+    file_name = Column(String(255), nullable=False, default="image")
+    size_bytes = Column(Integer, nullable=False)
+    data = deferred(Column(LargeBinary(length=5_000_000), nullable=False))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class NoticeReaction(Base):
+    """One person's emoji on a notice. Any emoji, and several different ones
+    per person (like Slack); the same one again takes it back."""
+    __tablename__ = "notice_reactions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    notice_id = Column(Integer, ForeignKey("notices.id", ondelete="CASCADE"), nullable=False, index=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    staff_name = Column(String(100), nullable=True)
+    # Binary collation: utf8mb4_unicode_ci counts most emoji as equal to each
+    # other, which would make 🔥 and 👍 the same reaction.
+    emoji = Column(String(32, collation="utf8mb4_bin"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("notice_id", "staff_id", "emoji", name="uq_notice_reaction"),
+        {"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_unicode_ci"},
+    )
+
+
+class NoticeSeen(Base):
+    """Who has seen which notice (the board's "Seen by", and the bell's unread)."""
+    __tablename__ = "notice_seen"
+
+    notice_id = Column(Integer, ForeignKey("notices.id", ondelete="CASCADE"), primary_key=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), primary_key=True)
+    seen_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

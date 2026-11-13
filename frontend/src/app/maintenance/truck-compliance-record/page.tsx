@@ -2,15 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RiSearchLine as Search, RiShieldCheckLine as ShieldCheck, RiShieldFlashLine as ShieldAlert, RiShieldCrossLine as ShieldX, RiArrowDownSLine as ChevronDown, RiTruckLine as TruckIcon, RiFileShield2Line as FileCheck2 } from "@remixicon/react";
+import { RiSearchLine as Search, RiShieldCheckLine as ShieldCheck, RiShieldFlashLine as ShieldAlert, RiShieldCrossLine as ShieldX, RiArrowDownSLine as ChevronDown, RiTruckLine as TruckIcon, RiFileShield2Line as FileCheck2, RiFileUploadLine as FileUpload } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
-import { getComplianceStatus, type ComplianceField, type ComplianceStatus } from "@/lib/compliance";
+import { getComplianceStatus, isMissingCost, NO_COST_TAG, type ComplianceField, type ComplianceStatus } from "@/lib/compliance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate } from "@/lib/format-date";
 
@@ -50,9 +51,11 @@ const STATUS_BADGE: Record<ComplianceStatus, string> = {
   Valid: "bg-success-surface-strong text-success-text",
   "Expiring Soon": "bg-warning-surface-strong text-warning-text",
   Expired: "bg-danger-surface-strong text-danger-text",
+  "Not Uploaded": "bg-fill-2 text-text-secondary",
 };
-const STATUS_RANK: Record<ComplianceStatus, number> = { Expired: 2, "Expiring Soon": 1, Valid: 0 };
-const STATUS_ICON: Record<ComplianceStatus, typeof ShieldCheck> = { Valid: ShieldCheck, "Expiring Soon": ShieldAlert, Expired: ShieldX };
+// Worst first: a real expiry outranks a document that was never entered.
+const STATUS_RANK: Record<ComplianceStatus, number> = { Expired: 3, "Expiring Soon": 2, "Not Uploaded": 1, Valid: 0 };
+const STATUS_ICON: Record<ComplianceStatus, typeof ShieldCheck> = { Valid: ShieldCheck, "Expiring Soon": ShieldAlert, Expired: ShieldX, "Not Uploaded": FileUpload };
 
 function DetailChip({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
@@ -128,7 +131,7 @@ export default function TruckComplianceRecordPage() {
 
   // Overall fleet summary — every document on every truck counted once.
   const summary = useMemo(() => {
-    const counts: Record<ComplianceStatus, number> = { Valid: 0, "Expiring Soon": 0, Expired: 0 };
+    const counts: Record<ComplianceStatus, number> = { Valid: 0, "Expiring Soon": 0, Expired: 0, "Not Uploaded": 0 };
     for (const truck of trucks) {
       for (const spec of DOC_SPECS) counts[getComplianceStatus(spec.date(truck), spec.field)] += 1;
     }
@@ -156,10 +159,11 @@ export default function TruckComplianceRecordPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={ShieldCheck} label="Valid" value={String(summary.Valid)} accent="bg-success-surface text-success-text" />
         <StatCard icon={ShieldAlert} label="Expiring Soon" value={String(summary["Expiring Soon"])} accent="bg-warning-surface text-warning-text" />
         <StatCard icon={ShieldX} label="Expired" value={String(summary.Expired)} accent="bg-danger-surface text-danger-text" />
+        <StatCard icon={FileUpload} label="Not Uploaded" value={String(summary["Not Uploaded"])} accent="bg-fill-2 text-text-secondary" />
       </div>
 
       {/* Filters */}
@@ -182,13 +186,13 @@ export default function TruckComplianceRecordPage() {
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/trucks"
-            filename="fleet.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The Compliance & Renewals report (finance_report.py) — a sheet per document. */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Compliance_and_Renewals.xlsx"
+            title={`Compliance & Renewals Report — renewals ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ kind: "compliance", ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>
@@ -207,6 +211,8 @@ export default function TruckComplianceRecordPage() {
             );
             const expiredCount = docStatuses.filter((d) => d.status === "Expired").length;
             const expiringCount = docStatuses.filter((d) => d.status === "Expiring Soon").length;
+            const missingCount = docStatuses.filter((d) => d.status === "Not Uploaded").length;
+            const noCostCount = DOC_SPECS.filter((spec) => isMissingCost(spec.date(truck), spec.cost(truck))).length;
             const WorstIcon = STATUS_ICON[worst];
 
             return (
@@ -234,10 +240,12 @@ export default function TruckComplianceRecordPage() {
                   </div>
 
                   <div className="ml-auto flex shrink-0 items-center gap-4">
-                    {(expiredCount > 0 || expiringCount > 0) && (
+                    {(expiredCount > 0 || expiringCount > 0 || missingCount > 0 || noCostCount > 0) && (
                       <div className="hidden flex-col items-end gap-0.5 sm:flex">
                         {expiredCount > 0 && <span className="text-caption-2-medium text-danger-text">{expiredCount} expired</span>}
                         {expiringCount > 0 && <span className="text-caption-2-medium text-warning-text">{expiringCount} expiring soon</span>}
+                        {missingCount > 0 && <span className="text-caption-2-medium text-text-tertiary">{missingCount} not uploaded</span>}
+                        {noCostCount > 0 && <span className="text-caption-2-medium text-accent-text">{noCostCount} no cost</span>}
                       </div>
                     )}
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption-1-semibold ${STATUS_BADGE[worst]}`}>
@@ -275,7 +283,11 @@ export default function TruckComplianceRecordPage() {
                               </td>
                               <td className="px-3 py-2.5 font-mono text-xs text-text-secondary">{spec.number ? spec.number(truck) || "—" : "—"}</td>
                               <td className="px-3 py-2.5 text-text-secondary">{date ? formatDate(date) : "—"}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(spec.cost(truck))}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">
+                                {isMissingCost(date, spec.cost(truck)) ? (
+                                  <span className={`inline-flex rounded-full px-2 py-0.5 text-caption-2-semibold ${NO_COST_TAG}`}>No Cost</span>
+                                ) : fmtCur(spec.cost(truck))}
+                              </td>
                               <td className="rounded-r-lg px-3 py-2.5">
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold ${STATUS_BADGE[status]}`}>
                                   <StatusIcon className="h-3 w-3" />

@@ -415,3 +415,116 @@ def export_documents(
              r["uploaded_by"] or "", r["status"] or "", r["ref"] or ""] for r in rows]
     name = "missing_proofs" if missing else "proof_and_documents"
     return build_excel_response([("Missing Proofs" if missing else "Proof and Documents", headers, data)], f"{name}.xlsx")
+
+
+# ---------------------------------------------------------------------------
+# Proof Pack — the whole selection as one PDF (Reports Center). See proof_pack.py.
+# ---------------------------------------------------------------------------
+
+PACK_MAX_FILES = 300
+PACK_MAX_BYTES = 150 * 1024 * 1024
+PERSONAL = {"driver_id", "staff_id"}
+
+
+def _pack_selection(db: Session, user: TokenUser, *, category: Optional[str], truck: Optional[str],
+                    from_date: Optional[str], to_date: Optional[str], include_ids: bool) -> tuple[set[str], list[dict]]:
+    """(the types it covers, its documents). Personal ID documents only when
+    asked for — and, as everywhere on this page, only for Admin."""
+    cats = _require_page(user)
+    if not include_ids:
+        cats = cats - PERSONAL
+    if category:
+        cats = cats & {category}
+
+    def keep(r: dict) -> bool:
+        when = (r["date"] or r.get("uploaded_at") or "")[:10]
+        return ((not from_date or when >= from_date) and (not to_date or (when or "9999") <= to_date)
+                and (not truck or r["truck_id"] == truck))
+
+    return cats, [r for r in collect(db, cats) if keep(r)]
+
+
+def _pack_missing(db: Session, cats: set[str], truck, from_date, to_date) -> list[dict]:
+    rows = missing_proofs(db, cats)
+    return [r for r in rows if (not from_date or (r["date"] or "")[:10] >= from_date)
+            and (not to_date or (r["date"] or "9999")[:10] <= to_date) and (not truck or r["truck_id"] == truck)]
+
+
+@router.get("/pack/summary")
+def pack_summary(
+    category: Optional[str] = Query(None),
+    truck: Optional[str] = Query(None, description="Truck ID (e.g. CT-001)"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    include_ids: bool = Query(False),
+    include_missing: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """What a Proof Pack with these filters would hold — for the window, before building it."""
+    cats, items = _pack_selection(db, current_user, category=category, truck=truck,
+                                  from_date=from_date, to_date=to_date, include_ids=include_ids)
+    size = sum(r["size_bytes"] or 0 for r in items)
+    missing = _pack_missing(db, cats, truck, from_date, to_date) if include_missing else []
+    # The types this person may pick (the ID types only when included).
+    pickable = _require_page(current_user) - (set() if include_ids else PERSONAL)
+    return {
+        "categories": [{"key": c, "label": CATEGORIES[c][0]} for c in CATEGORIES if c in pickable],
+        "can_include_ids": bool(_require_page(current_user) & PERSONAL),
+        "documents": len(items), "bytes": size,
+        "amount": round(sum(r["amount"] or 0 for r in items), 2),
+        "missing": len(missing),
+        "max_documents": PACK_MAX_FILES, "max_bytes": PACK_MAX_BYTES,
+        "too_big": len(items) > PACK_MAX_FILES or size > PACK_MAX_BYTES,
+    }
+
+
+@router.get("/pack")
+def proof_pack(
+    request: Request,
+    category: Optional[str] = Query(None),
+    truck: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    include_ids: bool = Query(False),
+    include_missing: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    import proof_pack
+    cats, items = _pack_selection(db, current_user, category=category, truck=truck,
+                                  from_date=from_date, to_date=to_date, include_ids=include_ids)
+    if len(items) > PACK_MAX_FILES or sum(r["size_bytes"] or 0 for r in items) > PACK_MAX_BYTES:
+        raise HTTPException(413, f"Too many documents for one pack (up to {PACK_MAX_FILES} files, "
+                                 f"{PACK_MAX_BYTES // (1024 * 1024)} MB). Pick a shorter period or one type.")
+    order = [c for c in CATEGORIES if c in cats]
+    items = proof_pack.order(items, order)
+    missing = _pack_missing(db, cats, truck, from_date, to_date) if include_missing else None
+
+    def load(key: str) -> tuple[bytes, str]:
+        category_, data, name = _file_for(db, key)
+        if category_ not in cats:      # never — the list came from these types — but the file is checked anyway
+            raise HTTPException(403, "You don't have access to this document.")
+        return data, name
+
+    filters = []
+    if from_date or to_date:
+        fmt = lambda d: datetime.fromisoformat(d).strftime("%d-%m-%Y")  # noqa: E731
+        filters.append(f"{fmt(from_date) if from_date else 'the beginning'} to {fmt(to_date) if to_date else 'today'}")
+    else:
+        filters.append("all dates")
+    filters.append(CATEGORIES[category][0] if category in CATEGORIES else "all types")
+    if truck:
+        t = db.query(models.Truck).filter_by(truck_id=truck).first()
+        filters.append(f"truck {t.registration_number if t else truck}")
+    if include_ids and PERSONAL & cats:
+        filters.append("with ID documents")
+
+    pdf = proof_pack.build(items, load, labels={c: CATEGORIES[c][0] for c in CATEGORIES}, filters=filters,
+                           generated_by=current_user.name, missing=missing)
+    record_audit("documents.pack", request=request, actor_id=current_user.id, actor_name=current_user.name,
+                 actor_role=current_user.role, resource="documents/pack",
+                 detail=f"{len(items)} documents; {', '.join(filters)}")
+    stamp = f"{from_date or 'start'}_to_{to_date or date.today().isoformat()}"
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="Proof_Pack_{stamp}.pdf"'})

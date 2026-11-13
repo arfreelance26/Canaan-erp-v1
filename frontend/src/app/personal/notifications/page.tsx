@@ -192,7 +192,10 @@ export default function NotificationsPage() {
                 title: r.status === "Approved" ? "Your maintenance record was approved" : "Your maintenance record was rejected",
                 detail: `${r.registrationNumber || r.truckIdStr} · ${r.maintenanceType}${r.status === "Rejected" && r.rejectReason ? ` — ${r.rejectReason}` : ""}`,
                 time: r.decidedAt ?? "",
-                href: "/maintenance/trucks",
+                // My Requests → Maintenance Requests is where a rejected one is fixed and sent back.
+                href: ["Admin", "Maintenance", "Trip Sheet Register"].includes(user?.softwareDesignation ?? "")
+                  ? `/personal/edit-delete-requests?tab=maintenance&focus=${r.id}`
+                  : "/maintenance/trucks",
               }))
             : [];
           setMyUpdates([...fromEdit, ...fromDeletion, ...fromMaintenance]);

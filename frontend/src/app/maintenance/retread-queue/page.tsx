@@ -1,5 +1,7 @@
 "use client";
 
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { useEffect, useState } from "react";
 import { RiEyeLine as Eye, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiRefreshLine as RefreshCw, RiCloseLine as X } from "@remixicon/react";
 import { tyreApi, vendorsApi } from "@/lib/api";
@@ -149,6 +151,14 @@ export default function RetreadQueuePage() {
             <p className="mt-0.5 text-sm text-text-secondary">Tyres waiting to be sent for retreading</p>
           </div>
         </div>
+        {/* The designed report (tyre_reports.py). */}
+        <ReportViewButton
+          path="/exports/resource-report"
+          filename="Retread_Queue.xlsx"
+          title={`Retread Queue Report`}
+          params={{ kind: "tyre_retread",  }}
+          pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+        />
       </div>
 
       {loading ? (

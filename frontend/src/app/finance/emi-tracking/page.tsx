@@ -12,7 +12,8 @@ import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { isEmiCompleted, isEmiOverdue } from "@/lib/emi-schedule";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -232,13 +233,13 @@ export default function EmiTrackingPage() {
         <PillSearch placeholder="Search EMIs..." value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/emi"
-            filename="emi_records.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The designed report: Summary, a sheet per item, and its PDF (finance_report.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="EMI_Tracking.xlsx"
+            title={`EMI Tracking Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "emi", ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>

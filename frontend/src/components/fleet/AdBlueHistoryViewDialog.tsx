@@ -195,7 +195,7 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
           entered_by_name: log.enteredByName,
         },
       });
-      showSuccess("Delete request sent to Admin — you'll see it approved or rejected on Edit & Delete Requests.");
+      showSuccess("Delete request sent to Admin — you'll see it approved or rejected in My Requests.");
       setDeleteRequestLog(null);
     } catch (e: unknown) {
       showError(e instanceof Error && e.message ? e.message : "Could not send the delete request. Please try again.");

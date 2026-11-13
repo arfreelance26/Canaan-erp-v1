@@ -45,18 +45,27 @@ def test_birthday_and_work_anniversary_are_the_callers_own(api, db, staff):
         db.commit()
 
 
-def test_festivals_set_by_admin(api, api_as):
-    api.put("/celebrations/festivals", json={"key": "nonsense", "enabled": True, "dates": []}, expect=400)
-    api_as("Accounts").put("/celebrations/festivals", json={"key": "pongal", "enabled": True, "dates": []}, expect=403)
+def test_movable_festivals_are_gone(api):
+    """Pongal, Deepavali and Ayudha Pooja were removed: no endpoint, no setting."""
+    api.put("/celebrations/festivals", json={"key": "pongal", "enabled": True, "dates": []}, expect=(404, 405))
+    assert "festivals" not in api.get("/celebrations")
 
-    saved = api.put("/celebrations/festivals", json={"key": "pongal", "enabled": True, "dates": ["2027-01-15"]})
-    assert saved["dates"] == ["2027-01-15"] and saved["name"] == "Pongal"
-    assert api.get("/celebrations")["festivals"]["pongal"]["dates"] == ["2027-01-15"]
-    assert _greet(api, "2027-01-15")["festival"] == {"key": "pongal", "name": "Pongal"}
 
-    api.put("/celebrations/festivals", json={"key": "pongal", "enabled": False, "dates": ["2027-01-15"]})
-    assert _greet(api, "2027-01-15")["festival"] is None
-    api.put("/celebrations/festivals", json={"key": "pongal", "enabled": True, "dates": []})
+def test_joshine_outfit(api):
+    assert _greet(api, "2027-12-25")["outfit"] == "christmas"
+    assert _greet(api, "2027-12-24")["outfit"] == "christmas"
+    jan5 = _greet(api, "2027-01-05")
+    assert jan5["outfit"] == "founding" and jan5["founding_years"] == 12
+    plain = _greet(api, "2027-03-10")
+    assert plain["outfit"] is None and plain["founding_years"] is None
+    # Each follows its Admin switch (Celebrations Management).
+    for key, day in (("season", "2027-12-25"), ("founding", "2027-01-05")):
+        api.put("/celebrations/switch", json={"key": key, "enabled": False})
+        try:
+            assert _greet(api, day)["outfit"] is None
+        finally:
+            api.put("/celebrations/switch", json={"key": key, "enabled": True})
+
 
 
 def test_christmas_and_new_year_come_from_the_season_switch(api):

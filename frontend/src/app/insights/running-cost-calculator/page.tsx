@@ -16,7 +16,8 @@ import type { Truck } from "@/types/truck";
 import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
 import { isEmiCompleted } from "@/lib/emi-schedule";
-import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -1955,8 +1956,6 @@ export default function RunningCostCalculatorPage() {
   });
   const [showCalcInfo, setShowCalcInfo] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[] } | null>(null);
-  const [preparingExport, setPreparingExport] = useState(false);
 
   // Tyre Details state
   const [tyreTypes, setTyreTypes] = useState<string[]>([]);
@@ -2124,56 +2123,6 @@ export default function RunningCostCalculatorPage() {
     }, 800);
   }
 
-  /** Builds a per-truck cost breakdown export and opens the standard View
-   * dialog (same component as Profitability's export). Every truck's row
-   * comes from costBreakdownRef — only populated for cards that have
-   * actually rendered — so this first switches to List view (the only view
-   * that mounts every truck's card at once) and gives their effects a couple
-   * of ticks to report in before reading the ref. */
-  async function openExportPreview() {
-    if (preparingExport || trucks.length === 0) return;
-    setPreparingExport(true);
-    try {
-      if (truckView !== "list") setTruckView("list");
-      if (truckSearch) setTruckSearch("");
-      await new Promise((resolve) => setTimeout(resolve, 400));
-
-      const round4 = (n: number | null) => (n != null ? Math.round(n * 10000) / 10000 : "");
-
-      const rows = trucks.map((t) => {
-        const b = costBreakdownRef.current[t.truckId];
-        return {
-          "Truck": t.truckId,
-          "Registration No": t.registrationNumber,
-          "Fuel /KM": round4(b?.mileagePerKm ?? null),
-          "AdBlue /KM": round4(b?.adbluePerKm ?? null),
-          "Tyre /KM": round4(b?.tyrePerKm ?? null),
-          "Maintenance /KM": round4(b?.maintenancePerKm ?? null),
-          "Compliance /KM": round4(b?.compliancePerKm ?? null),
-          "EMI/Finance /KM": round4(b?.emiPerKm ?? null),
-          "Total Cost /KM": round4(b?.totalPerKm ?? null),
-        };
-      });
-
-      const { utils, write } = await import("xlsx");
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, utils.json_to_sheet(rows), "Running Cost");
-      const wbArray = write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
-      const blob = new Blob([wbArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-
-      const header = rows.length > 0 ? Object.keys(rows[0]) : [];
-      const sheet: PreviewSheet = {
-        name: "Running Cost",
-        rows: [header, ...rows.map((r) => header.map((h) => String((r as Record<string, unknown>)[h] ?? "")))],
-      };
-
-      setExportPreview({ blob, filename: `Running_Cost_${mode}.xlsx`, sheets: [sheet] });
-    } catch {
-      showError("Could not prepare the export.");
-    } finally {
-      setPreparingExport(false);
-    }
-  }
 
   useEffect(() => {
     // Read localStorage synchronously BEFORE the first await so the persist effect
@@ -2555,13 +2504,14 @@ export default function RunningCostCalculatorPage() {
             How is this calculated?
           </button>
           {trucks.length > 0 && (
-            <button
-              type="button" onClick={openExportPreview} disabled={preparingExport}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-              {preparingExport ? "Preparing…" : "View"}
-            </button>
+            // The designed report (profit_reports.py): every truck's parts, each with how it was worked out.
+            <ReportViewButton
+              path="/exports/resource-report"
+              filename="Running_Cost.xlsx"
+              title={`Running Cost Report — ${mode} mode${truckSearch.trim() ? ` — "${truckSearch.trim()}"` : ""}`}
+              params={{ kind: "runningcost", resource_type: mode, ...(truckSearch.trim() ? { search: truckSearch.trim() } : {}) }}
+              pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+            />
           )}
         </div>
       </div>
@@ -3119,15 +3069,6 @@ export default function RunningCostCalculatorPage() {
         </div>
       )}
 
-      {exportPreview && (
-        <ExportPreviewDialog
-          title={`Running Cost — ${mode} Mode`}
-          filename={exportPreview.filename}
-          blob={exportPreview.blob}
-          sheets={exportPreview.sheets}
-          onClose={() => setExportPreview(null)}
-        />
-      )}
     </div>
   );
 }

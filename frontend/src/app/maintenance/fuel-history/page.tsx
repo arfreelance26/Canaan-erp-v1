@@ -7,10 +7,12 @@ import type { FuelLog } from "@/types/fuel-log";
 import type { Truck } from "@/types/truck";
 import { showSuccess, showError } from "@/lib/feedback";
 import { FuelHistoryTable } from "@/components/maintenance/FuelHistoryTable";
+import { TruckViewToggle, useTruckView } from "@/components/fleet/TruckTiles";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { RiGasStationLine as Fuel, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { FuelReport } from "@/lib/fuel-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -44,6 +46,7 @@ export default function FuelHistoryPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useTruckView("fuel-history");
   // Read-only here — the base litre cost is only editable from the Dashboard.
   const [baseCostPerLitre, setBaseCostPerLitre] = useState<number | null>(null);
 
@@ -90,12 +93,18 @@ export default function FuelHistoryPage() {
       .catch(() => {});
   }, [refreshKey]);
 
-  // The logs are only needed to work out which trucks fuelled in the date range.
+  // Every fuel log: each truck's last fill and mileage, and which trucks fuelled
+  // in the date range. Loaded on open, after a save, and once a minute — not on
+  // the page's 5-second refresh (it's well over a thousand rows).
   const hasRange = Boolean(exportFrom || exportTo);
+  const [logsKey, setLogsKey] = useState(0);
   useEffect(() => {
-    if (!hasRange) return;
     fuelLogsApi.listFuelLogs().then(setFuelLogs).catch(() => {});
-  }, [hasRange, refreshKey]);
+  }, [logsKey]);
+  useEffect(() => {
+    const t = window.setInterval(() => setLogsKey((k) => k + 1), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
@@ -115,6 +124,7 @@ export default function FuelHistoryPage() {
     fuelLogsApi.createFuelLog(log).then(() => {
       setLogFormOpen(false);
       setSelectedTruck(null);
+      setLogsKey((k) => k + 1);
       showSuccess("Fuel log saved successfully.");
     }).catch((err) => showError(err.message));
   }
@@ -163,21 +173,28 @@ export default function FuelHistoryPage() {
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
+        <TruckViewToggle view={view} onChange={setView} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/fuel-logs"
-            filename="fuel_logs.xlsx"
+          {/* The truck-wise fuel report: Summary, All Trucks, a sheet per truck, By Station (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/fuel-report"
+            filename="Fuel_Report.xlsx"
+            title={`Fuel Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
             params={{
               ...(exportFrom ? { from_date: exportFrom } : {}),
               ...(exportTo ? { to_date: exportTo } : {}),
+              ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
             }}
+            pdf={(report, file) => import("@/lib/fuel-report-pdf").then((m) => m.downloadFuelReportPdf({ report: report as FuelReport, filename: file }))}
           />
         </div>
       </div>
 
       <FuelHistoryTable
         trucks={filteredTrucks}
+        view={view}
+        fuelLogs={fuelLogs}
         onViewHistory={handleViewHistory}
         onEnterFuelLog={handleEnterFuelLog}
       />

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { animate } from "animejs";
 import { useAuth } from "@/context/AuthContext";
 import { MOTION, prefersReducedMotion } from "@/lib/motion";
-import { useJoshine, type JoshineExpression } from "@/lib/joshine";
+import { BEHAVIOUR_RULES, useJoshine, type JoshineExpression } from "@/lib/joshine";
 import { cx } from "@/utils/cx";
 import { JoshineFace } from "./JoshineFace";
 import dynamic from "next/dynamic";
@@ -21,6 +21,9 @@ import { claimTeaTime, greetingUserKey, markGreeted, pickGreeting, resetVisitGre
 import { PREVIEW_EVENT } from "@/lib/celebration-preview";
 import { callName } from "@/lib/call-name";
 import { GUM_FACE, JoshineGum, useGumBubble } from "./JoshineGum";
+import { JoshineOutfit } from "./JoshineOutfit";
+import { CHAI_BLUSH, CHAI_FACE, JoshineChai, useChai } from "./JoshineChai";
+import type { JoshineOutfitKey } from "@/lib/api";
 import { RiArrowDownSLine, RiArrowUpSLine } from "@remixicon/react";
 import { JOSHINE_PEEK_EVENT, SHORTCUTS } from "@/lib/shortcuts";
 
@@ -40,7 +43,16 @@ const JoshineCreator = dynamic(() => import("./JoshineCreator").then((m) => m.Jo
  * And Joshine says hello: once per visit (lib/greetings.ts picks the line)
  * a speech bubble beside it, with its face to match, fading after 8 seconds.
  *
- * Now and then, at random, it blows a chewing-gum bubble (JoshineGum.tsx).
+ * Now and then, when things are quiet, it blows a chewing-gum bubble (JoshineGum.tsx).
+ *
+ * What it wears (JoshineOutfit.tsx): reading glasses while a form is open; a
+ * party hat on the person's birthday, a crown on Founding Day, a Santa hat at
+ * Christmas; and a glass of chai at tea time (11:00–11:02 and 16:00–16:02 IST),
+ * sipped step by step (JoshineChai.tsx).
+ * Energetic or Calm (her panel, "Adjust Joshine's Behaviour"): lib/joshine.ts
+ * BEHAVIOUR_RULES says which of these play, and how; Calm keeps only gentle touches.
+ * Only one surprise at a time: the gum waits while any of these is on, and for
+ * five quiet minutes after the glasses, the chai or a new outfit.
  *
  * Peek mode (settings.tucked): sent down by hand — the ↓ handle on hover,
  * dragging it down, J, or the panel's ↓ — only its top shows, still awake
@@ -68,6 +80,7 @@ const PET_BOTTOM = 16;
 export function JoshinePet() {
   const { user } = useAuth();
   const { settings, update, reset } = useJoshine(user?.id);
+  const rules = BEHAVIOUR_RULES[settings.behaviour];
   const [open, setOpen] = useState(false);
   const [mood, setMood] = useState<JoshineExpression | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
@@ -126,6 +139,117 @@ export function JoshinePet() {
     };
     // Once per signed-in person (and again for Admin's celebration preview).
   }, [user?.id, previewTick]);
+
+  // Switching Energetic / Calm: a preview of the mode — a happy hop, or a slow nod with a blush.
+  const [nod, setNod] = useState(false);
+  const shownBehaviour = useRef(settings.behaviour);
+  useEffect(() => {
+    if (shownBehaviour.current === settings.behaviour) return;
+    shownBehaviour.current = settings.behaviour;
+    if (settings.behaviour === "energetic") {
+      react("happy", [0.88, 1.12], true);
+      return;
+    }
+    setNod(true);
+    react("calm", [1, 1]);
+    const t = window.setTimeout(() => setNod(false), 1400);
+    return () => window.clearTimeout(t);
+  }, [settings.behaviour]);
+
+  // ── What Joshine wears ─────────────────────────────────────────────────────
+  // Today's outfit (birthday / Founding Day / Christmas), asked on arrival and
+  // hourly (the day can turn over while the app stays open).
+  const [outfit, setOutfit] = useState<{ key: JoshineOutfitKey | null; years: number | null }>({ key: null, years: null });
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const ask = () => void celebrationsApi.greeting().then((ctx) => {
+      if (!cancelled) setOutfit({ key: ctx.outfit, years: ctx.foundingYears });
+    }).catch(() => {});
+    ask();
+    const id = window.setInterval(ask, 60 * 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [user?.id, previewTick]);
+
+  // Reading glasses while a form is open: any open window (a dialog or a
+  // full-screen overlay) with a field to type in, select or tick — not
+  // Joshine's own panels. Looked for every 600 ms; it's a single query.
+  const [formOpen, setFormOpen] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    const FIELD = 'input:not([type="hidden"]):not([readonly]):not([disabled]), textarea:not([readonly]), select:not([disabled]), [contenteditable="true"]';
+    const look = () => {
+      const open = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], [aria-modal="true"], .fixed.inset-0'))
+        .some((el) => !el.closest("[data-joshine-ui]") && el.offsetParent !== null && Boolean(el.querySelector(FIELD)));
+      setFormOpen((was) => (was === open ? was : open));
+    };
+    look();
+    const id = window.setInterval(look, 600);
+    return () => window.clearInterval(id);
+  }, [user?.id]);
+
+  // Chai at tea time: 11:00–11:02 and 16:00–16:02 (India). Follows the same
+  // switches as the tea-time greeting: Joshine's own and Admin's for everyone.
+  const [chai, setChai] = useState(false);
+  useEffect(() => {
+    if (!user || !settings.teaTime) {
+      setChai(false);
+      return;
+    }
+    let adminOn: boolean | null = null;
+    const tick = () => {
+      const ist = new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60_000);
+      const inWindow = (ist.getHours() === 11 || ist.getHours() === 16) && ist.getMinutes() < 2;
+      if (!inWindow) {
+        setChai(false);
+        return;
+      }
+      if (adminOn === null) {
+        adminOn = true;   // until the answer comes
+        void celebrationsApi.teaTime().catch(() => true).then((on) => {
+          adminOn = on;
+          setChai(on);
+        });
+        return;
+      }
+      setChai(adminOn);
+    };
+    tick();
+    const id = window.setInterval(tick, 5_000);
+    // Try it: window.dispatchEvent(new CustomEvent("joshine:chai")) — two minutes of chai.
+    let demo = 0;
+    const onDemand = () => {
+      setChai(true);
+      window.clearTimeout(demo);
+      demo = window.setTimeout(() => setChai(false), 120_000);
+    };
+    window.addEventListener("joshine:chai", onDemand);
+    return () => {
+      window.clearInterval(id);
+      window.clearTimeout(demo);
+      window.removeEventListener("joshine:chai", onDemand);
+    };
+  }, [user?.id, settings.teaTime]);
+
+  // Five quiet minutes for the gum after the glasses or chai come off, or a new outfit goes on.
+  const [cooling, setCooling] = useState(false);
+  const busyLook = formOpen || chai;
+  const lastLook = useRef({ busy: false, outfit: null as JoshineOutfitKey | null });
+  useEffect(() => {
+    const before = lastLook.current;
+    lastLook.current = { busy: busyLook, outfit: outfit.key };
+    if ((before.busy && !busyLook) || (outfit.key && outfit.key !== before.outfit)) {
+      setCooling(true);
+      const t = window.setTimeout(() => setCooling(false), 5 * 60_000);
+      return () => window.clearTimeout(t);
+    }
+  }, [busyLook, outfit.key]);
+
+  // The chai, step by step (JoshineChai.tsx): her face and blush follow it.
+  const { phase: chaiPhase, level: chaiLevel } = useChai(chai && !tour.active, rules.chai);
 
   // Tea time at 11 AM and 4 PM (India): "Tea time, right Manuel?". Waits
   // while Joshine is busy or the tab is hidden, up to 10 minutes late.
@@ -262,12 +386,13 @@ export function JoshinePet() {
   }
 
   // A short reaction: a squash and a passing expression.
-  function react(expression: JoshineExpression, squash: [number, number]) {
+  // Calm: the face changes, no hop (`force`: the Energetic preview hops anyway).
+  function react(expression: JoshineExpression, squash: [number, number], force = false) {
     window.clearTimeout(moodTimer.current);
     setMood(expression);
     moodTimer.current = window.setTimeout(() => setMood(null), 900);
     const el = bodyRef.current;
-    if (!el || prefersReducedMotion()) return;
+    if (!el || prefersReducedMotion() || (!rules.hop && !force)) return;
     animate(el, {
       scaleX: [1, squash[0], 1],
       scaleY: [1, squash[1], 1],
@@ -390,7 +515,8 @@ export function JoshinePet() {
   const peeking = settings.tucked && !tour.active && !greeting && !offer && !open;
 
   // The gum bubble waits while Joshine is busy with anything else.
-  const { run: gumRun, phase: gum } = useGumBubble(Boolean(user) && settings.lively && !settings.tucked && !ducked && !open && !greeting && !offer && !tour.active);
+  const { run: gumRun, phase: gum } = useGumBubble(Boolean(user) && settings.lively && rules.gum && !settings.tucked && !ducked && !open && !greeting && !offer && !tour.active
+    && !formOpen && !chai && !chaiPhase && !cooling);
 
   if (!user) return null;
 
@@ -432,6 +558,7 @@ export function JoshinePet() {
       {offer && !greeting && !open && !tour.active && (
         <div
           role="dialog"
+          data-joshine-ui
           aria-label={`${settings.name || "Joshine"} offers a tour of ${offer.title}`}
           style={{ bottom: settings.size + 28 }}
           className={cx("animate-pop-in fixed right-5", offer.id.startsWith("form:") ? "z-popover" : "z-pet",
@@ -476,6 +603,7 @@ export function JoshinePet() {
       <div
         ref={wrapRef}
         data-joshine
+        data-joshine-ui
         className={cx(
           "group fixed bottom-4 right-5 z-pet transition-transform ease-out",
           // Ducking is quick; coming back up (and tucking) is gentler.
@@ -528,7 +656,7 @@ export function JoshinePet() {
               if (dy > 24 && !settings.tucked) { d.done = true; dragged.current = true; setPeek(true); }
               else if (dy < -24 && settings.tucked) { d.done = true; dragged.current = true; setPeek(false); }
             }
-            if (calm || peeking) return;
+            if (calm || peeking || !rules.hoverBob) return;
             const box = e.currentTarget.getBoundingClientRect();
             const x = (e.clientX - box.left) / box.width - 0.5;
             setTilt(Math.round(x * 14));
@@ -545,19 +673,27 @@ export function JoshinePet() {
         >
           <span ref={bodyRef} className="block origin-bottom">
             <span
-              className={cx("relative block origin-bottom", gum === "shake" ? "gum-shake" : settings.lively && (hovered && !calm ? "joshine-bob" : "joshine-breathe"))}
+              className={cx("relative block origin-bottom", gum === "shake" ? "gum-shake" : settings.lively && (hovered && !calm && rules.hoverBob ? "joshine-bob" : rules.breathe))}
               style={{ transform: `rotate(${tilt}deg)`, transition: "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}
             >
               <JoshineFace
                 shape={settings.shape}
                 color={settings.color}
-                expression={mood ?? tour.expression ?? (gum ? GUM_FACE[gum] : null) ?? (hovered ? (peeking || ducked ? "curious" : "happy") : null) ?? (ducked ? "dots" : null) ?? greeting?.expression ?? settings.expression}
-                blush={(hovered && !peeking && !ducked) || gum === "sheepish"}
+                expression={mood ?? tour.expression ?? (gum ? GUM_FACE[gum] : null) ?? (chaiPhase ? CHAI_FACE[chaiPhase] : null) ?? (hovered ? (peeking || ducked ? "curious" : "happy") : null) ?? (ducked ? "dots" : null) ?? greeting?.expression ?? settings.expression}
+                blush={(hovered && !peeking && !ducked) || gum === "sheepish" || nod || Boolean(chaiPhase && CHAI_BLUSH[chaiPhase])}
                 size={settings.size}
                 // Awake while peeking too: the eyes keep following the cursor.
                 lively={settings.lively}
                 className="drop-shadow-[0_6px_8px_color-mix(in_srgb,var(--color-scrim)_22%,transparent)]"
               />
+              <JoshineOutfit
+                size={settings.size}
+                glasses={formOpen && !tour.active}
+                outfit={outfit.key}
+                foundingYears={outfit.years}
+                gentle={!rules.bounceOn}
+              />
+              <JoshineChai phase={chaiPhase} level={chaiLevel} color={settings.color} size={settings.size} gentle={rules.chai === "calm"} />
               <JoshineGum run={gumRun} phase={gum} size={settings.size} />
             </span>
           </span>

@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { PagedTbody } from "@/components/ui/PagedTbody";
-import { RiDownloadLine as Download, RiEyeLine as Eye, RiLoader4Line as Loader2, RiCloseLine as X, RiGroupLine as Users, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiTimeLine as Clock } from "@remixicon/react";
+import { RiGroupLine as Users, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiTimeLine as Clock } from "@remixicon/react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,7 +16,8 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/feedback";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { AttendanceReport } from "@/lib/attendance-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -54,12 +55,8 @@ export default function StaffAttendancePage() {
   const [records, setRecords] = useState<StaffAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [downloading, setDownloading] = useState(false);
   const [fromDate, setFromDate] = useState(todayIst());
   const [toDate, setToDate] = useState(todayIst());
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportRecords, setReportRecords] = useState<StaffAttendanceRecord[]>([]);
-  const [reportLoading, setReportLoading] = useState(false);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<StaffAttendanceEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
@@ -129,207 +126,6 @@ export default function StaffAttendancePage() {
     }
   }, []);
 
-  async function handleDownloadPDF() {
-    if (downloading || staff.length === 0) return;
-    setDownloading(true);
-    try {
-      const { default: jsPDF } = await import("jspdf");
-
-      const rangeRecords = await attendanceApi.listStaff(undefined, undefined, fromDate, toDate);
-
-      // Build sorted list of all dates in the range (inclusive)
-      const dates: string[] = [];
-      const [fy, fm, fd] = fromDate.split("-").map(Number);
-      const [ty, tm, td] = toDate.split("-").map(Number);
-      const cur = new Date(fy, fm - 1, fd);
-      const end = new Date(ty, tm - 1, td);
-      while (cur <= end) {
-        dates.push(
-          `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
-        );
-        cur.setDate(cur.getDate() + 1);
-      }
-
-      const isSingleDay = fromDate === toDate;
-      const rangeLabel = isSingleDay
-        ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
-        : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}`;
-
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const marginX = 14;
-      const marginY = 14;
-      const rowH = 8;
-      const headerH = 9;
-      const dayHeadH = 7;
-
-      const STATUS_COLORS: Record<string, [number, number, number]> = {
-        "Present":    [22, 163, 74],
-        "Absent":     [220, 38, 38],
-        "On Leave":   [161, 98, 7],
-        "Not Marked": [107, 114, 128],
-      };
-
-      const cols: [string, number][] = [
-        ["#",           10],
-        ["Staff ID",    28],
-        ["Staff Name",  60],
-        ["Designation", 50],
-        ["Status",      35],
-      ];
-
-      type PdfRow = { dateLabel: string; idx: number; staffId: string; name: string; designation: string; status: string };
-      const allRows: PdfRow[] = [];
-      for (const d of dates) {
-        const displayDate = new Date(d + "T00:00:00").toLocaleDateString("en-GB", {
-          day: "2-digit", month: "2-digit", year: "numeric", weekday: "short",
-        }).replace(/\//g, "-");
-        staff.forEach((member, idx) => {
-          const record = rangeRecords.find((r) => r.staffId === member.id && r.date === d);
-          const status = record?.status ?? "Not Marked";
-          allRows.push({ dateLabel: displayDate, idx: idx + 1, staffId: member.staffId, name: member.name ?? "—", designation: member.designation ?? "—", status });
-        });
-      }
-
-      let curY = marginY;
-      let tableStartY = 0;
-      let rowsOnPage: number[] = [];
-      let currentDayLabel = "";
-      let pageNum = 1;
-
-      function drawColHeader() {
-        pdf.setFillColor(27, 43, 94);
-        pdf.rect(marginX, curY, pageW - marginX * 2, headerH, "F");
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7);
-        pdf.setTextColor(255, 255, 255);
-        let x = marginX;
-        for (const [label, w] of cols) {
-          pdf.text(label.toUpperCase(), x + 2, curY + 6);
-          x += w;
-        }
-        tableStartY = curY;
-        rowsOnPage = [];
-        curY += headerH;
-      }
-
-      function closeBorder() {
-        if (rowsOnPage.length > 0) {
-          const totalH = rowsOnPage.reduce((a, b) => a + b, 0);
-          pdf.setDrawColor(209, 213, 219);
-          pdf.rect(marginX, tableStartY, pageW - marginX * 2, headerH + totalH, "S");
-        }
-      }
-
-      function newPage() {
-        closeBorder();
-        pdf.addPage();
-        pageNum++;
-        curY = marginY;
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`Staff Attendance Report — ${rangeLabel} (continued)`, marginX, curY);
-        pdf.text(`Page ${pageNum}`, pageW - marginX, curY, { align: "right" });
-        curY += 6;
-        drawColHeader();
-      }
-
-      // First page header
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(13);
-      pdf.setTextColor(27, 43, 94);
-      pdf.text("Staff Attendance Report", marginX, curY);
-      curY += 6;
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(`Period: ${rangeLabel}  ·  ${staff.length} staff member${staff.length !== 1 ? "s" : ""}`, marginX, curY);
-      curY += 6;
-      drawColHeader();
-
-      for (let i = 0; i < allRows.length; i++) {
-        const row = allRows[i];
-
-        // Day banner on date change
-        if (!isSingleDay && row.dateLabel !== currentDayLabel) {
-          if (curY + dayHeadH + rowH > pageH - marginY) newPage();
-          currentDayLabel = row.dateLabel;
-          pdf.setFillColor(239, 246, 255);
-          pdf.rect(marginX, curY, pageW - marginX * 2, dayHeadH, "F");
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(7.5);
-          pdf.setTextColor(27, 43, 94);
-          pdf.text(row.dateLabel, marginX + 3, curY + 5);
-          rowsOnPage.push(dayHeadH);
-          curY += dayHeadH;
-        }
-
-        // Page break check
-        if (curY + rowH > pageH - marginY) {
-          newPage();
-          if (!isSingleDay) {
-            pdf.setFillColor(239, 246, 255);
-            pdf.rect(marginX, curY, pageW - marginX * 2, dayHeadH, "F");
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(7.5);
-            pdf.setTextColor(27, 43, 94);
-            pdf.text(`${row.dateLabel} (cont.)`, marginX + 3, curY + 5);
-            rowsOnPage.push(dayHeadH);
-            curY += dayHeadH;
-          }
-        }
-
-        // Alternating row
-        if (rowsOnPage.length % 2 === 1) {
-          pdf.setFillColor(249, 250, 251);
-          pdf.rect(marginX, curY, pageW - marginX * 2, rowH, "F");
-        }
-        pdf.setDrawColor(229, 231, 235);
-        pdf.line(marginX, curY + rowH, pageW - marginX, curY + rowH);
-
-        let x = marginX;
-        const cells = [String(row.idx), row.staffId, row.name, row.designation, row.status];
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        for (let c = 0; c < cols.length; c++) {
-          const [, w] = cols[c];
-          if (c === 4) {
-            const [cr, cg, cb] = STATUS_COLORS[row.status] ?? [107, 114, 128];
-            pdf.setTextColor(cr, cg, cb);
-          } else {
-            pdf.setTextColor(30, 30, 30);
-          }
-          const clipped = pdf.splitTextToSize(cells[c], w - 4)[0] ?? "";
-          pdf.text(clipped, x + 2, curY + 5.5);
-          x += w;
-        }
-
-        rowsOnPage.push(rowH);
-        curY += rowH;
-      }
-
-      closeBorder();
-
-      const totalPages = pdf.getNumberOfPages();
-      for (let p = 1; p <= totalPages; p++) {
-        pdf.setPage(p);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7);
-        pdf.setTextColor(150, 150, 150);
-        pdf.text(`Page ${p} of ${totalPages}`, pageW - marginX, pageH - 6, { align: "right" });
-      }
-
-      const fileSuffix = isSingleDay ? fromDate : `${fromDate}_to_${toDate}`;
-      pdf.save(`staff-attendance-${fileSuffix}.pdf`);
-    } catch {
-      showError("Failed to generate PDF.");
-    } finally {
-      setDownloading(false);
-    }
-  }
-
   const summary = useMemo(() => {
     const counts = { Present: 0, Absent: 0, "On Leave": 0, "Not Marked": 0 };
     for (const member of staff) {
@@ -339,18 +135,6 @@ export default function StaffAttendancePage() {
     }
     return counts;
   }, [staff, records, date]);
-
-  async function handleViewReport() {
-    setReportLoading(true);
-    setShowReportModal(true);
-    try {
-      setReportRecords(await attendanceApi.listStaff(undefined, undefined, fromDate, toDate));
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to load the report.");
-    } finally {
-      setReportLoading(false);
-    }
-  }
 
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -398,9 +182,9 @@ export default function StaffAttendancePage() {
           </button>
 )}
           {/* Day being marked */}
-          <div className="flex h-10 items-center gap-1 rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition-transform duration-300 hover:shadow-md [&_.border-gold-solid]:!border-0 [&_.border-gold-solid]:!bg-transparent [&_.border-gold-solid]:!px-1 [&_.border-gold-solid]:!py-1 [&_.border-gold-solid]:!shadow-none [&_.border-brand-gold_svg]:!text-text-secondary">
-            <div className="w-[128px]">
-              <DatePickerInput value={date} onChange={(v) => setDate(v)} clearable={false} />
+          <div className="flex h-10 items-center rounded-full border border-border-button-default bg-background-primary-default px-3 shadow-xs transition-colors hover:border-border-button-hover">
+            <div className="w-[112px]">
+              <DatePickerInput value={date} onChange={(v) => setDate(v)} clearable={false} variant="bare" aria-label="Attendance date" />
             </div>
           </div>
         </div>
@@ -435,15 +219,14 @@ export default function StaffAttendancePage() {
             onFromChange={(v) => { setFromDate(v); if (v > toDate) setToDate(v); }}
             onToChange={(v) => { setToDate(v); if (v < fromDate) setFromDate(v); }}
           />
-          <button
-            type="button"
-            onClick={handleViewReport}
-            disabled={reportLoading}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-            View
-          </button>
+          {/* The person-wise report: Summary, Register, a sheet per staff (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/attendance-report"
+            filename="Staff_Attendance.xlsx"
+            title={`Staff Attendance Report — ${fromDate.split("-").reverse().join("-")} to ${toDate.split("-").reverse().join("-")}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ category: "staff", from_date: fromDate, to_date: toDate, ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/attendance-report-pdf").then((m) => m.downloadAttendanceReportPdf({ report: report as AttendanceReport, filename: file }))}
+          />
         </div>
       </div>
 
@@ -455,115 +238,6 @@ export default function StaffAttendancePage() {
         onCloseShift={handleCloseShift}
         isToday={date === todayIst()}
       />
-      {showReportModal && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}
-        >
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl bg-background-primary-default shadow-2xl">
-            {/* Header */}
-            <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
-              <div>
-                <p className="font-semibold text-text-primary">Staff Attendance Report</p>
-                <p className="mt-0.5 text-xs text-text-secondary">
-                  {(() => {
-                    const f = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-                    return fromDate === toDate ? f(fromDate) : `${f(fromDate)} – ${f(toDate)}`;
-                  })()}
-                  {" · "}{staff.length} staff member{staff.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Report table */}
-            <div className="flex-1 overflow-auto px-5 py-4">
-              {reportLoading ? (
-                <div className="flex items-center justify-center gap-2 py-16 text-sm text-text-tertiary">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Loading report…
-                </div>
-              ) : staff.length === 0 ? (
-                <EmptyState size="compact" illustration="no-data" title="No attendance data for the selected range" />
-              ) : (
-                <table className="w-full text-left text-sm">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="border-b border-separator-border bg-fill-1">
-                      {["#", "Staff ID", "Staff Name", "Designation", "Date", "Status"].map((col) => (
-                        <th key={col} className="whitespace-nowrap px-3 py-2.5 text-caption-1-semibold text-text-secondary">{col}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                    {(() => {
-                      const dates: string[] = [];
-                      const [fy, fm, fd] = fromDate.split("-").map(Number);
-                      const [ty, tm, td] = toDate.split("-").map(Number);
-                      const cur = new Date(fy, fm - 1, fd);
-                      const end = new Date(ty, tm - 1, td);
-                      while (cur <= end) {
-                        dates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
-                        cur.setDate(cur.getDate() + 1);
-                      }
-                      const statusColor: Record<string, string> = {
-                        "Present": "text-success-text bg-success-surface",
-                        "Absent": "text-danger-text bg-danger-surface",
-                        "On Leave": "text-warning-text bg-warning-surface",
-                        "Not Marked": "text-text-secondary bg-fill-1",
-                      };
-                      // One row per day per person; only the current page of rows is drawn.
-                      const cells = dates.flatMap((d) => staff.map((member) => ({ d, member })));
-                      return (
-                        <PagedTbody className="divide-y divide-separator-border" items={cells}>
-                          {({ d, member }, i) => {
-                          const rowIdx = i + 1;
-                          const status = reportRecords.find((r) => r.staffId === member.id && r.date === d)?.status ?? "Not Marked";
-                          return (
-                            <tr key={`${d}-${member.id}`} className="hover:bg-fill-2">
-                              <td className="px-3 py-2 text-xs text-text-tertiary">{rowIdx}</td>
-                              <td className="whitespace-nowrap px-3 py-2 font-medium text-text-primary">{member.staffId}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-text-primary">{member.name}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-text-secondary">{member.designation || "—"}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-text-secondary">
-                                {new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}
-                              </td>
-                              <td className="px-3 py-2">
-                                <span className={`rounded-full px-2 py-0.5 text-caption-1-medium ${statusColor[status] ?? "text-text-secondary bg-fill-1"}`}>{status}</span>
-                              </td>
-                            </tr>
-                          );
-                          }}
-                        </PagedTbody>
-                      );
-                    })()}
-                </table>
-              )}
-            </div>
-
-            {/* Footer actions */}
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t px-5 py-3">
-              <DownloadExcelButton
-                path="/exports/staff-attendance"
-                filename={`staff_attendance_${fromDate}_to_${toDate}.xlsx`}
-                params={{ from_date: fromDate, to_date: toDate }}
-                direct
-                className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <button
-                type="button"
-                onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }}
-                disabled={downloading || staff.length === 0}
-                className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Download className="h-4 w-4" />
-                {downloading ? "Generating..." : "Download PDF"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Edit History — every Admin-override mark/edit ever logged, across
           every staff member, in one searchable log. */}
       <Dialog

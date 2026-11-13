@@ -29,6 +29,7 @@ type TruckTableProps = {
 const ALERT_CHIP: Record<Exclude<ComplianceStatus, "Valid">, string> = {
   "Expiring Soon": "bg-warning-solid/90 text-warning-text-strong",
   Expired:         "bg-danger-solid/90 text-on-solid",
+  "Not Uploaded":  "bg-background-primary-default/90 text-text-secondary",
 };
 
 /** FC / Insurance problems as small chips over the image — nothing when both are valid. */
@@ -49,7 +50,7 @@ function ComplianceChips({ truck }: { truck: Truck }) {
           className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold shadow-sm", ALERT_CHIP[i.status as Exclude<ComplianceStatus, "Valid">])}
         >
           <ShieldAlert className="h-3 w-3" />
-          {i.label} {i.status === "Expired" ? "Expired" : "Expiring"}
+          {i.label} {i.status === "Expired" ? "Expired" : i.status === "Not Uploaded" ? "Not Uploaded" : "Expiring"}
         </span>
       ))}
     </div>

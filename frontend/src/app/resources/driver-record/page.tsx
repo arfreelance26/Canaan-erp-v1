@@ -1,5 +1,8 @@
 "use client";
 
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import { AuditHistoryButton } from "@/components/audit/AuditHistoryButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RiProfileLine as IdCard, RiFileTextLine as FileText, RiFileList3Line as ClipboardList, RiCalculatorLine as Calculator, RiRouteLine as Route, RiWallet3Line as Wallet, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { driversApi, tripsApi, trucksApi, customersApi } from "@/lib/api";
@@ -9,6 +12,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
+import { TripCategoryTag } from "@/components/trips/TripCategoryTag";
 import { Avatar } from "@/components/ui/Avatar";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -293,14 +297,18 @@ export default function DriverRecordPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center gap-3.5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
-          <IdCard className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Driver Based Record</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Read-only record of every driver</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
+            <IdCard className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Driver Based Record</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Read-only record of every driver</p>
+          </div>
         </div>
+        {/* Admin only: every audit action logged on this page's trips */}
+        <AuditHistoryButton scope="driver" />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -314,6 +322,14 @@ export default function DriverRecordPage() {
           <div title="Scopes Total Trips and Salary to this date range — leave blank for lifetime earnings">
             <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
           </div>
+          {/* The designed report (record_reports.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Driver_Based_Record.xlsx"
+            title={`Driver Based Record Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "driver_record", ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
         </div>
       </div>
 
@@ -403,6 +419,7 @@ export default function DriverRecordPage() {
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Trip ID</th>
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Date</th>
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Route</th>
+                              <th className="px-3 py-2 font-semibold text-text-tertiary">Trip Category</th>
                               <th className="px-3 py-2 text-right font-semibold text-text-tertiary">Salary</th>
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Documents</th>
                             </tr>
@@ -420,6 +437,9 @@ export default function DriverRecordPage() {
                                   <td className="px-3 py-2 text-text-secondary">{formatDate(trip.scheduledDate)}</td>
                                   <td className="px-3 py-2 text-text-secondary">
                                     {trip.origin || "—"} <span className="text-text-tertiary">→</span> {trip.destination || "—"}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <TripCategoryTag category={trip.tripCategory} />
                                   </td>
                                   <td className="px-3 py-2 text-right font-medium text-text-primary">
                                     {hasSalary
@@ -468,7 +488,7 @@ export default function DriverRecordPage() {
                           </PagedTbody>
                           <tfoot>
                             <tr className="border-t border-separator-border bg-fill-1">
-                              <td colSpan={3} className="px-3 py-2 text-right font-semibold text-text-secondary">Total Salary</td>
+                              <td colSpan={4} className="px-3 py-2 text-right font-semibold text-text-secondary">Total Salary</td>
                               <td className="px-3 py-2 text-right font-semibold text-text-primary">
                                 ₹{salaryTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                               </td>

@@ -25,8 +25,10 @@ const SECTION_INTRO: Record<string, string> = {
   Personal: "Your own attendance, leave, requests and notifications.",
   Connect: "Talking to the team.",
   Insights: "Profit, costs and planning, worked out from the data everyone enters.",
+  Records: "Summaries of the fleet and its trips, and every truck's maintenance, fuel, loans and documents in one place, to look through.",
   Monitoring: "Read-only views of the fleet's records, for checking.",
-  "Attendance & Approvals": "Attendance for drivers and staff, and every request waiting for a decision.",
+  Attendance: "Attendance for drivers and staff, holidays and leave.",
+  Approvals: "Every request waiting for a decision: payments, edits, deletions and maintenance.",
   "Trip and Driver Management": "A trip's whole life: booked, on the road, completed, closed, its sheet collected, entered, verified and invoiced.",
   "Audit Outcomes": "What the Auditor decided about each trip.",
   "Resource Hub": "The people, trucks, customers and vendors everything else is built on.",
@@ -46,7 +48,8 @@ const ROLE_NOTES: Record<string, Note[]> = {
     { roles: ["Admin"], text: "As Admin you can also switch to each team's dashboard to see what they see." },
   ],
   "/personal/edit-delete-requests": [
-    { roles: ["Admin"], text: "You decide requests in Edit Approvals and Deletion Approvals; this is the record." },
+    { roles: ["Admin"], text: "You decide requests in the Approvals pages; this is the record, with everyone's maintenance requests." },
+    { roles: ["Maintenance", "Trip Sheet Register"], text: "Your maintenance requests are here too: fix a rejected one and send it back." },
   ],
   "/connect/chat": [
     { roles: ["Admin"], text: "Only you can create groups or open Owner view." },
@@ -181,7 +184,7 @@ export function appTourFor(role: string | undefined, { pagesOnly = false } = {})
     }
     steps.push(
       { target: "profile", title: "You", text: "Your profile, your edit and delete requests, notifications, and Log out.", expression: "love", side: "bottom", align: "end" },
-      { title: "Shortcuts", text: `From any page, when you're not typing: ${SHORTCUTS.meetings.key} for meetings, ${SHORTCUTS.todo.key} for to-do, ${SHORTCUTS.notes.key} for notes, ${SHORTCUTS.theme.key} for dark mode, and Ctrl+K to search.`, expression: "sparkle" },
+      { title: "Shortcuts", text: `From any page, when you're not typing: ${SHORTCUTS.meetings.key} for meetings, ${SHORTCUTS.todo.key} for to-do, ${SHORTCUTS.notes.key} for notes, ${SHORTCUTS.board.key} for the Notice Board everyone sees, ${SHORTCUTS.theme.key} for dark mode, and Ctrl+K to search.`, expression: "sparkle" },
       { title: "Help as you go", text: "The first time you open a page or a big form, I'll offer to show you around it. Forms have a ? in their header to run it any time.", expression: "happy" },
       { target: "joshine", title: "And that's me", text: "Click me to change how I look, or for a tour of the page you're on. I'll say hello each time you log in. In the way? Press J, drag me down or use the little arrow on hover — I'll peek from the corner until you call me back.", expression: "love", side: "left", align: "end" },
     );

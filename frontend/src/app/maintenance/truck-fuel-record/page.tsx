@@ -10,7 +10,8 @@ import type { FuelLog } from "@/types/fuel-log";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { FuelReport } from "@/lib/fuel-report-pdf";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate, inDateRange } from "@/lib/format-date";
 
@@ -198,13 +199,13 @@ export default function TruckFuelRecordPage() {
           {/* Export date range — one minimal pill */}
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
 
-          <DownloadExcelButton
-            path="/exports/fuel-logs"
-            filename="fuel_logs.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The Fuel report (fuel_report.py) — every fill, truck by truck. */}
+          <ReportViewButton
+            path="/exports/fuel-report"
+            filename="Fuel_Report.xlsx"
+            title={`Fuel Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/fuel-report-pdf").then((m) => m.downloadFuelReportPdf({ report: report as FuelReport, filename: file }))}
           />
         </div>
       </div>

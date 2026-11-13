@@ -68,6 +68,37 @@ export const LANGUAGES = ["English", "Tamil", "Hindi", "Malayalam", "Kannada", "
 /** Size of the pet in the corner, in px. */
 export const JOSHINE_SIZE = { min: 48, max: 140, step: 4, default: 76 } as const;
 
+/**
+ * "Adjust Joshine's Behaviour" (her panel): Energetic, everything as built;
+ * Calm, the same Joshine with only gentle touches. Every part of Joshine reads
+ * this one list, so changing what a mode does is a one-line edit here.
+ * (The device's "reduce motion" still stills everything, in either mode.)
+ */
+export type JoshineBehaviour = "energetic" | "calm";
+export const JOSHINE_BEHAVIOURS: { value: JoshineBehaviour; label: string; hint: string }[] = [
+  { value: "energetic", label: "Energetic", hint: "Playful: chai, gum bubbles, hats with a bounce, little hops." },
+  { value: "calm", label: "Calm", hint: "Quiet: she stays with you, with only gentle touches." },
+];
+export const BEHAVIOUR_RULES: Record<JoshineBehaviour, {
+  /** The chewing-gum bubble (JoshineGum). */
+  gum: boolean;
+  /** The squash-and-hop when she reacts (clicks, offers, greetings). */
+  hop: boolean;
+  /** Bobbing and leaning toward the cursor on hover (a smile and blush either way). */
+  hoverBob: boolean;
+  /** Breathing: the usual rise and settle, or slower and softer. */
+  breathe: "joshine-breathe" | "joshine-breathe-calm";
+  /** Glasses and hats: drop on with a bounce, or fade on. */
+  bounceOn: boolean;
+  /** Confetti with the birthday hat. */
+  confetti: boolean;
+  /** Tea-time chai: the full show (a sip every 15 s), or two slow sips. */
+  chai: "full" | "calm";
+}> = {
+  energetic: { gum: true, hop: true, hoverBob: true, breathe: "joshine-breathe", bounceOn: true, confetti: true, chai: "full" },
+  calm: { gum: false, hop: false, hoverBob: false, breathe: "joshine-breathe-calm", bounceOn: false, confetti: false, chai: "calm" },
+};
+
 export type JoshineSettings = {
   name: string;
   label: string;
@@ -81,6 +112,8 @@ export type JoshineSettings = {
   nudges: boolean;
   /** Eyes follow the cursor and blink. */
   lively: boolean;
+  /** Energetic (everything) or Calm (gentle touches only) — BEHAVIOUR_RULES. */
+  behaviour: JoshineBehaviour;
   /** "Tea time, right?" at 11 AM and 4 PM (lib/greetings.ts teaTimeDue). */
   teaTime: boolean;
   /** Tucked into the corner, only the top peeking out. */
@@ -100,6 +133,7 @@ export const JOSHINE_DEFAULTS: JoshineSettings = {
   language: "English",
   nudges: true,
   lively: true,
+  behaviour: "energetic",
   teaTime: true,
   tucked: false,
   size: JOSHINE_SIZE.default,
@@ -123,6 +157,7 @@ function read(key: string): JoshineSettings {
   if (!(value.shape in JOSHINE_SHAPES)) value = { ...value, shape: JOSHINE_DEFAULTS.shape };
   if (!JOSHINE_EXPRESSIONS.includes(value.expression)) value = { ...value, expression: JOSHINE_DEFAULTS.expression };
   if (!Number.isFinite(value.size)) value = { ...value, size: JOSHINE_SIZE.default };
+  if (value.behaviour !== "energetic" && value.behaviour !== "calm") value = { ...value, behaviour: JOSHINE_DEFAULTS.behaviour };
   value = { ...value, size: Math.min(JOSHINE_SIZE.max, Math.max(JOSHINE_SIZE.min, value.size)) };
   cache.set(key, value);
   return value;

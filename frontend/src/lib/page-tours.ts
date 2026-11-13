@@ -67,7 +67,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { target: "trip-trend", roles: ["Admin"], title: "Trip trend", text: "Trips scheduled and completed over time, to see if you're busier than last month.", expression: "focused", side: "top" },
       { target: "attendance-today-card", roles: ["Admin"], title: "Attendance today", text: "Drivers and staff present, absent, on leave or not marked yet.", expression: "calm", side: "top" },
       { target: "pending-leave", roles: ["Admin"], title: "Pending leave", text: "Leave requests waiting for your decision.", expression: "determined", side: "top" },
-      { target: "compliance", roles: ["Admin"], title: "Compliance overview", text: "Every truck's documents, valid, due or expired, so nothing lapses on the road.", expression: "determined", side: "top" },
+      { target: "compliance", roles: ["Admin"], title: "Compliance overview", text: "Every truck's seven documents: valid, expiring, expired, not uploaded or missing a cost. Click a count to show just those trucks, or a truck to renew its documents.", expression: "determined", side: "top" },
       { target: "pending-invoice", roles: ["Admin", "Accounts"], title: "Waiting to be invoiced", text: "Completed trips with a trip sheet that still need an invoice. Click one to open it in Verification & Invoicing.", expression: "determined", side: "top" },
       { target: "compliance-alerts", roles: ["Admin", "Accounts"], title: "Compliance alerts", text: "Truck documents that have expired or expire soon.", expression: "surprised", side: "top" },
       { target: "recurring-due", roles: ["Admin", "Accounts"], title: "Payments due", text: "Recurring payments and EMIs coming due, so nothing is paid late.", expression: "focused", side: "top" },
@@ -80,6 +80,41 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { field: "Tyre Condition", roles: ["Admin", "Maintenance"], title: "Tyre condition", text: "New tyres against retreaded ones.", expression: "curious", side: "top" },
       { field: "Top Brands", roles: ["Admin", "Maintenance"], title: "Top brands", text: "Which tyre brands make up the fleet.", expression: "curious", side: "top" },
       { field: "Recent Maintenance", roles: ["Admin", "Maintenance"], title: "Recent maintenance", text: "The latest repairs and services logged.", expression: "calm", side: "top" },
+    ],
+  },
+
+  "/overview/reports-center": {
+    title: "Reports Center",
+    about: "",
+    tour: [
+      { target: "reports-center-header", title: "Reports Center", text: "Every report in the app, gathered in one place. Only Admin sees it.", expression: "happy", side: "bottom", align: "start" },
+      { target: "reports-center-monitoring", title: "Monitoring", text: "Reports on how the team uses the app.", expression: "curious", side: "bottom", align: "start" },
+      { target: "reports-center-work-report", title: "Staff Work Report", text: "One person's work, or everyone's, for a single day or a date range. Press Open report, pick who and when, preview it, then save it as a PDF or Excel file.", expression: "determined", side: "bottom", align: "start" },
+      { target: "reports-center-trips", title: "Trips", text: "Reports on the trips themselves.", expression: "calm", side: "top", align: "start" },
+      { target: "reports-center-trip-history", title: "Trip History Report", text: "The same report as View on Trip History. Pick a period, a stage and a trip category, preview it, then save it as PDF or Excel.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-trip-management", title: "Trip Management", text: "One report per Trip and Driver Management page. Pick a period, the page's stage and a trip category — each shows how many trips it holds — or type a Trip ID for just one trip.", expression: "determined", side: "top", align: "start" },
+      { target: "reports-center-profitability", title: "Profitability", text: "Reports on what the trips and trucks earned.", expression: "curious", side: "top", align: "start" },
+      { target: "reports-center-profit-report", title: "Profitability Report", text: "The same report as View on the Profitability page: choose Trip Profitability, Truck Profitability or both, then a period and the Cost/KM mode, preview it and save it as Excel or PDF.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-customer-profit", title: "Customer Profitability Report", text: "The same report as the View button on the Customer Profitability page: every customer's profit for a period, with the Cost/KM mode you pick.", expression: "curious", side: "top", align: "start" },
+      { target: "reports-center-trip-summary", title: "Trip Summary Report", text: "The Trip Summary page as a report: each trip's hire, expense, P&L and km for the period, with the totals.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-running-cost", title: "Running Cost Report", text: "The same sheet as the View button on the Running Cost Calculator: each truck's cost per km and its parts, for Manual, Basic or Advanced.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-finance", title: "Finance", text: "One report per Finance Hub page: driver and staff pay, EMIs, customer detention, and compliance renewals. Pick a period, optionally a name, then View.", expression: "determined", side: "top", align: "start" },
+      { target: "reports-center-attendance", title: "Attendance", text: "Attendance reports, drivers and staff separately.", expression: "calm", side: "top", align: "start" },
+      { target: "reports-center-driver-attendance", title: "Driver Attendance Report", text: "The same report as View on the Attendance Report page, for drivers: pick a period, preview it, then save it as PDF or Excel.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-staff-attendance", title: "Staff Attendance Report", text: "The same, for staff: present, absent and leave days, with holidays on the register.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-audit", title: "Audit", text: "The Auditor's trips, as three separate reports: pending, verified and flagged.", expression: "calm", side: "top", align: "start" },
+      { target: "reports-center-audit-pending", title: "Pending Audit Report", text: "The same report as View on Pending Audit: trips still waiting for the Auditor, and how long they've waited.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-audit-verified", title: "Audit Verified Trips Report", text: "The same report as View on Audit Verified Trips, picked by the day each trip was verified.", expression: "happy", side: "top", align: "start" },
+      { target: "reports-center-audit-flagged", title: "Audit Flagged Trips Report", text: "The same report as View on Audit Flagged Trips: under review, or returned to the Auditor.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-auditor", title: "Auditor Pages", text: "The Driver Based and Vehicle Based Records as reports: the trips Accounts has verified, with their audit status.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-maintenance", title: "Maintenance", text: "Reports on repairs, services and diesel.", expression: "calm", side: "top", align: "start" },
+      { target: "reports-center-maintenance-report", title: "Truck Maintenance Report", text: "The same report as View on the Truck Maintenance page. Pick a period and every truck or just one, preview it, then save it as PDF or Excel.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-fuel-report", title: "Fuel Report", text: "The same report as View on Truck's Fuel History. Pick a period and every truck or just one, preview it, then save it as PDF or Excel.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-approvals", title: "Approvals", text: "One report per Approvals page: payment requests, edits, deletions and maintenance. Pick a period and a status, then View.", expression: "focused", side: "top", align: "start" },
+      { target: "reports-center-tyres", title: "Tyres", text: "One report per Tyre Records page: inventory, management, the retread queue, discarded tyres and the archive. Tyre Inventory also takes a status and a brand.", expression: "curious", side: "top", align: "start" },
+      { target: "reports-center-resources", title: "Resource Hub", text: "One report per Resource Hub page: staff, drivers, fleet, customers, vendors and the archive. Each covers the last 12 months; type a name to narrow it to just those.", expression: "curious", side: "top", align: "start" },
+      { target: "reports-center-records", title: "Records", text: "Proofs and documents kept in the app.", expression: "calm", side: "top", align: "start" },
+      { target: "reports-center-proof-pack", title: "Proof Pack", text: "Every bill and document for a period as one PDF, with an index, ready for the auditor. Pick the period, a type or a truck; the count shows before you build it.", expression: "determined", side: "top", align: "start" },
     ],
   },
 
@@ -121,12 +156,14 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     table: "One request per row, with its dates, days and decision.",
   },
   "/personal/edit-delete-requests": {
-    title: "Edit & Delete Requests",
+    title: "My Requests",
     about: "",
     tour: [
-      { selector: "h1", title: "Edit & Delete Requests", text: "Every change or deletion you asked for, and what was decided. Nothing here can be changed, so it's safe to explore.", expression: "happy", side: "bottom", align: "start", notRoles: ["Admin"] },
-      { selector: "h1", title: "Edit & Delete Requests", text: "Every edit or delete request in one place. You approve them in Edit Approvals and Deletion Approvals; this page is the record.", expression: "happy", side: "bottom", align: "start", roles: ["Admin"] },
-      { button: "Edit Requests", title: "Edits or deletions", text: "Switch between edit requests and deletion requests.", expression: "curious", side: "bottom" },
+      { selector: "h1", title: "My Requests", text: "Every change or deletion you asked for, and what was decided.", expression: "happy", side: "bottom", align: "start", notRoles: ["Admin"] },
+      { selector: "h1", title: "My Requests", text: "Your edit and delete requests, and everyone's maintenance requests. You decide them in the Approvals pages; this page is the record.", expression: "happy", side: "bottom", align: "start", roles: ["Admin"] },
+      { button: "Edit Requests", title: "Which requests", text: "Switch between edit requests and deletion requests.", expression: "curious", side: "bottom", notRoles: ["Admin", "Maintenance", "Trip Sheet Register"] },
+      { button: "Edit Requests", title: "Which requests", text: "Switch between edit, deletion and maintenance requests. The red number on Maintenance Requests is how many were rejected and need fixing.", expression: "curious", side: "bottom", roles: ["Admin", "Maintenance", "Trip Sheet Register"] },
+      { button: "Maintenance Requests", title: "Fixing a rejected one", text: "A rejected maintenance card shows why. Edit & Submit for Re-Verification opens it with your details filled in: fix it, attach the bills again and send it. It goes back to Maintenance Approvals as Pending.", expression: "determined", side: "bottom", roles: ["Admin", "Maintenance", "Trip Sheet Register"] },
       { selector: '[aria-label="Status"]', title: "Status", text: "Show all requests, or only Pending, Approved or Rejected ones.", expression: "focused", side: "bottom", align: "end" },
       { selector: '[data-tour="page-search"]', title: "Search", text: "Find a request by the record's name or the reason given.", expression: "sparkle", side: "bottom", align: "start" },
       { selector: "table", title: "The list", text: "One request per row: the record, the reason, the decision, who made it and when. An approved edit can be used once; after that you'll need a new request.", expression: "focused", side: "top" },
@@ -192,6 +229,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     search: "Find a trip by truck number, driver or trip ID.",
     actions: [{ label: "Assign Trip", text: "Opens the booking form: customer, route, cargo, rates and the driver. A truck or container already on another trip is caught before you save." }],
     steps: [
+      { target: "trip-category-filter", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips; each option shows how many there are. The Excel download follows it. Each trip's category shows under its Trip ID.", expression: "curious", side: "bottom", align: "start" },
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every change made to any trip (created, edited, closed, verified, deleted, restored) and who made it.", expression: "curious", side: "bottom", align: "end" },
     ],
     table: "One booked trip per row. The pencil edits it, Mark as Started moves it to Current Trips, and the LR icon downloads the lorry receipt.",
@@ -199,7 +237,8 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
   "/trips/available": {
     title: "Available Trips",
     about: "Every trip, by the four stages it goes through: Booked → Current → Completed → Closed.",
-    steps: [{ target: "trip-stages", title: "Four stages", text: "Pick a stage to see only those trips. The Excel download follows the stage you pick.", expression: "curious", side: "bottom", align: "start" }],
+    steps: [
+      { target: "trip-category-filter", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips; each option shows how many there are. The Excel download follows it. Each trip's category shows under its Trip ID.", expression: "curious", side: "bottom", align: "start" },{ target: "trip-stages", title: "Four stages", text: "Pick a stage to see only those trips. The Excel download follows the stage you pick.", expression: "curious", side: "bottom", align: "start" }],
     search: "Find a trip by ID, truck, driver or customer.",
     table: "The line under each status shows where the trip is in its four stages.",
   },
@@ -207,6 +246,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Current Trips",
     about: "Trips on the road now, as the drivers update them.",
     search: "Find a trip by truck number, driver or trip ID.",
+    steps: [{ target: "trip-category-filter", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips; each option shows how many there are. The Excel download follows it. Each trip's category shows under its Trip ID.", expression: "curious", side: "bottom", align: "start" }],
     table: "One trip per row. Mark as Completed when the driver finishes; it then moves to Completed Trips.",
   },
   "/trips/completed": {
@@ -214,6 +254,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     about: "Trips the drivers have finished, waiting to be closed with the booking sheet.",
     search: "Find a trip by truck number, driver or trip ID.",
     steps: [
+      { target: "trip-category-filter", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips; each option shows how many there are. The Excel download follows it. Each trip's category shows under its Trip ID.", expression: "curious", side: "bottom", align: "start" },
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every change made to any trip and who made it.", expression: "curious", side: "bottom", align: "end" },
     ],
     table: "One finished trip per row. CLOSE TRIP opens the booking sheet: fill in the final figures to close it. Closed trips leave this list and go on to the trip sheet desk.",
@@ -222,6 +263,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Trip Sheet Collection",
     about: "Collect each closed trip's sheet from the driver, check the advance, and hand the sheet to the trip sheet desk.",
     steps: [
+      { target: "trip-category-filter", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips; each option shows how many there are. It stays set when you change the sheet status. Each trip's category shows under its Trip ID.", expression: "curious", side: "bottom", align: "start" },
       { target: "sheet-stats", title: "Where sheets stand", text: "All, Pending, Delivered and Entry Overdue. Click a card to show only those trips. Entry Overdue means the trip sheet desk received it over a day ago but hasn't entered it yet.", expression: "curious", side: "bottom" },
       { target: "sheet-workflow", title: "The workflow", text: "Trip closed → you mark the sheet delivered → the trip sheet desk receives it → it's entered in Trip Reconciliation.", expression: "focused", side: "bottom" },
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every delivery and change on this page, and who made it.", expression: "curious", side: "bottom", align: "end" },
@@ -236,6 +278,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Trip Reconciliation",
     about: "Receive the trip sheets the yard delivers, and enter each one: expenses, km and fuel.",
     steps: [
+      { target: "trip-category-filter", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips; each option shows how many there are. The View report follows it too, and it stays set when you switch status cards. Each trip's category shows under its Trip ID.", expression: "curious", side: "bottom", align: "start" },
       { target: "recon-stats", title: "Where sheets stand", text: "Pending Receive, Pending Sheet Entry, Sheet Entered, Rejected, and your edit requests. Click a card to show only those trips.", expression: "curious", side: "bottom" },
       { target: "recon-workflow", title: "The workflow", text: "Delivered by the yard → you receive it → you enter the sheet → it moves to Verification & Invoicing.", expression: "focused", side: "bottom" },
       { button: "View Current Trips", title: "Current trips", text: "A quick look at trips still on the road, so you know which sheets are coming.", expression: "calm", side: "bottom" },
@@ -250,6 +293,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Verification & Invoicing",
     about: "Check each entered trip sheet, then invoice it, or waive the invoice when the trip isn't billed.",
     steps: [
+      { target: "trip-category-filter", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips; each option shows how many there are. The status cards and the View report follow it, and it stays set when you switch cards. Each trip's category shows under its Trip ID.", expression: "curious", side: "bottom", align: "start" },
       { target: "verify-stats", title: "Where trips stand", text: "Pending, Rejected, Verified, Invoiced and Waived Invoice. Click a card to show only those trips.", expression: "curious", side: "bottom" },
       { target: "verify-workflow", title: "The workflow", text: "Pending → verify the trip data → generate the invoice. Under Invoiced you can also filter by invoice type.", expression: "focused", side: "bottom" },
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every verification, invoice and change, and who made it.", expression: "curious", side: "bottom", align: "end" },
@@ -267,12 +311,14 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     about: "Trips verified by Accounts that the Auditor hasn't checked yet. " + READ_ONLY,
     search: "Find a trip by ID, truck or customer.",
     table: "One trip per row. The Auditor verifies or flags each one.",
+    actions: [{ label: "View", text: "A report of the trips waiting: how long each has waited, the hire waiting, and a sheet per driver. Download it as Excel or PDF." }],
   },
   "/trips/audit-verified": {
     title: "Audit Verified Trips",
     about: "Trips the Auditor has checked and signed off.",
     search: "Find a trip by ID, truck or customer.",
     table: "One signed-off trip per row. \"Was Disputed\" marks trips that were flagged before. If something is still wrong, Flag for Re-Verification sends it back to the Auditor with your reason.",
+    actions: [{ label: "View", text: "A report of the verified trips: how many were disputed first, how long verifying took, and a sheet per driver, as Excel or PDF." }],
   },
   "/trips/flagged": {
     title: "Auditor Flagged Trips",
@@ -281,6 +327,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { button: "History", title: "History", text: "Every flag, return and re-check, and who did it.", expression: "curious", side: "bottom", align: "end" },
     ],
     search: "Find a trip by ID, truck or customer.",
+    actions: [{ label: "View", text: "A report of the flagged trips: the hire at stake, the commonest reasons, how long each has been open, and a sheet per status. Download it as Excel or PDF." }],
     table: "View Booking Sheet and View Trip Sheet open them read-only. Return for Review sends the trip back to the Auditor, who verifies it or flags it again.",
   },
   "/trips/history": {
@@ -288,12 +335,13 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     about: "Every trip ever booked, at any stage, with its booking sheet, trip sheet and invoice.",
     steps: [
       { target: "history-stats", title: "By stage", text: "Assigned, Current, Completed, Invoiced, Waived Invoice and Cancelled. Click a card to show only those trips.", expression: "curious", side: "bottom" },
+      { target: "history-category", title: "Trip Category", text: "Show only Outstation, Local, Shifting, Local CFS or Return Trip trips. The stage cards and the View export follow it, and each trip's category shows under its route.", expression: "curious", side: "bottom", align: "start" },
       { button: "Edit History", roles: ["Admin", "Commercial Manager", "Assistant Commercial Manager"], title: "Edit History", text: "Every change made to any trip, and who made it.", expression: "curious", side: "bottom", align: "end" },
       { selector: '[title="Select all trips"]', roles: ["Admin"], title: "Delete several", text: "Tick trips to delete them together. Deleted trips go to Deleted Trips and can be restored.", expression: "determined", side: "right" },
       { button: "View Invoice", title: "Invoices", text: "Open an invoiced trip's invoice, or the combined invoice it belongs to.", expression: "curious", side: "left" },
     ],
     search: "Find a trip by ID, truck, driver, customer or container.",
-    actions: [{ label: "View", text: "A report of the trips in the date range and stage you've picked, to view or download as a PDF." }],
+    actions: [{ label: "View", text: "A report of the trips for the stage, category, dates and search you've picked: a summary and a sheet per trip category, as Excel or PDF." }],
     table: "Open a trip's booking sheet, trip sheet or invoice from its row.",
   },
   "/trips/deleted": {
@@ -321,7 +369,10 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Our Staff",
     about: "Everyone who logs in to Canaan ERP: their details, role and login.",
     search: "Find someone by name, ID, phone or role.",
-    actions: [{ label: "Add Staff", text: "Add a person and their login. Their software role decides which pages they see." }],
+    actions: [
+      { label: "Add Staff", text: "Add a person and their login. Their software role decides which pages they see." },
+      { label: "View", text: "A report per role: everyone's attendance over the last 12 months, years with us, birthdays and anniversaries coming up, frozen accounts and missing details. Aadhaar is masked. Excel or PDF." },
+    ],
     steps: [
       { button: "Freeze History", title: "Freeze History", text: "Every account frozen or unfrozen, with the reason. A frozen account can't log in until it's unfrozen.", expression: "focused", side: "bottom", align: "end" },
       { button: "Edit History", title: "Edit History", text: "Every staff record created, edited, deleted or restored, and by whom.", expression: "curious", side: "bottom", align: "end" },
@@ -333,7 +384,10 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Our Drivers",
     about: "Every driver: contact details, licence and documents.",
     search: "Find a driver by name, ID or phone.",
-    actions: [{ label: "Add Driver", text: "Add a driver with their licence, Aadhaar and photo." }],
+    actions: [
+      { label: "Add Driver", text: "Add a driver with their licence, Aadhaar and photo." },
+      { label: "View", text: "A file per driver: licence status, current truck and the last 12 months month by month, plus who needs a licence renewed. IDs are masked. Excel or PDF." },
+    ],
     steps: [
       { title: "Making changes", roles: ["Admin"], text: "You edit and delete drivers directly. A deleted driver goes to the Archive and can be restored.", expression: "determined" },
       { title: "Making changes", roles: ["Commercial Manager"], text: "You edit drivers directly. Deleting sends Admin a delete request with your reason.", expression: "calm" },
@@ -346,7 +400,10 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Our Fleet",
     about: "Every truck: its details, branch, odometer, tyres and documents.",
     search: "Find a truck by registration, ID, type or branch.",
-    actions: [{ label: "Add Truck", text: "Add a truck with its documents and tyre layout." }],
+    actions: [
+      { label: "Add Truck", text: "Add a truck with its documents and tyre layout." },
+      { label: "View", text: "A file per truck: every document with its expiry, the loan, last service and fuel, and the last 12 months' trips, plus what needs renewing. Excel or PDF." },
+    ],
     steps: [
       { target: "truck-cards", title: "One card per truck", text: "Each card shows the branch and odometer. Its buttons view, edit or remove the truck, change its branch, and show branch and document history.", expression: "focused", side: "top" },
       { selector: '[title="Correct odometer"]', roles: ["Admin"], title: "Correct odometer", text: "Fix a wrong odometer reading. The old and new readings and your reason are kept.", expression: "determined", side: "left" },
@@ -367,6 +424,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every customer, destination and price change, and by whom.", expression: "curious", side: "bottom", align: "end" },
     ],
     search: "Find a customer by name, GST number or place.",
+    actions: [{ label: "View", text: "A report per customer type, with each customer's trips and hire over the last 12 months, who has gone quiet, and the destinations and pricing. Excel or PDF." }],
     table: "One entry per row. Edit or delete from the row.",
   },
   "/resources/vendors": {
@@ -376,6 +434,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     actions: [
       { label: "Add Vendor Category", text: "Make a new category, such as tyres or electrical." },
       { label: "Add Vendor", text: "Add a vendor and the category they belong to." },
+      { label: "View", text: "A report per vendor category: what each vendor was paid over the last 12 months (repairs and retreads), who's inactive, and who has no GSTIN. Excel or PDF." },
     ],
     steps: [
       { title: "Making changes", roles: ["Admin"], text: "You edit and delete vendors directly.", expression: "determined" },
@@ -392,6 +451,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { button: "Edit History", title: "Edit History", text: "Every record deleted, restored or permanently deleted, and by whom.", expression: "curious", side: "bottom", align: "end" },
     ],
     search: "Find a record by name or ID.",
+    actions: [{ label: "View", text: "A report of what's in the archive, a sheet per kind of record: who asked, why, who approved and how long it's been there. Follows the tab and search. Excel or PDF." }],
     table: "Open a row for its details. Restore brings it back as it was; Permanently Delete removes it for good and can't be undone.",
   },
   "/resources/driver-record": {
@@ -409,7 +469,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     about: "Each truck's trips, km and hire, for checking. Sold and deleted trucks are here too, so their past trips can still be audited.",
     search: "Find a truck by registration or ID.",
     steps: [
-      { title: "How to audit", text: "Pick a date range (empty means lifetime), then expand a truck to see every trip with a trip sheet. Open its booking sheet, trip sheet or Trip Breakdown, then Verify it or Flag it with a reason.", expression: "focused" },
+      { title: "How to audit", text: "Pick a date range (empty means lifetime), then expand a truck to see every trip with a trip sheet. Open its booking sheet or trip sheet (Admin also has Trip Breakdown), then Verify it or Flag it with a reason.", expression: "focused" },
       { title: "Changed your mind?", roles: ["Admin", "Auditor"], text: "Undo Verification sends a verified trip back to be checked again.", expression: "calm" },
     ],
     table: "One truck per row, with its trips, km and hire for the range.",
@@ -423,7 +483,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     steps: [
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every maintenance record added, edited or deleted, and by whom.", expression: "curious", side: "bottom", align: "end" },
     ],
-    table: "One truck per row. Update Record adds a repair or service; it goes to Maintenance Approvals and joins the truck's record once Admin or Accounts approves it. Scheduled Records holds jobs saved before their cost was known (the number shows how many wait), View Record its history, and Full Status its overall condition.",
+    table: "One truck per card (or row: switch with Cards / List), with its photo, record count and last service. Update Record adds a repair or service; it goes to Maintenance Approvals and joins the truck's record once Admin or Accounts approves it. Scheduled holds jobs saved before their cost was known (the number shows how many wait), View Record its history, and Full Status its overall condition.",
   },
   "/maintenance/compliance": {
     title: "Compliance & Renewals",
@@ -432,6 +492,8 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     steps: [
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every document renewed or changed, and by whom.", expression: "curious", side: "bottom", align: "end" },
       { target: "compliance-no-cost", title: "No cost entered", text: "Documents a truck holds (with an expiry date) but no cost. Until the cost is entered, they count as ₹0 in Profitability and the Running Cost Calculator. Click the card to list just those trucks.", expression: "focused", side: "bottom" },
+      { target: "compliance-doc-filter", title: "One document at a time", text: "Pick a document (RC, FC, Road Tax and so on) to see the trucks sorted by it: expired first, then not uploaded, then due soon, then valid. The cards count only that document, and View downloads just its report. A red dot means a truck has it expired; amber, due soon.", expression: "focused", side: "bottom", align: "start" },
+      { target: "compliance-not-uploaded", title: "Not Uploaded", text: "Documents with no expiry date entered yet. They're a gap to fill, not an expiry, so they're counted here and never as Expired. Click the card to list just those trucks.", expression: "curious", side: "bottom" },
       { button: "Update Document", title: "Renew a document", text: "A truck's seven documents as cards, each with Renew for the new expiry date, cost and a copy.", expression: "determined", side: "left" },
       { button: "View Truck Data", title: "Truck documents", text: "A truck's documents at a glance, with their expiry dates and copies.", expression: "curious", side: "left" },
       { button: "View Cost Breakdown", title: "What documents cost", text: "Each document's cost spread per day, month and km. The Running Cost Calculator uses these figures.", expression: "focused", side: "left" },
@@ -448,9 +510,9 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { button: "Edit History", roles: ["Admin", "Maintenance"], title: "Edit History", text: "Every fuel log added, edited or deleted, and by whom.", expression: "curious", side: "bottom", align: "end" },
       { title: "Diesel price", text: "The base price per litre is set from the dashboard; here it's shown read-only.", expression: "calm" },
       { button: "Enter Fuel Log", title: "Log a fill", text: "Record a fuel fill: date, odometer, litres, price and the station.", expression: "determined", side: "left" },
-      { button: "View Fuel History", title: "A truck's fills", text: "Every fill for the truck, with its km per litre.", expression: "curious", side: "left" },
+      { button: "Fuel History", title: "A truck's fills", text: "Every fill for the truck, with its km per litre.", expression: "curious", side: "left" },
     ],
-    table: "One truck per row. Open it to see every fill with litres, cost and km per litre.",
+    table: "One truck per card (or row: switch with Cards / List), with its photo, last fill and mileage. Fuel History opens every fill with litres, cost and km per litre.",
   },
   "/maintenance/tyre-inventory": {
     title: "Tyre Inventory",
@@ -542,7 +604,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { selector: '[title="Change the max amount"]', roles: ["Admin"], title: "Advance limit", text: "The most a driver can be given as a workshop advance. Click to change it.", expression: "determined", side: "bottom" },
     ],
     search: "Find a driver by name or ID.",
-    actions: [{ label: "View", text: "A report of driver attendance for the date range, to view or download as a PDF." }],
+    actions: [{ label: "View", text: "The attendance report for the date range: a summary, the register (everyone down, dates across) and a page per driver. Download it as Excel or PDF." }],
     table: "One driver per row. Pick their status; it saves as you go. On Trip and On Halt ask for the vehicle type (it decides the cleaner batta). On Workshop asks for the advance paid to the driver. Add a remark to any day.",
   },
   "/attendance/staff": {
@@ -556,7 +618,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { selector: '[title="When this person was last actually active"]', title: "Last active", text: "When this person last really used the app, not just when they logged in.", expression: "curious", side: "left" },
     ],
     search: "Find a staff member by name or ID.",
-    actions: [{ label: "View", text: "A report of staff attendance for the date range, to view or download as a PDF." }],
+    actions: [{ label: "View", text: "The attendance report for the date range: a summary, the register and a page per person (Sundays and holidays left out). Download it as Excel or PDF." }],
     table: "One person per row with their status, check-in and check-out. Changing someone's status shows them \"Updated by admin\" on their own page.",
   },
   "/attendance/report": {
@@ -569,8 +631,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     ],
     search: "Find a person by name or ID.",
     actions: [
-      { label: "View", text: "Shows the report for the date range you've picked." },
-      { label: "Download Excel", text: "The same report as an Excel file." },
+      { label: "View", text: "The report for the date range you've picked: a summary, the register and a page per person, as Excel or PDF." },
     ],
   },
   "/attendance/holidays": {
@@ -581,6 +642,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { button: "Edit History", title: "Edit History", text: "Every holiday added, edited or deleted, and by whom.", expression: "curious", side: "bottom", align: "end" },
       { selector: '[aria-label="Previous year"]', title: "Other years", text: "Step back or forward a year to plan ahead or look back.", expression: "calm", side: "bottom" },
     ],
+    actions: [{ label: "View", text: "A report for the year shown: the holidays, working days month by month, and who added or changed a holiday. Excel or PDF." }],
     table: "Every holiday this year. Edit or delete from the row.",
   },
   "/attendance/leave-approvals": {
@@ -590,7 +652,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { button: "Edit History", title: "Edit History", text: "Every leave request made, approved or rejected, and by whom.", expression: "curious", side: "bottom", align: "end" },
     ],
     search: "Find a request by person, reason or dates.",
-    actions: [{ label: "View", text: "A report of leave requests for the date range, to view or download as a PDF." }],
+    actions: [{ label: "View", text: "The leave report for the tab, search and dates: a summary and a sheet per applicant group, with leave days per person. Download it as Excel or PDF." }],
     table: "One request per row. Approve or reject it; the person is told straight away.",
   },
   "/attendance/edit-approvals": {
@@ -620,6 +682,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     tabs: "Pending, Approved, Rejected or Withdrawn records.",
     search: "Find a record by truck, vendor or person.",
     table: "Open a record to check the work, cost and proofs, then Approve or Reject it with a reason.",
+    actions: [{ label: "View", text: "A report of the requests on this tab and search: a summary (what's waiting, for how long, which trucks) and a sheet per status, as Excel or PDF." }],
   },
   "/attendance/payment-requests": {
     title: "Payment Requests",
@@ -627,7 +690,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     steps: [
       { button: "Edit History", roles: ["Admin"], title: "Edit History", text: "Every payment marked paid or rejected, and by whom.", expression: "curious", side: "bottom", align: "end" },
     ],
-    actions: [{ label: "View", text: "A report of payment requests for the date range, to view or download as a PDF." }],
+    actions: [{ label: "View", text: "A report of payment requests for the date range: paid, approved but not paid, and waiting, with a sheet per person who asked. Excel or PDF." }],
     table: "One request per row. Mark as Paid once the money is sent, attaching the proof of payment, or Reject it. A note the other person declined in chat shows as rejected.",
   },
 
@@ -701,7 +764,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { selector: "h1", title: "Profitability", text: "Profit and loss for every trip and every truck in the period you pick, after every cost.", expression: "sparkle", side: "bottom", align: "start" },
       { button: "Quick Start Guide", title: "Quick Start Guide", text: "A one-minute guide to this page. Start here if it's new to you.", expression: "happy", side: "bottom", align: "end" },
       { button: "How is it Calculated", title: "How it's calculated", text: "Every formula behind every figure, for each cost mode.", expression: "focused", side: "bottom", align: "end" },
-      { button: "View", title: "The report", text: "The report for this period and view, to look through or download as a PDF.", expression: "wink", side: "bottom", align: "end" },
+      { button: "View", title: "The report", text: "Pick Trip Profitability, Truck Profitability or both — the tab you're on comes first. Then look it through, or download it as Excel or PDF.", expression: "wink", side: "bottom", align: "end" },
       { selector: '[aria-label="Period"]', title: "Period", text: "Quick periods: this month, last month, the last 3 or 6 months, or this year.", expression: "curious", side: "bottom", align: "start" },
       { selector: '[data-tour="page-dates"]', title: "Your own dates", text: "Or pick any start and end date. Picking dates clears the quick period.", expression: "focused", side: "bottom", align: "end" },
       { target: "pl-empty", title: "Nothing loaded yet", text: "Pick a period above and the report loads here.", expression: "calm", side: "top" },
@@ -883,7 +946,6 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { field: "Preview any day", title: "Preview any day", text: "Pick a date (or your own birthday) and see the dashboard as it will look then.", expression: "curious", side: "bottom" },
       { field: "Change history", title: "Change history", text: "Every change to the cards, and who made it.", expression: "calm", side: "top" },
       { field: "Tea Time", title: "Tea time", text: "At 11 AM and 4 PM Joshine reminds everyone it's tea time. Switch it off here for everyone; each person can also turn it off for themselves in Joshine's settings. The buttons show it on your screen now.", expression: "happy", side: "bottom" },
-      { field: "Festival greetings", title: "Festival greetings", text: "Pongal, Deepavali and Ayudha Pooja move every year: add each year's date here and switch each on or off. On that day Joshine greets everyone for it.", expression: "sparkle", side: "bottom" },
     ],
     expression: "love",
   },
@@ -904,7 +966,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
     title: "Activity Log",
     about: "What everyone did in the app: pages opened, saves, deletes and exports.",
     steps: [
-      { button: "Download Report", title: "Download Report", text: "One person's work report for a single day or a date range, as a PDF or Excel file.", expression: "determined", side: "bottom", align: "end" },
+      { button: "Download Report", title: "Download Report", text: "One person's work report for a single day or a date range, as a PDF or Excel file. It's also on Reports Center.", expression: "determined", side: "bottom", align: "end" },
       { button: "Failed only", title: "Failed only", text: "Show only actions that failed, to spot problems quickly.", expression: "surprised", side: "bottom" },
       { field: "Needs attention", title: "Needs attention", text: "Failed actions and failed logins worth a look.", expression: "surprised", side: "bottom" },
       { field: "Online now", title: "Online now", text: "Who is using the app right now, with activity by hour beside it.", expression: "happy", side: "bottom" },
@@ -929,7 +991,7 @@ const SHARED = {
   table: "Each row is one record. The buttons at the end of a row open, edit or act on it.",
   pages: "Ten rows to a page. Move between pages here.",
   deleteAdmin: "Deletes the trip straight away. You give a reason, which is kept with the record, and it can be restored from Deleted Trips.",
-  deleteRequest: "You can't delete directly: this sends Admin a delete request with your reason. Follow it in Edit & Delete Requests.",
+  deleteRequest: "You can't delete directly: this sends Admin a delete request with your reason. Follow it in My Requests.",
 };
 
 /** Turns a page's guide into its tour steps. */

@@ -12,7 +12,8 @@ import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
 import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -373,7 +374,14 @@ export default function DriversPage() {
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search drivers..." value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <DownloadExcelButton path="/exports/drivers" filename="drivers.xlsx" />
+          {/* A file per driver: Summary + one sheet each, last 12 months, IDs masked (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Our_Drivers.xlsx"
+            title={`Our Drivers Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "drivers", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
         </div>
       </div>
 

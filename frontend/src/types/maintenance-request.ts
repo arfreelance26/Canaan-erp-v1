@@ -43,6 +43,11 @@ export type MaintenanceRequest = {
   rejectReason: string | null;
   recordId: string | null;
   requesterSeenAt: string | null;
+  /** Rejected, then fixed and sent back by its submitter (Maintenance Requests). */
+  resubmitCount: number;
+  /** The last rejection's reason, kept for the approver once it's sent back. */
+  previousRejectReason: string | null;
+  resubmittedAt: string | null;
   proofCount: number;
   createdAt: string;
 };

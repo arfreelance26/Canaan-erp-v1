@@ -9,7 +9,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { confirmAction, showError, showSuccess } from "@/lib/feedback";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
@@ -312,13 +313,12 @@ export default function PaymentRequestsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/payment-requests/export"
-            filename="payment_requests.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Payment_Requests.xlsx"
+            title={`Payment Requests Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}`}
+            params={{ kind: "payments", ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>

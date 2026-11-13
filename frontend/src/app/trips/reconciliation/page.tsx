@@ -17,9 +17,13 @@ import { RiEyeLine as Eye, RiCheckboxCircleLine as CheckCircle2, RiDownloadLine 
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/feedback";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
+import { TRIP_CATEGORY_LABEL } from "@/components/trips/TripCategoryTag";
+import { TripCategoryFilter, inTripCategory, type TripCategoryChoice } from "@/components/trips/TripCategoryFilter";
+import { TripCategoryTag } from "@/components/trips/TripCategoryTag";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -106,6 +110,8 @@ export default function TripReconciliationPage() {
   const [bookingSheetTrip, setBookingSheetTrip] = useState<Trip | null>(null);
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Trip Category — stays set across the status cards, and scopes the View report too.
+  const [category, setCategory] = useState<TripCategoryChoice>("");
   useGlobalSearchQuery(setSearchQuery);
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Rejected" | "Request Raised" | "Request Approved" | "Request Rejected">("All");
   // Sub-filter shown only under the "Request Approved" card.
@@ -375,7 +381,6 @@ export default function TripReconciliationPage() {
   }
 
   const [showCurrentTrips, setShowCurrentTrips] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [modalStatusFilter, setModalStatusFilter] = useState<"All" | "Sheet Entered" | "Pending Sheet Entry" | "Rejected">("All");
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
@@ -400,143 +405,6 @@ export default function TripReconciliationPage() {
   const fromMs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
   const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
 
-  async function handleDownloadPDF(pdfTrips: Trip[]) {
-    if (downloading) return;
-
-    if (pdfTrips.length === 0) {
-      showError("No trip sheets found for the selected date range.");
-      return;
-    }
-
-    setDownloading(true);
-    try {
-      const { default: jsPDF } = await import("jspdf");
-
-      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const marginX = 10;
-      const marginY = 14;
-      const rowH = 8;
-      const headerH = 9;
-
-      const fmtDate = (iso: string) =>
-        new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-      const dateRangeLabel = dateFrom && dateTo && dateFrom === dateTo
-        ? fmtDate(dateFrom)
-        : `${dateFrom ? fmtDate(dateFrom) : "start"} to ${dateTo ? fmtDate(dateTo) : "today"}`;
-
-      // Total: 277mm (297 - 10*2)
-      const cols: [string, number][] = [
-        ["Trip ID",       28],
-        ["Booking Ref",   33],
-        ["Customer",      34],
-        ["Route",         40],
-        ["Container No",  25],
-        ["Driver",        29],
-        ["Vehicle",       24],
-        ["Hire Amt",      20],
-        ["Total Exp",     20],
-        ["Sheet Date",    24],
-      ];
-
-      function drawPageHeader(pageNum: number, totalPages: number) {
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(13);
-        pdf.setTextColor(27, 43, 94);
-        pdf.text("Trip Reconciliation — Trip Sheets", marginX, marginY);
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(
-          `Generated on ${today}  ·  ${pdfTrips.length} trip${pdfTrips.length !== 1 ? "s" : ""}  ·  ${dateRangeLabel}`,
-          marginX, marginY + 5,
-        );
-        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
-
-        const tableTop = marginY + 10;
-        pdf.setFillColor(27, 43, 94);
-        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
-
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7);
-        pdf.setTextColor(255, 255, 255);
-        let x = marginX;
-        for (const [label, w] of cols) {
-          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
-          x += w;
-        }
-        return tableTop + headerH;
-      }
-
-      const rowData = pdfTrips.map((trip) => {
-        const customer = customerById.get(trip.customerId);
-        const sheet = sheets.get(trip.id);
-        const sheetDate = trip.tripSheetDate
-          ? new Date(trip.tripSheetDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
-          : "—";
-        return [
-          trip.tripId,
-          trip.bookingReferenceNo ?? "—",
-          customer?.name ?? trip.shipperConsignee ?? "—",
-          `${trip.origin} > ${trip.destination}`,
-          containerRef(trip) || "—",
-          trip.driverName ?? "—",
-          trip.truckRegistration ?? "—",
-          sheet ? `Rs.${n(sheet.hireAmount).toLocaleString("en-IN")}` : "—",
-          sheet ? `Rs.${n(sheet.totalExpense).toLocaleString("en-IN")}` : "—",
-          sheetDate,
-        ];
-      });
-
-      const usableH = pageH - marginY - 20;
-      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
-      const totalPages = Math.ceil(rowData.length / rowsPerPage);
-
-      let rowIndex = 0;
-      for (let page = 1; page <= totalPages; page++) {
-        if (page > 1) pdf.addPage();
-        const y = drawPageHeader(page, totalPages);
-
-        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
-        rowIndex += rowsPerPage;
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7.5);
-
-        for (let r = 0; r < pageRows.length; r++) {
-          const rowY = y + r * rowH;
-          if (r % 2 === 1) {
-            pdf.setFillColor(249, 250, 251);
-            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
-          }
-          pdf.setDrawColor(229, 231, 235);
-          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
-
-          pdf.setTextColor(30, 30, 30);
-          let x = marginX;
-          for (let c = 0; c < cols.length; c++) {
-            const [, w] = cols[c];
-            const clipped = pdf.splitTextToSize(String(pageRows[r][c] ?? "—"), w - 4)[0] ?? "";
-            pdf.text(clipped, x + 2, rowY + 5.5);
-            x += w;
-          }
-        }
-
-        pdf.setDrawColor(209, 213, 219);
-        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
-      }
-
-      pdf.save(`trip-reconciliation-${today.replace(/ /g, "-")}.pdf`);
-    } catch {
-      showError("Failed to generate PDF.");
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   // Edit-request filters. Admin sees every staff member's requests; Docs staff
   // see their own. `myRequests` already holds the correct role-scoped set.
@@ -587,7 +455,8 @@ export default function TripReconciliationPage() {
   // `sheets` map, so counts/filters stay correct without fetching every sheet.
   // The date range beside the View button is for that report only — the table
   // and its status counts always cover every trip.
-  const filteredTrips = useMemo(() => trips
+  // Everything but the category: the category pill counts from this list.
+  const stageTrips = useMemo(() => trips
     .filter((t) => {
       if (statusFilter === "Pending Receive" && t.tripSheetReceived) return false;
       if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || t.hasSheet)) return false;
@@ -630,6 +499,7 @@ export default function TripReconciliationPage() {
       };
       return priority(a) - priority(b);
     }), [trips, statusFilter, approvedSubFilter, searchQuery, requestRaisedIds, requestApprovedIds, requestApprovedUsedIds, requestRejectedIds, lastRequestedAtByTripId, customerById]);
+  const filteredTrips = useMemo(() => stageTrips.filter((t) => inTripCategory(t, category)), [stageTrips, category]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -729,6 +599,7 @@ export default function TripReconciliationPage() {
           value={searchQuery}
           onChange={(v) => { setSearchQuery(v); setPage(1); }}
         />
+        <TripCategoryFilter tour="trip-category-filter" trips={stageTrips} value={category} onChange={(v) => { setCategory(v); setPage(1); }} />
         <button
           type="button"
           onClick={() => setShowCurrentTrips(true)}
@@ -1126,7 +997,10 @@ export default function TripReconciliationPage() {
                     <td className="px-4 py-2 text-text-secondary">
                       {trip.origin} <span className="text-text-tertiary">→</span> {trip.destination}
                     </td>
-                    <td className="px-4 py-2 font-medium text-text-primary">{trip.tripId}</td>
+                    <td className="px-4 py-2 font-medium text-text-primary">
+                      {trip.tripId}
+                      {trip.tripCategory && <TripCategoryTag category={trip.tripCategory} className="mt-1 block" />}
+                    </td>
                     <td className="px-4 py-2 text-text-secondary text-xs">{trip.bookingReferenceNo}</td>
                     <td className="px-4 py-2 text-text-secondary">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
                     <td className="px-4 py-2 font-medium text-accent-text">
@@ -1315,6 +1189,7 @@ export default function TripReconciliationPage() {
           : !dateFrom ? `Up to ${fmtDate(dateTo)}`
           : dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
         const dateFilteredTrips = receivedTrips.filter((t) => {
+          if (!inTripCategory(t, category)) return false;
           if (!fromMs && !toMs) return true;
           // Date filter reference depends on status:
           //  - Sheet entered → filter by tripSheetDate (when the sheet was entered)
@@ -1417,23 +1292,14 @@ export default function TripReconciliationPage() {
                 )}
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
-                {isAdmin && (
-                  <DownloadExcelButton
-                    path="/exports/trips"
-                    filename="reconciliation_trips.xlsx"
-                    direct
-                    params={{
-                      has_closure: "true",
-                      ...(dateFrom ? { from_date: dateFrom } : {}),
-                      ...(dateTo ? { to_date: dateTo } : {}),
-                    }}
-                    className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                )}
-                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Download className="h-4 w-4" />
-                  {downloading ? "Generating..." : "Download PDF"}
-                </button>
+                {/* The designed report — the same trips as listed above (trip_pages_report.py). */}
+                <ReportViewButton
+                  path="/exports/resource-report"
+                  filename="Trip_Reconciliation.xlsx"
+                  title={`Trip Reconciliation Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all dates"}${modalStatusFilter !== "All" ? ` — ${modalStatusFilter}` : ""}${category ? ` — ${TRIP_CATEGORY_LABEL[category]}` : ""}`}
+                  params={{ kind: "trips_reconciliation", resource_type: "received", ...(modalStatusFilter !== "All" ? { stage: modalStatusFilter } : {}), ...(category ? { trip_category: category } : {}), ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}) }}
+                  pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+                />
               </div>
             </div>
           </div>

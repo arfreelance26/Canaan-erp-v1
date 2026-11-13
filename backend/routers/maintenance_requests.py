@@ -15,6 +15,12 @@ cost — until it's approved, and then on its own date, so the right period's
 figures change. The places that show figures warn when a job in their
 period is still waiting for its cost.
 
+A rejected request can be fixed and sent back by the person who submitted
+it (Maintenance Requests → Submit for Re-Verification): the same request
+returns to Pending with the edited details, keeping the last rejection's
+reason for the approver. A trip-sheet repair keeps its line fingerprint, so
+re-saving the sheet neither duplicates nor cancels it.
+
 Edits to existing records are unchanged — they still go to Edit Approvals.
 Admin and Accounts may approve their own requests.
 """
@@ -225,13 +231,18 @@ def list_requests(
 
 
 @router.get("/mine", response_model=list[schemas.MaintenanceRequestOut])
-def my_requests(db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
-    """The caller's own requests (newest 100) — the bell's "Your Request Updates"."""
+def my_requests(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """The caller's own requests, newest first — the bell's "Your Request
+    Updates" (100) and the Maintenance Requests page (up to 500)."""
     rows = (
         db.query(models.MaintenanceRequest)
         .filter(_mine(current_user), models.MaintenanceRequest.status.notin_(("Cancelled", "Scheduled")))
-        .order_by(models.MaintenanceRequest.created_at.desc())
-        .limit(100).all()
+        .order_by(models.MaintenanceRequest.created_at.desc(), models.MaintenanceRequest.id.desc())
+        .limit(max(1, min(limit, 500))).all()
     )
     return _out(db, rows)
 
@@ -400,6 +411,43 @@ def reject_request(
     db.query(models.MaintenanceRequestProof).filter(
         models.MaintenanceRequestProof.request_id == req.id
     ).delete(synchronize_session=False)
+    db.commit()
+    db.refresh(req)
+    _changed()
+    return _out(db, [req])[0]
+
+
+# ── Re-verification (the submitter fixes a rejected request) ────────────────
+
+@router.put("/{request_id}/resubmit", response_model=schemas.MaintenanceRequestOut)
+def resubmit_request(
+    request_id: int,
+    payload: schemas.MaintenanceRecordCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Maintenance Requests → Submit for Re-Verification: the person who
+    submitted a rejected request sends it back, edited, to Maintenance
+    Approvals. Checked like a new record; its proof files (removed on
+    rejection) are uploaded again afterwards. The same request goes back to
+    Pending, so its history stays in one place."""
+    req = _get(db, request_id, lock=True)
+    if req.status != "Rejected":
+        raise HTTPException(409, "Only a rejected request can be sent for re-verification.")
+    if not _is_submitter(req, current_user):
+        raise HTTPException(403, "Only the person who submitted this request can send it for re-verification.")
+    if payload.truck_id != req.truck_id:
+        raise HTTPException(400, "A request can't move to another truck.")
+    payload = _prepared(db, payload, need_cost=True)
+    req.payload = _payload_json(payload)
+    req.previous_reject_reason = req.reject_reason
+    req.reject_reason = None
+    req.decided_by_name = None
+    req.decided_at = None
+    req.requester_seen_at = None
+    req.resubmit_count = (req.resubmit_count or 0) + 1
+    req.resubmitted_at = datetime.now(timezone.utc)
+    req.status = "Pending"
     db.commit()
     db.refresh(req)
     _changed()

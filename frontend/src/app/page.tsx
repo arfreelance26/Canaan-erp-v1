@@ -54,6 +54,7 @@ import { formatDateWithMonth, inDateRange, todayIst } from "@/lib/format-date";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
+import { ComplianceAlertBanner } from "@/components/dashboard/ComplianceAlertBanner";
 import { LaneMapCard } from "@/components/dashboard/LaneMapCard";
 import { ComplianceOverviewCard } from "@/components/dashboard/ComplianceOverviewCard";
 import { AttendanceTodayCard } from "@/components/dashboard/AttendanceTodayCard";
@@ -222,7 +223,7 @@ function AdminDashboard() {
   useWebSocketEvent("leave_request_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("leave_request_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
-  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon } = useComplianceAlerts(trucks);
+  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon, notUploadedItems: complianceNotUploaded, noCostItems: complianceNoCost } = useComplianceAlerts(trucks);
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
@@ -572,79 +573,15 @@ function AdminDashboard() {
       {/* ── Current Trips ────────────────────────────────────────────────── */}
       <CurrentTripsCard />
 
-      {/* ── Compliance Alert Banner ─────────────────────────────────────── */}
-      {(complianceExpired.length > 0 || complianceExpiringSoon.length > 0) && (() => {
-        const hasExpired = complianceExpired.length > 0;
-        const groupByLabel = (items: { truckId: string; label: string }[]) => {
-          const map = new Map<string, string[]>();
-          for (const it of items) map.set(it.label, [...(map.get(it.label) ?? []), it.truckId]);
-          return [...map.entries()].sort((x, y) => y[1].length - x[1].length);
-        };
-        const sections = [
-          { key: "expired", title: "Expired", groups: groupByLabel(complianceExpired), chip: "border-danger-border bg-background-primary-default text-danger-text", dot: "bg-danger-solid", count: "bg-danger-surface-strong text-danger-text" },
-          { key: "soon", title: "Expiring soon", groups: groupByLabel(complianceExpiringSoon), chip: "border-warning-border bg-background-primary-default text-warning-text", dot: "bg-warning-solid", count: "bg-warning-surface-strong text-warning-text" },
-        ].filter((sec) => sec.groups.length > 0);
-        const total = hasExpired ? complianceExpired.length : complianceExpiringSoon.length;
-        const truckCount = new Set((hasExpired ? complianceExpired : complianceExpiringSoon).map((i) => i.truckId)).size;
-        return (
-          <div className={cn(
-            "overflow-hidden rounded-2xl border bg-background-primary-default shadow-sm",
-            hasExpired ? "border-danger-border/80" : "border-warning-border/80"
-          )}>
-            <div className="flex items-center gap-3 px-5 py-3.5">
-              <span className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                hasExpired ? "bg-danger-surface-strong text-danger-text" : "bg-warning-surface-strong text-warning-text"
-              )}>
-                <AlertTriangle className="h-4 w-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-body-semibold text-text-primary">
-                  {hasExpired
-                    ? `${total} document${total === 1 ? " has" : "s have"} expired`
-                    : `${total} document${total === 1 ? " is" : "s are"} expiring soon`}
-                </p>
-                <p className="text-xs text-text-secondary">
-                  {hasExpired ? "Renewal required" : "Renew soon"} · {truckCount} truck{truckCount === 1 ? "" : "s"} affected
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push("/resources/fleet")}
-                className={cn(
-                  "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-4 text-caption-1-semibold text-on-solid shadow-sm transition duration-300 hover:shadow-md",
-                  hasExpired ? "bg-danger-solid hover:bg-danger-solid-hover" : "bg-warning-solid hover:bg-warning-solid-hover"
-                )}
-              >
-                View Fleet
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            <div className={cn("flex flex-col gap-2.5 border-t px-5 py-3", hasExpired ? "border-danger-border" : "border-warning-border")}>
-              {sections.map((sec) =>
-                sec.groups.map(([label, trucks]) => (
-                  <div key={`${sec.key}-${label}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <span className="flex w-40 shrink-0 items-center gap-2 text-caption-2-semibold text-text-secondary">
-                      {label}
-                      <span className={cn("rounded-full px-1.5 py-0.5 text-caption-2-semibold tabular-nums", sec.count)}>{trucks.length}</span>
-                      {sections.length > 1 && <span className="font-medium normal-case tracking-normal text-text-tertiary">· {sec.title.toLowerCase()}</span>}
-                    </span>
-                    <div className="flex flex-1 flex-wrap gap-1.5">
-                      {trucks.map((truckId, i) => (
-                        <span key={`${truckId}-${i}`} className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-caption-2-medium", sec.chip)}>
-                          <span className={cn("h-1.5 w-1.5 rounded-full", sec.dot)} />
-                          {truckId}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {/* ── Compliance Alert Banner (shared with Our Fleet and the Finance dashboard) ── */}
+      <ComplianceAlertBanner
+        expired={complianceExpired}
+        expiringSoon={complianceExpiringSoon}
+        notUploaded={complianceNotUploaded}
+        noCost={complianceNoCost}
+        href="/resources/fleet"
+        actionLabel="View Fleet"
+      />
 
       {/* ── Today's Fuel Rate ────────────────────────────────────────────── */}
       {(() => {

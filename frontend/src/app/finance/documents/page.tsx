@@ -20,6 +20,7 @@ import { PagedTbody } from "@/components/ui/PagedTbody";
 
 // Dialogs load on demand, after the page has drawn (next/dynamic).
 const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
+const ProofPackDialog = dynamic(() => import("@/components/reports/ProofPackDialog").then((m) => m.ProofPackDialog));
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const size = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`);
 
@@ -59,6 +60,7 @@ export default function ProofAndDocumentsPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [viewing, setViewing] = useState<DocumentItem | null>(null);
+  const [packOpen, setPackOpen] = useState(false);
 
   useEffect(() => {
     if (!isAllowed) router.replace("/");
@@ -156,6 +158,15 @@ export default function ProofAndDocumentsPage() {
               ...(toDate ? { to_date: toDate } : {}),
             }}
           />
+          {/* Every file in a period as one PDF, with an index (proof_pack.py) — also on Reports Center. */}
+          <button
+            type="button"
+            onClick={() => setPackOpen(true)}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-accent-border-strong hover:text-accent-text hover:shadow-md"
+          >
+            <FolderOpen className="h-4 w-4" />
+            Proof Pack
+          </button>
         </div>
       </div>
 
@@ -260,6 +271,7 @@ export default function ProofAndDocumentsPage() {
         filename={viewing?.fileName ?? undefined}
         load={() => documentsApi.fetchBlob(viewing!.key)}
       />
+      {packOpen && <ProofPackDialog onClose={() => setPackOpen(false)} />}
     </div>
   );
 }

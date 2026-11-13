@@ -10,7 +10,8 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate, formatDateTime, inDateRange, todayIst } from "@/lib/format-date";
@@ -178,16 +179,13 @@ export default function CustomerDetentionPage() {
         <PillSearch placeholder="Search by trip ID, customer, or invoice no…" value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
-          <DownloadExcelButton
-            path="/party-halt/export"
-            filename="customer_detention.xlsx"
-            title="Customer Detention"
-            params={{
-              ...(status !== "All" ? { status } : {}),
-              ...(search ? { search } : {}),
-              ...(dateFrom ? { from_date: dateFrom } : {}),
-              ...(dateTo ? { to_date: dateTo } : {}),
-            }}
+          {/* The designed report: Summary, a sheet per item, and its PDF (finance_report.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Customer_Detention.xlsx"
+            title={`Customer Detention Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"}${status !== "All" ? ` — ${status}` : ""}${search ? ` — "${search}"` : ""}`}
+            params={{ kind: "detention", ...(status !== "All" ? { resource_type: status } : {}), ...(search ? { search } : {}), ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>

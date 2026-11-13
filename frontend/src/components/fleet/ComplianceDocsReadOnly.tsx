@@ -19,6 +19,7 @@ const STATUS_TEXT = {
   Valid: "text-success-text",
   "Expiring Soon": "text-warning-text",
   Expired: "text-danger-text",
+  "Not Uploaded": "text-text-tertiary",
 } as const;
 
 /** Edit Truck → the truck's documents, view-only. Renewing / correcting

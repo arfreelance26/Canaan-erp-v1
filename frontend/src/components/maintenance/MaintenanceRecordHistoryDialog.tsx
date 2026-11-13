@@ -8,7 +8,8 @@ import { MaintenanceProofsDialog } from "./MaintenanceProofsDialog";
 import { MaintenanceRecordFormDialog } from "./MaintenanceRecordFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { MaintenanceReport } from "@/lib/maintenance-report-pdf";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
@@ -297,15 +298,17 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <DateRangePill from={fromDate} to={toDate} onFromChange={setFromDate} onToChange={setToDate} />
-            <DownloadExcelButton
-              path="/exports/maintenance-records"
-              filename={`maintenance_records_${truck.registrationNumber}.xlsx`}
-              title={`Maintenance Records — ${truck.registrationNumber}`}
+            {/* The same report as Truck Maintenance's, for this truck only. */}
+            <ReportViewButton
+              path="/exports/maintenance-report"
+              filename={`Truck_Maintenance_${truck.registrationNumber}.xlsx`}
+              title={`Maintenance Report — ${truck.registrationNumber}`}
               params={{
                 truck_id: truck.id,
                 ...(fromDate ? { from_date: fromDate } : {}),
                 ...(toDate ? { to_date: toDate } : {}),
               }}
+              pdf={(report, file) => import("@/lib/maintenance-report-pdf").then((m) => m.downloadMaintenanceReportPdf({ report: report as MaintenanceReport, filename: file }))}
             />
           </div>
         </div>

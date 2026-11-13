@@ -76,9 +76,6 @@ const SITUATION_LINES: Record<Exclude<GreetingKind, GreetingSlot | "festival" | 
 };
 
 const FESTIVAL_LINES: Record<string, string[]> = {
-  pongal: ["Happy Pongal, {name}.", "Pongal greetings, {name}."],
-  deepavali: ["Happy Deepavali, {name}.", "A bright Deepavali, {name}."],
-  ayudha_pooja: ["Happy Ayudha Pooja, {name}.", "Ayudha Pooja greetings, {name}."],
   christmas: ["Happy Christmas, {name}.", "Season's greetings, {name}."],
   newyear: ["Happy New Year, {name}.", "A fresh year, {name}."],
 };

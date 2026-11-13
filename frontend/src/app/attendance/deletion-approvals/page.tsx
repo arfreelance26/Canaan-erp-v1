@@ -6,7 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showSuccess, showError } from "@/lib/feedback";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ApprovalsReport } from "@/lib/approvals-report-pdf";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { RiCheckboxCircleLine as CheckCircle, RiCloseCircleLine as XCircle, RiTimeLine as Clock, RiDropLine as Droplets, RiGasStationLine as Fuel, RiToolsLine as Wrench, RiTruckLine as Truck, RiUserLine as User, RiCalendarLine as Calendar, RiFileTextLine as FileText, RiStackLine as Layers, RiProfileLine as IdCard, RiDeleteBinLine as Trash2, RiGroupLine as Users, RiBuilding2Line as Building2, RiShakeHandsLine as Handshake, RiStackLine as Boxes, RiHistoryLine as History } from "@remixicon/react";
 import { formatDate, formatDateTime, inDateRange } from "@/lib/format-date";
@@ -418,13 +419,13 @@ export default function DeletionApprovalsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/deletion-approvals/export"
-            filename="deletion_approvals.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The report: Summary + a sheet per group, follows the tab, search and dates (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/approvals-report"
+            filename="Deletion_Approvals.xlsx"
+            title={`Deletion Approvals Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}`}
+            params={{ kind: "deletion", tab: filter, ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}) }}
+            pdf={(report, file) => import("@/lib/approvals-report-pdf").then((m) => m.downloadApprovalsReportPdf({ report: report as ApprovalsReport, filename: file }))}
           />
         </div>
       </div>

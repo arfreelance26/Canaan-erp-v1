@@ -47,8 +47,17 @@
   50% { transform: scale(1.025, 0.975); }
 }
 .joshine-breathe { animation: joshine-breathe 3.6s ease-in-out infinite; }
+/* Calm mode (lib/joshine.ts BEHAVIOUR_RULES): slower and softer. */
+@keyframes joshine-breathe-calm {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.012, 0.988); }
+}
+.joshine-breathe-calm { animation: joshine-breathe-calm 5.4s ease-in-out infinite; }
+/* Calm mode: glasses, hats and the chai cup fade on instead of dropping in. */
+@keyframes joshine-fade-on { from { opacity: 0; } to { opacity: 1; } }
+.joshine-fade-on { animation: joshine-fade-on 0.7s ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .joshine-breathe { animation: none; }
+  .joshine-breathe, .joshine-breathe-calm, .joshine-fade-on { animation: none; }
 }
 
 /* The login Sign In button (app/login/page.tsx), brought back from the old
@@ -204,4 +213,84 @@
 .tea-steam-2 { animation-delay: 0.9s; }
 @media (prefers-reduced-motion: reduce) {
   .tea-steam { animation: none; opacity: 0.4; }
+}
+
+/* Joshine's outfit (components/joshine/JoshineOutfit.tsx): reading glasses slide
+   on, a hat drops on, birthday confetti puffs once, and the tea-time chai is
+   lifted for a slow sip every 20 s while its steam curls up. */
+@keyframes joshine-glasses-on {
+  0%   { transform: translateY(-60px); opacity: 0; }
+  70%  { transform: translateY(6px); opacity: 1; }
+  100% { transform: translateY(0); }
+}
+.joshine-glasses-on { animation: joshine-glasses-on 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+@keyframes joshine-hat-on {
+  0%   { opacity: 0; translate: 0 -70px; }
+  70%  { opacity: 1; translate: 0 6px; }
+  100% { translate: 0 0; }
+}
+.joshine-hat-on { animation: joshine-hat-on 0.6s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+@keyframes joshine-confetti {
+  0%   { opacity: 0; translate: 0 18px; }
+  40%  { opacity: 1; }
+  100% { opacity: 0; translate: 0 -40px; }
+}
+.joshine-confetti { opacity: 0; animation: joshine-confetti 1.4s ease-out 0.6s 2 both; }
+/* The chai (components/joshine/JoshineChai.tsx) moves step by step from code;
+   these are its small one-off flourishes. */
+@keyframes joshine-chai-arrive {
+  0%   { opacity: 0; translate: 10px 70px; }
+  70%  { opacity: 1; translate: 0 -6px; }
+  100% { translate: 0 0; }
+}
+.joshine-chai-arrive { animation: joshine-chai-arrive 0.65s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+/* After a sip: a small heart floats up by her head. "Too hot!": the cup shakes a little. */
+@keyframes joshine-heart {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.6); }
+  30%  { opacity: 1; transform: translateY(0) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}
+.joshine-heart { animation: joshine-heart 1.4s ease-out both; transform-box: fill-box; transform-origin: center; }
+@keyframes joshine-hot-shake {
+  0%, 100% { translate: 0 0; }
+  20%, 60% { translate: -4px 0; }
+  40%, 80% { translate: 4px 0; }
+}
+.joshine-hot-shake { animation: joshine-hot-shake 0.5s ease-in-out 0.3s 2; }
+@keyframes joshine-steam {
+  0%   { opacity: 0; transform: translateY(10px) scaleY(0.7); }
+  35%  { opacity: 0.8; }
+  100% { opacity: 0; transform: translateY(-26px) scaleY(1.15); }
+}
+.joshine-steam { animation: joshine-steam 2.2s ease-out infinite; transform-box: fill-box; transform-origin: bottom; }
+.joshine-steam-2 { animation-delay: 0.75s; }
+.joshine-steam-3 { animation-delay: 1.45s; }
+@media (prefers-reduced-motion: reduce) {
+  .joshine-glasses-on, .joshine-hat-on, .joshine-chai-arrive, .joshine-heart, .joshine-hot-shake { animation: none; }
+  .joshine-confetti { animation: none; opacity: 0; }
+  .joshine-steam { animation: none; opacity: 0.5; }
+}
+
+/* Notice Board button (components/layout/NoticeBoard.tsx): when a notice
+   arrives, one soft ring spreads out (two for an Important one) and an
+   Important one gives the megaphone a little shake. Never loops. */
+@keyframes notice-ring {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent-solid) 55%, transparent); }
+  100% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--color-accent-solid) 0%, transparent); }
+}
+@keyframes notice-ring-important {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger-solid) 60%, transparent); }
+  100% { box-shadow: 0 0 0 16px color-mix(in srgb, var(--color-danger-solid) 0%, transparent); }
+}
+.notice-ring { animation: notice-ring 1.1s ease-out 1 both; }
+.notice-ring-important { animation: notice-ring-important 1.1s ease-out 2 both; }
+@keyframes notice-shake {
+  0%, 100% { transform: rotate(0); }
+  15%, 45% { transform: rotate(-16deg); }
+  30%, 60% { transform: rotate(14deg); }
+  75% { transform: rotate(-6deg); }
+}
+.notice-shake { animation: notice-shake 0.8s ease-in-out 1; }
+@media (prefers-reduced-motion: reduce) {
+  .notice-ring, .notice-ring-important, .notice-shake { animation: none; }
 }

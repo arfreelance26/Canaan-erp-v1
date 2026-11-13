@@ -1,9 +1,9 @@
-from datetime import date, timezone
+from datetime import date
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from database import get_db
 import models
@@ -12,54 +12,6 @@ from security import PENDING_AUDIT_ROLES, get_current_user, require_roles, Token
 
 router = APIRouter(prefix="/exports", tags=["Exports"])
 IST = ZoneInfo("Asia/Kolkata")
-
-
-def _live_emi_figures(db: Session, records: list["models.EmiRecord"]):
-    """Recomputes Amount Paid / Remaining EMI Payable fresh, as of today —
-    mirroring EmiFormDialog's creation-anchored formula — instead of reading
-    values saved at record-creation time. They shrink/grow by one EMI Amount
-    on every elapsed Auto-Debit Date, so an export taken months after the
-    last edit still reflects that. Daily Finance Cost / EMI Cost per KM are
-    also included here (EMI Amount ÷ 26, and that ÷ the truck's km/day) so
-    the export doesn't need a second lookup pass for them.
-    Returns a dict keyed by record id -> (amount_paid, remaining, daily_finance_cost, emi_cost_per_km).
-    """
-    trucks_by_reg = {t.registration_number.strip().upper(): t for t in db.query(models.Truck).all()}
-    km_per_day_by_layout = {c.tyre_layout: float(c.km_per_day or 0) for c in db.query(models.TruckRunConfig).all()}
-
-    today = date.today()
-    out: dict[int, tuple[float, float, float, float]] = {}
-    for r in records:
-        emi_amount = float(r.emi_amount or 0)
-        tenure = r.tenure_months or 0
-        if emi_amount <= 0 or tenure <= 0:
-            out[r.id] = (0.0, 0.0, 0.0, 0.0)
-            continue
-
-        created = r.created_at.date() if r.created_at else r.emi_start_date
-        if created is None:
-            out[r.id] = (0.0, tenure * emi_amount, 0.0, 0.0)
-            continue
-
-        auto_debit_day = r.auto_debit_date.day if r.auto_debit_date else created.day
-        months_since_creation = (today.year - created.year) * 12 + (today.month - created.month)
-        if today.day < auto_debit_day:
-            months_since_creation -= 1
-        months_since_creation = max(0, months_since_creation)
-        paid_months = min(tenure, months_since_creation + 1)
-
-        amount_paid = paid_months * emi_amount
-        remaining = max(0.0, (tenure - paid_months) * emi_amount)
-        # Daily Finance Cost = EMI Amount ÷ 26 — EMI Amount is already the
-        # monthly installment, matching EmiFormDialog's formula.
-        daily_finance_cost = emi_amount / 26
-
-        truck = trucks_by_reg.get((r.truck_registration or "").strip().upper())
-        km_per_day = km_per_day_by_layout.get(truck.tyre_layout, 0) if truck else 0
-        emi_cost_per_km = (daily_finance_cost / km_per_day) if km_per_day > 0 else 0.0
-
-        out[r.id] = (round(amount_paid, 2), round(remaining, 2), round(daily_finance_cost, 2), round(emi_cost_per_km, 6))
-    return out
 
 
 # ---------------------------------------------------------------------------
@@ -84,42 +36,6 @@ def export_branches(db: Session = Depends(get_db)):
     return build_excel_response([("Branches", headers, data)], "branches.xlsx")
 
 
-@router.get("/adblue-logs")
-def export_adblue_logs(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    """Truck's Adblue History → Download Excel. Active trucks only (sold and
-    deleted trucks' logs aren't shown anywhere)."""
-    try:
-        start = date.fromisoformat(from_date) if from_date else None
-        end = date.fromisoformat(to_date) if to_date else None
-    except ValueError:
-        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
-    q = (
-        db.query(models.AdBlueLog)
-        .join(models.Truck, models.Truck.id == models.AdBlueLog.truck_id)
-        .filter(models.Truck.deleted_at.is_(None))
-    )
-    if start:
-        q = q.filter(models.AdBlueLog.date >= start)
-    if end:
-        q = q.filter(models.AdBlueLog.date <= end)
-    records = q.order_by(models.AdBlueLog.date.desc(), models.AdBlueLog.id.desc()).all()
-    headers = [
-        "Truck ID", "Registration Number", "Manufacturer", "Date", "Odometer",
-        "Litres", "Price Per Litre", "Total Cost", "Filling Location", "Remarks", "Logged By",
-    ]
-    data = [
-        [r.truck.truck_id, r.truck.registration_number, r.truck.manufacturer, r.date.isoformat(), r.odometer,
-         r.litres, r.price_per_litre, r.total_cost, r.supplier or "", r.remarks or "", r.entered_by_name or ""]
-        for r in records
-    ]
-    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
-    return build_excel_response([("AdBlue Logs", headers, data)], f"adblue_logs{suffix}.xlsx")
-
-
 @router.get("/repair-types")
 def export_repair_types(db: Session = Depends(get_db)):
     rows = db.query(models.RepairType).order_by(models.RepairType.name).all()
@@ -140,48 +56,10 @@ def export_sac_codes(db: Session = Depends(get_db)):
 # Resource Hub
 # ---------------------------------------------------------------------------
 
-@router.get("/drivers")
-def export_drivers(db: Session = Depends(get_db)):
-    rows = db.query(models.Driver).filter(models.Driver.deleted_at.is_(None)).order_by(models.Driver.name).all()
-    headers = [
-        "Driver ID", "Name", "Date of Birth", "Date of Joining",
-        "Contact Number", "Email", "Address",
-        "Aadhaar Number", "License Number", "License Expiry Date",
-        "Form 11", "ESI Number", "PAN Number", "Agreement Signed",
-        "Bank Name", "Bank Branch", "Account Number", "IFSC Code",
-        "Username",
-    ]
-    data = [
-        [
-            r.driver_id, r.name, r.date_of_birth, r.date_of_joining,
-            r.contact_number, r.email, r.address,
-            r.aadhaar_number, r.license_number, r.license_expiry_date,
-            r.form_11, r.esi_number, r.pan_number, r.agreement_signed,
-            r.bank_name, r.bank_branch_name, r.account_number, r.ifsc_code,
-            r.username,
-        ]
-        for r in rows
-    ]
-    return build_excel_response([("Drivers", headers, data)], "drivers.xlsx")
-
-
-@router.get("/staff")
-def export_staff(db: Session = Depends(get_db)):
-    rows = db.query(models.Staff).order_by(models.Staff.name).all()
-    headers = [
-        "Staff ID", "Name", "Department", "Designation", "Software Designation",
-        "Date of Birth", "Date of Joining", "Contact Number", "Email",
-        "Address", "Branch", "Aadhar Number", "Username",
-    ]
-    data = [
-        [
-            r.staff_id, r.name, r.department, r.designation, r.software_designation,
-            r.date_of_birth, r.date_of_joining, r.contact_number, r.email,
-            r.address, r.branch, r.aadhar_number, r.username,
-        ]
-        for r in rows
-    ]
-    return build_excel_response([("Staff", headers, data)], "staff.xlsx")
+# The old full driver and staff lists (/exports/drivers, /exports/staff) are
+# gone: they printed Aadhaar, PAN and bank numbers in full and any signed-in
+# user could pull them. Our Drivers / Our Staff → View (resource_report.py)
+# replaced them, with IDs masked and Our Staff limited to Admin.
 
 
 @router.get("/trucks")
@@ -241,159 +119,9 @@ def export_trucks(
     return build_excel_response([("Fleet", headers, data)], f"fleet{suffix}.xlsx")
 
 
-@router.get("/vendors")
-def export_vendors(db: Session = Depends(get_db)):
-    rows = db.query(models.Vendor).order_by(models.Vendor.name).all()
-    headers = ["Name", "Category", "Contact Number", "GSTIN", "PAN", "Email", "Address"]
-    data = [[r.name, r.category, r.contact_number, r.gstin, r.pan, r.email, r.address] for r in rows]
-    return build_excel_response([("Vendors", headers, data)], "vendors.xlsx")
-
-
-@router.get("/customers")
-def export_customers(db: Session = Depends(get_db)):
-    customers = db.query(models.Customer).order_by(models.Customer.name).all()
-    customer_map = {c.id: c.name for c in customers}
-
-    cust_headers = [
-        "Name", "GSTIN", "Contact Person", "Phone", "Email",
-        "Address", "Customer Type", "Is GTA", "Applicable for E-Invoice",
-    ]
-    cust_data = [
-        [r.name, r.gstin, r.contact_personnel_name, r.phone, r.email,
-         r.address, r.customer_type, r.is_gta, r.applicable_for_e_invoice]
-        for r in customers
-    ]
-
-    destinations = db.query(models.CustomerDestination).all()
-    dest_headers = ["Customer", "Destination Name", "Destination State", "Destination Address", "Status"]
-    dest_data = [
-        [customer_map.get(r.customer_id, ""), r.destination_name, r.destination_state, r.destination_address, r.status]
-        for r in destinations
-    ]
-
-    # Cargo / container / weight live on the linked destination row (a price is matched
-    # to a specific CustomerDestination), not on the pricing row itself.
-    dest_by_id = {d.id: d for d in destinations}
-    pricing = db.query(models.CustomerPricing).all()
-    pricing_headers = ["Customer", "Destination", "Cargo Classification", "Container Type", "Weight", "Rate", "Status"]
-    pricing_data = []
-    for r in pricing:
-        d = dest_by_id.get(r.customer_destination_id)
-        pricing_data.append([
-            customer_map.get(r.customer_id, ""), r.customer_destination,
-            d.cargo_classification if d else "", d.container_type if d else "", d.weight_in_tons if d else "",
-            r.rate, r.status,
-        ])
-
-    return build_excel_response(
-        [
-            ("Customer List", cust_headers, cust_data),
-            ("Destinations", dest_headers, dest_data),
-            ("Pricing", pricing_headers, pricing_data),
-        ],
-        "customers.xlsx",
-    )
-
-
 # ---------------------------------------------------------------------------
 # Trips
 # ---------------------------------------------------------------------------
-
-@router.get("/trips")
-def export_trips(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, filters by scheduled date)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, filters by scheduled date)"),
-    status: Optional[str] = Query(None, description="Comma-separated trip statuses to keep, e.g. 'Assigned' — lets a page export just the trips it lists"),
-    has_closure: Optional[bool] = Query(None, description="true = only trips with a booking-sheet closure, false = only trips without one"),
-    is_invoiced: Optional[bool] = Query(None, description="true = only invoiced trips, false = only trips not yet invoiced"),
-    invoice_waived: Optional[bool] = Query(None, description="true = only trips whose invoice was waived, false = only trips not waived"),
-    search: Optional[str] = Query(None, description="Same fields as Trip History's search box (frontend: tripMatchesSearch)"),
-    db: Session = Depends(get_db),
-):
-    q = db.query(models.Trip)
-    if invoice_waived is not None:
-        q = q.filter(models.Trip.invoice_waived.is_(invoice_waived))
-    if is_invoiced is not None:
-        q = q.filter(models.Trip.is_invoiced.is_(is_invoiced))
-    if has_closure is not None:
-        q = q.filter(models.Trip.closure.has() if has_closure else ~models.Trip.closure.has())
-    if status:
-        wanted = [x.strip() for x in status.split(",") if x.strip()]
-        # A status-scoped export mirrors a page's list, which never shows deleted trips.
-        q = q.filter(models.Trip.status.in_(wanted), models.Trip.deleted_at.is_(None))
-    if from_date:
-        q = q.filter(models.Trip.scheduled_date >= from_date)
-    if to_date:
-        q = q.filter(models.Trip.scheduled_date <= to_date)
-    trips = q.order_by(models.Trip.booking_created_date.desc()).all()
-    customer_map = {c.id: c.name for c in db.query(models.Customer).all()}
-    driver_map = {d.driver_id: d.name for d in db.query(models.Driver).all()}
-    truck_map = {t.truck_id: t.registration_number for t in db.query(models.Truck).all()}
-    if search:
-        term = search.lower()
-        trips = [t for t in trips if any(term in (v or "").lower() for v in (
-            t.trip_id, t.booking_reference_no, t.origin, t.destination, t.vehicle_id, truck_map.get(t.vehicle_id),
-            driver_map.get(t.driver_id), t.container_number, t.container_number_1, t.container_number_2, t.cargo_reference,
-        ))]
-
-    headers = [
-        "Trip ID", "Status", "Booking Reference No", "Booking Created Date",
-        "Scheduled Date", "Assigned Date", "Trip Category", "Movement Category",
-        "Customer", "Shipper / Consignee", "Cargo Classification", "Container Specification",
-        "Container Number", "Cargo Weight", "Origin", "Destination",
-        "Shipping Line", "Vessel Name", "Transport Method",
-        "Driver ID", "Driver Name", "Vehicle ID", "Registration Number",
-        "Bill To", "Payment Type",
-        "Customer Cash Advance", "Customer Fuel Advance (Amount)", "Customer Fuel Advance (Litres)",
-        "Driver Advance Amount", "Driver Compensation Type",
-        "Rate Per Ton", "Transport Hire Amount", "Transport Crossing Amount",
-        "Internal Remarks", "Booking Instructions",
-        "Verification Status", "Is Invoiced", "Invoice Required",
-        "Trip Sheet Collected", "Trip Sheet Received", "Trip Sheet Received Date"
-    ]
-    data = [
-        [
-            t.trip_id, t.status, t.booking_reference_no, t.booking_created_date,
-            t.scheduled_date, t.assigned_date, t.trip_category, t.movement_category,
-            customer_map.get(t.customer_id, ""), t.shipper_consignee,
-            t.cargo_classification, t.container_specification,
-            t.container_number, t.cargo_weight, t.origin, t.destination,
-            t.shipping_line, t.vessel_name, t.transport_method,
-            t.driver_id, driver_map.get(t.driver_id, ""),
-            t.vehicle_id, truck_map.get(t.vehicle_id, ""),
-            t.bill_to, t.payment_type,
-            t.customer_cash_advance, t.customer_fuel_advance_amount, t.customer_fuel_advance_litres,
-            t.driver_advance_amount, t.driver_compensation_type,
-            t.rate_per_ton, t.transport_hire_amount, t.transport_crossing_amount,
-            t.internal_remarks, t.booking_instructions,
-            t.verification_status,
-            "Yes" if t.is_invoiced else "No",
-            "Yes" if t.invoice_required else "No",
-            "Yes" if t.trip_sheet_collected else "No",
-            "Yes" if t.trip_sheet_received else "No",
-            t.trip_sheet_received_at.strftime("%d-%m-%Y %H:%M:%S") if t.trip_sheet_received_at else "",
-        ]
-        for t in trips
-    ]
-    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
-    return build_excel_response([("Trips", headers, data)], f"trips{suffix}.xlsx")
-
-
-@router.get("/driver-assignments")
-def export_driver_assignments(db: Session = Depends(get_db)):
-    assignments = (
-        db.query(models.DriverAssignment)
-        .join(models.Driver, models.Driver.driver_id == models.DriverAssignment.driver_id)
-        .order_by(models.Driver.name)
-        .all()
-    )
-    truck_map = {t.truck_id: t.registration_number for t in db.query(models.Truck).all()}
-    headers = ["Driver ID", "Driver Name", "Vehicle ID", "Assigned Vehicle Number"]
-    data = [
-        [a.driver_id, a.driver.name if a.driver else "", a.vehicle_id, truck_map.get(a.vehicle_id, "")]
-        for a in assignments
-    ]
-    return build_excel_response([("Driver Assignments", headers, data)], "driver_assignments.xlsx")
 
 
 # ---------------------------------------------------------------------------
@@ -416,117 +144,6 @@ def export_pending_audit(
     data = [[r["trip_id_str"], r["driver_name"], r["truck_registration"] or r["vehicle_id"],
              r["origin"], r["destination"], r["scheduled_date"]] for r in rows]
     return build_excel_response([("Pending Audit", headers, data)], "pending_audit_trips.xlsx")
-
-
-@router.get("/audit-verified")
-def export_audit_verified(
-    from_date: Optional[date] = Query(None, description="Range start YYYY-MM-DD (inclusive, IST day it was verified)"),
-    to_date: Optional[date] = Query(None, description="Range end YYYY-MM-DD (inclusive, IST day it was verified)"),
-    search: Optional[str] = Query(None, description="Trip ID, driver or verifier, same as the page's search box"),
-    db: Session = Depends(get_db),
-):
-    from routers.trips import audit_verified_rows
-    rows = audit_verified_rows(db)
-    for r in rows:  # stored in UTC; the page shows and filters by IST
-        r["verified_at"] = r["verified_at"].replace(tzinfo=timezone.utc).astimezone(IST).replace(tzinfo=None)
-    if from_date or to_date:
-        rows = [r for r in rows if (not from_date or r["verified_at"].date() >= from_date)
-                and (not to_date or r["verified_at"].date() <= to_date)]
-    q = (search or "").strip().lower()
-    if q:
-        rows = [r for r in rows if any(q in (v or "").lower() for v in (r["trip_id_str"], r["driver_name"], r["verified_by"]))]
-    headers = ["Trip ID", "Driver", "Origin", "Destination", "Date", "Verified By", "Role", "Verified On", "Verification Note", "Was Disputed"]
-    data = [[r["trip_id_str"], r["driver_name"], r["origin"], r["destination"], r["scheduled_date"], r["verified_by"],
-             r["verified_role"], r["verified_at"], r["verified_remark"], "Yes" if r["was_disputed"] else "No"] for r in rows]
-    return build_excel_response([("Audit Verified Trips", headers, data)], "audit_verified_trips.xlsx")
-
-
-@router.get("/audit-flagged")
-def export_audit_flagged(
-    from_date: Optional[date] = Query(None, description="Range start YYYY-MM-DD (inclusive, filters by scheduled date)"),
-    to_date: Optional[date] = Query(None, description="Range end YYYY-MM-DD (inclusive, filters by scheduled date)"),
-    search: Optional[str] = Query(None, description="Trip ID, driver or reason, same as the page's search box"),
-    db: Session = Depends(get_db),
-):
-    q = db.query(models.Trip).filter(models.Trip.deleted_at.is_(None), models.Trip.flagged_for_recheck.is_(True))
-    if from_date:
-        q = q.filter(models.Trip.scheduled_date >= from_date)
-    if to_date:
-        q = q.filter(models.Trip.scheduled_date <= to_date)
-    trips = q.order_by(models.Trip.booking_created_date.desc()).all()
-    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
-    term = (search or "").strip().lower()
-    if term:
-        trips = [t for t in trips if any(term in (v or "").lower() for v in
-                                         (t.trip_id, driver_names.get(t.driver_id), t.flagged_remark))]
-    # Oldest first, so each trip ends up with its latest Flagged event.
-    flags = (
-        db.query(models.TripRecheckEvent)
-        .filter(models.TripRecheckEvent.trip_id.in_([t.id for t in trips]), models.TripRecheckEvent.event == "Flagged")
-        .order_by(models.TripRecheckEvent.created_at, models.TripRecheckEvent.id)
-        .all()
-    )
-    latest_flag = {e.trip_id: e for e in flags}
-    headers = ["Trip ID", "Driver", "Origin", "Destination", "Scheduled Date", "Reason", "Status", "Flagged By", "Flagged On"]
-    data = []
-    for t in trips:
-        e = latest_flag.get(t.id)
-        data.append([
-            t.trip_id, driver_names.get(t.driver_id), t.origin, t.destination, t.scheduled_date, t.flagged_remark,
-            "Returned - awaiting Auditor" if t.recheck_returned else "Under Review",
-            e.actor_name if e else None,
-            e.created_at.replace(tzinfo=timezone.utc).astimezone(IST).replace(tzinfo=None) if e else None,
-        ])
-    return build_excel_response([("Audit Flagged Trips", headers, data)], "audit_flagged_trips.xlsx")
-
-
-@router.get("/driver-attendance")
-def export_driver_attendance(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    q = (
-        db.query(models.DriverAttendance)
-        .join(models.Driver, models.Driver.driver_id == models.DriverAttendance.driver_id)
-    )
-    if from_date:
-        q = q.filter(models.DriverAttendance.date >= from_date)
-    if to_date:
-        q = q.filter(models.DriverAttendance.date <= to_date)
-    records = q.order_by(models.DriverAttendance.date.asc(), models.Driver.name).all()
-    headers = ["Driver ID", "Driver Name", "Date", "Status", "Check In Time"]
-    data = [
-        [r.driver_id, r.driver.name if r.driver else "", r.date, r.status, r.check_in_time]
-        for r in records
-    ]
-    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
-    return build_excel_response([("Driver Attendance", headers, data)], f"driver_attendance{suffix}.xlsx")
-
-
-@router.get("/staff-attendance")
-def export_staff_attendance(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    q = (
-        db.query(models.StaffAttendance)
-        .join(models.Staff, models.Staff.id == models.StaffAttendance.staff_id)
-    )
-    if from_date:
-        q = q.filter(models.StaffAttendance.date >= from_date)
-    if to_date:
-        q = q.filter(models.StaffAttendance.date <= to_date)
-    records = q.order_by(models.StaffAttendance.date.asc(), models.Staff.name).all()
-    headers = ["Staff ID", "Staff Name", "Date", "Status", "Check In Time", "Source"]
-    data = [
-        [r.staff.staff_id if r.staff else "", r.staff.name if r.staff else "",
-         r.date, r.status, r.check_in_time, r.source]
-        for r in records
-    ]
-    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
-    return build_excel_response([("Staff Attendance", headers, data)], f"staff_attendance{suffix}.xlsx")
 
 
 @router.get("/leave-requests")
@@ -559,109 +176,6 @@ def export_leave_requests(
 # ---------------------------------------------------------------------------
 # Finance
 # ---------------------------------------------------------------------------
-
-@router.get("/emi")
-def export_emi(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD — keeps EMIs still running on/after this date"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD — keeps EMIs that had started on/before this date"),
-    db: Session = Depends(get_db),
-):
-    q = db.query(models.EmiRecord)
-    # An EMI is in range when its tenure overlaps [from_date, to_date]; a missing
-    # start/end date is treated as open-ended rather than excluded.
-    if from_date:
-        q = q.filter((models.EmiRecord.emi_end_date.is_(None)) | (models.EmiRecord.emi_end_date >= from_date))
-    if to_date:
-        q = q.filter((models.EmiRecord.emi_start_date.is_(None)) | (models.EmiRecord.emi_start_date <= to_date))
-    rows = q.order_by(models.EmiRecord.emi_name).all()
-    live = _live_emi_figures(db, rows)
-    headers = [
-        "EMI Name", "Truck Registration", "Bank Name",
-        "EMI Amount", "Amount Paid", "Remaining EMI Payable", "Tenure (Months)", "Cost Per Month",
-        "Monthly Finance Cost", "Daily Finance Cost", "EMI Cost Per KM",
-        "EMI Start Date", "EMI End Date", "Auto-Debit Date",
-    ]
-    data = []
-    for r in rows:
-        amount_paid, remaining, daily_finance_cost, emi_cost_per_km = live[r.id]
-        data.append([
-            r.emi_name, r.truck_registration, r.bank_name,
-            r.emi_amount, amount_paid, remaining, r.tenure_months, r.cost_per_month,
-            r.monthly_finance_cost, daily_finance_cost, emi_cost_per_km,
-            r.emi_start_date, r.emi_end_date, r.auto_debit_date,
-        ])
-    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
-    return build_excel_response([("EMI Records", headers, data)], f"emi_records{suffix}.xlsx")
-
-
-@router.get("/recurring-payments")
-def export_recurring_payments(db: Session = Depends(get_db)):
-    rows = db.query(models.RecurringPayment).order_by(models.RecurringPayment.title).all()
-    headers = ["Title", "Category", "Amount", "Frequency", "Next Due Date", "Status"]
-    data = [[r.title, r.category, r.amount, r.frequency, r.next_due_date, r.status] for r in rows]
-    return build_excel_response([("Recurring Payments", headers, data)], "recurring_payments.xlsx")
-
-
-@router.get("/driver-compensation")
-def export_driver_compensation(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    try:
-        start = date.fromisoformat(from_date) if from_date else None
-        end = date.fromisoformat(to_date) if to_date else None
-    except ValueError:
-        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
-    q = db.query(models.CompensationTransaction).filter(models.CompensationTransaction.person_type == "driver")
-    if start:
-        q = q.filter(models.CompensationTransaction.date >= start)
-    if end:
-        q = q.filter(models.CompensationTransaction.date <= end)
-    records = q.order_by(models.CompensationTransaction.date.desc(), models.CompensationTransaction.id.desc()).all()
-    driver_map = {d.id: (d.driver_id, d.name) for d in db.query(models.Driver).all()}
-    headers = ["Driver ID", "Driver Name", "Type", "Amount", "Date", "Note", "Trip Number"]
-    data = [
-        [
-            driver_map.get(r.person_id, ("", ""))[0],
-            driver_map.get(r.person_id, ("", ""))[1],
-            r.type, r.amount, r.date, r.note, r.trip_number,
-        ]
-        for r in records
-    ]
-    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
-    return build_excel_response([("Driver Compensation", headers, data)], f"driver_compensation{suffix}.xlsx")
-
-
-@router.get("/staff-compensation")
-def export_staff_compensation(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    try:
-        start = date.fromisoformat(from_date) if from_date else None
-        end = date.fromisoformat(to_date) if to_date else None
-    except ValueError:
-        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
-    q = db.query(models.CompensationTransaction).filter(models.CompensationTransaction.person_type == "staff")
-    if start:
-        q = q.filter(models.CompensationTransaction.date >= start)
-    if end:
-        q = q.filter(models.CompensationTransaction.date <= end)
-    records = q.order_by(models.CompensationTransaction.date.desc(), models.CompensationTransaction.id.desc()).all()
-    staff_map = {s.id: (s.staff_id, s.name) for s in db.query(models.Staff).all()}
-    headers = ["Staff ID", "Staff Name", "Type", "Amount", "Date", "Note", "Trip Number"]
-    data = [
-        [
-            staff_map.get(r.person_id, ("", ""))[0],
-            staff_map.get(r.person_id, ("", ""))[1],
-            r.type, r.amount, r.date, r.note, r.trip_number,
-        ]
-        for r in records
-    ]
-    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
-    return build_excel_response([("Staff Compensation", headers, data)], f"staff_compensation{suffix}.xlsx")
 
 
 # ---------------------------------------------------------------------------
@@ -724,6 +238,333 @@ def export_maintenance_records(
     return build_excel_response([("Maintenance Records", headers, data)], f"maintenance_records{truck_part}{suffix}.xlsx")
 
 
+# Who can open each page's report — the same roles as the page (lib/nav-config.ts
+# ROLE_HREFS), so Reports Center and the pages agree. Admin always passes.
+MAINTENANCE_REPORT = [Depends(require_roles("Maintenance"))]                          # Truck Maintenance
+FUEL_REPORT = [Depends(require_roles("Maintenance", "Trip Sheet Register"))]          # Truck's Fuel History
+TRIP_REPORT = [Depends(require_roles("Commercial Manager", "Assistant Commercial Manager", "Accounts"))]  # Trip History
+# Attendance: drivers for the Commercial Managers (Driver Attendance, Attendance Report); staff is Admin only.
+ATTENDANCE_ROLES = {"driver": ("Admin", "Commercial Manager", "Assistant Commercial Manager"), "staff": ("Admin",)}
+
+
+def _report_dates(from_date: Optional[str], to_date: Optional[str]):
+    try:
+        start = date.fromisoformat(from_date) if from_date else None
+        end = date.fromisoformat(to_date) if to_date else None
+    except ValueError:
+        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
+    if start and end and start > end:
+        raise HTTPException(400, "The From date is after the To date.")
+    return start, end
+
+
+@router.get("/maintenance-report", dependencies=MAINTENANCE_REPORT)
+def export_maintenance_report(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, by the work's start date)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    search: str = Query("", max_length=100, description="Truck Maintenance's search box (registration or truck ID)"),
+    truck_id: Optional[int] = Query(None, description="One truck (trucks.id) — its View Record dialog"),
+    db: Session = Depends(get_db),
+):
+    """Truck Maintenance → View → Excel: the truck-wise report (maintenance_report.py)."""
+    from fastapi.responses import Response
+    import maintenance_report
+    start, end = _report_dates(from_date, to_date)
+    data, filename, _, _ = maintenance_report.build(db, start, end, search, truck_id)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/maintenance-report/preview", dependencies=MAINTENANCE_REPORT)
+def preview_maintenance_report(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: str = Query("", max_length=100),
+    truck_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """The report's sheets for the in-app preview, plus its figures for the PDF
+    (lib/maintenance-report-pdf.ts) — so the PDF and the Excel always agree."""
+    import maintenance_report
+    start, end = _report_dates(from_date, to_date)
+    _, filename, sheets, report = maintenance_report.build(db, start, end, search, truck_id)
+    return {"filename": filename, "sheets": sheets, "report": report}
+
+
+@router.get("/fuel-report", dependencies=FUEL_REPORT)
+def export_fuel_report(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, by fill date)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    search: str = Query("", max_length=100, description="Truck's Fuel History's search box (registration or truck ID)"),
+    truck_id: Optional[int] = Query(None, description="One truck (trucks.id)"),
+    db: Session = Depends(get_db),
+):
+    """Truck's Fuel History → View → Excel: the truck-wise fuel report (fuel_report.py)."""
+    from fastapi.responses import Response
+    import fuel_report
+    start, end = _report_dates(from_date, to_date)
+    data, filename, _, _ = fuel_report.build(db, start, end, search, truck_id)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/fuel-report/preview", dependencies=FUEL_REPORT)
+def preview_fuel_report(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: str = Query("", max_length=100),
+    truck_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """The fuel report's sheets for the preview, plus its figures for the PDF (lib/fuel-report-pdf.ts)."""
+    import fuel_report
+    start, end = _report_dates(from_date, to_date)
+    _, filename, sheets, report = fuel_report.build(db, start, end, search, truck_id)
+    return {"filename": filename, "sheets": sheets, "report": report}
+
+
+def _trip_report(db, from_date, to_date, search, trip_category, card, current_user):
+    import trip_report
+    start, end = _report_dates(from_date, to_date)
+    show_invoice = current_user.role not in trip_report.NO_INVOICE_ROLES
+    # Trip Summary (hire − expenses) is a profit figure: Admin only.
+    show_profit = current_user.role == "Admin"
+    return trip_report.build(db, start, end, search, trip_category or "", card or "All", show_invoice, show_profit)
+
+
+@router.get("/trip-report", dependencies=TRIP_REPORT)
+def export_trip_report(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, by scheduled date)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    search: str = Query("", max_length=100, description="Trip History's search box"),
+    trip_category: Optional[str] = Query(None, description="Comma-separated categories, e.g. 'RETURN TRIP'"),
+    card: str = Query("All", description="Trip History's stage card: All, Assigned, Current, Completed, Invoiced, Waived Invoice, Cancelled"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Trip History → View → Excel: the category-wise trip report (trip_report.py)."""
+    from fastapi.responses import Response
+    data, filename, _, _ = _trip_report(db, from_date, to_date, search, trip_category, card, current_user)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/trip-report/preview", dependencies=TRIP_REPORT)
+def preview_trip_report(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: str = Query("", max_length=100),
+    trip_category: Optional[str] = Query(None),
+    card: str = Query("All"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """The trip report's sheets for the preview, plus its figures for the PDF (lib/trip-report-pdf.ts)."""
+    _, filename, sheets, report = _trip_report(db, from_date, to_date, search, trip_category, card, current_user)
+    return {"filename": filename, "sheets": sheets, "report": report}
+
+
+def _attendance_report(db, category, from_date, to_date, search, current_user):
+    import attendance_report
+    if category not in ("driver", "staff"):
+        raise HTTPException(400, "category must be 'driver' or 'staff'")
+    if current_user.role not in ATTENDANCE_ROLES[category]:
+        raise HTTPException(403, f"Your role ({current_user.role}) can't open this report.")
+    start, end = _report_dates(from_date, to_date)
+    if not start or not end:
+        raise HTTPException(400, "Pick a From and a To date.")
+    if (end - start).days > 366:
+        raise HTTPException(400, "Pick a period of a year or less.")
+    return attendance_report.build(db, category, start, end, search)
+
+
+@router.get("/attendance-report")
+def export_attendance_report(
+    category: str = Query(..., description="'driver' or 'staff'"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: str = Query("", max_length=100, description="The page's search box (name or code)"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Driver / Staff Attendance and the Attendance Report → View → Excel (attendance_report.py)."""
+    from fastapi.responses import Response
+    data, filename, _, _ = _attendance_report(db, category, from_date, to_date, search, current_user)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/attendance-report/preview")
+def preview_attendance_report(
+    category: str = Query(...),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: str = Query("", max_length=100),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """The attendance report's sheets for the preview, plus its figures for the PDF (lib/attendance-report-pdf.ts)."""
+    _, filename, sheets, report = _attendance_report(db, category, from_date, to_date, search, current_user)
+    return {"filename": filename, "sheets": sheets, "report": report}
+
+
+def _approvals_report(db, kind, from_date, to_date, search, tab, current_user):
+    import approvals_report
+    if kind not in approvals_report.KINDS:
+        raise HTTPException(400, "kind must be leave, edit, deletion or maintenance")
+    if current_user.role not in approvals_report.ROLES[kind]:
+        raise HTTPException(403, "You don't have access to this report.")
+    start, end = _report_dates(from_date, to_date)
+    return approvals_report.build(db, kind, start, end, search, tab or "")
+
+
+@router.get("/approvals-report")
+def export_approvals_report(
+    kind: str = Query(..., description="leave, edit, deletion or maintenance"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: str = Query("", max_length=100),
+    tab: str = Query("", max_length=40, description="The page's tab / filter"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Leave / Edit / Deletion / Maintenance Approvals → View → Excel (approvals_report.py). Same roles as each page."""
+    from fastapi.responses import Response
+    data, filename, _, _ = _approvals_report(db, kind, from_date, to_date, search, tab, current_user)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/approvals-report/preview")
+def preview_approvals_report(
+    kind: str = Query(...),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    search: str = Query("", max_length=100),
+    tab: str = Query("", max_length=40),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """The approvals report's sheets for the preview, plus its figures for the PDF (lib/approvals-report-pdf.ts)."""
+    _, filename, sheets, report = _approvals_report(db, kind, from_date, to_date, search, tab, current_user)
+    return {"filename": filename, "sheets": sheets, "report": report}
+
+
+def _resource_opts(kind, current_user, from_date, to_date, year, resource_type, stage="", trip_category=""):
+    import resource_report
+    if kind not in resource_report.KINDS:
+        raise HTTPException(400, "Unknown report.")
+    allowed = resource_report.KIND_ROLES.get(kind)
+    if allowed and current_user.role not in allowed:
+        raise HTTPException(403, f"Your role ({current_user.role}) can't open this report.")
+    start, end = _report_dates(from_date, to_date)
+    if year is not None and not 2000 <= year <= 2100:
+        raise HTTPException(400, "Year out of range.")
+    # stage / category: the trip pages' pills and Trip Category (trip_pages_report.py); user_id:
+    # Trip Reconciliation shows a Trip Sheet Register their own edit requests, as the page does.
+    return {"start": start, "end": end, "year": year, "rtype": resource_type or "",
+            "stage": stage or "", "category": trip_category or "", "user_id": current_user.id}
+
+
+@router.get("/resource-report")
+def export_resource_report(
+    kind: str = Query(..., description="fleet, drivers, customers, vendors, staff, archive, payments or holidays"),
+    search: str = Query("", max_length=100, description="The page's search box"),
+    from_date: Optional[str] = Query(None, description="payments: range start YYYY-MM-DD (the day asked)"),
+    to_date: Optional[str] = Query(None, description="payments: range end YYYY-MM-DD"),
+    year: Optional[int] = Query(None, description="holidays: the year shown"),
+    resource_type: Optional[str] = Query(None, max_length=30, description="archive: one record type; detention: one status"),
+    stage: str = Query("", max_length=40, description="trip pages: one of the page's pills"),
+    trip_category: str = Query("", max_length=20, description="trip pages: one trip category"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Resource Hub, Finance Hub and the trip pages → View → Excel (resource_report.py)."""
+    from fastapi.responses import Response
+    import resource_report
+    opts = _resource_opts(kind, current_user, from_date, to_date, year, resource_type, stage, trip_category)
+    data, filename, _, _ = resource_report.build(db, kind, search, current_user.role, **opts)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/resource-report/preview")
+def preview_resource_report(
+    kind: str = Query(...),
+    search: str = Query("", max_length=100),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    year: Optional[int] = Query(None),
+    resource_type: Optional[str] = Query(None, max_length=30),
+    stage: str = Query("", max_length=40),
+    trip_category: str = Query("", max_length=20),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """The resource report's sheets for the preview, plus its figures for the PDF (lib/resource-report-pdf.ts)."""
+    import resource_report
+    opts = _resource_opts(kind, current_user, from_date, to_date, year, resource_type, stage, trip_category)
+    _, filename, sheets, report = resource_report.build(db, kind, search, current_user.role, **opts)
+    return {"filename": filename, "sheets": sheets, "report": report}
+
+
+@router.get("/tyre-report-counts")
+def tyre_report_counts(
+    search: str = Query("", max_length=100),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    stage: str = Query("", max_length=40, description="a Tyre Inventory status"),
+    resource_type: str = Query("", max_length=100, description="a brand"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Reports Center's Tyre Inventory window: tyres per status (within the
+    chosen brand) and per brand (within the chosen status) — tyre_reports.inventory_counts."""
+    import tyre_reports
+    o = _resource_opts("tyre_inventory", current_user, from_date, to_date, None, resource_type, stage, "")
+    return tyre_reports.inventory_counts(db, start=o["start"], end=o["end"], search=search, status=o["stage"], brand=o["rtype"])
+
+
+@router.get("/trip-report-counts")
+def trip_report_counts(
+    kind: str = Query(..., description="A trip page's report kind, e.g. trips_available"),
+    search: str = Query("", max_length=100),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    stage: str = Query("", max_length=40),
+    trip_category: str = Query("", max_length=20),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Reports Center's trip windows: how many trips each pill and each Trip
+    Category would give — pills counted within the chosen category, categories
+    within the chosen pill, as the pages count them (trip_pages_report.counts)."""
+    import trip_pages_report
+    if kind not in trip_pages_report.PILLS:
+        raise HTTPException(400, "Unknown trip report.")
+    o = _resource_opts(kind, current_user, from_date, to_date, None, None, stage, trip_category)
+    return trip_pages_report.counts(db, kind, start=o["start"], end=o["end"], search=search, stage=o["stage"],
+                                    category=o["category"], role=current_user.role, user_id=current_user.id)
+
+
 @router.get("/vendor-retreads")
 def export_vendor_retreads(
     vendor_id: int = Query(..., description="Our Vendors → View Record → Tyre Retreads"),
@@ -745,173 +586,3 @@ def export_vendor_retreads(
     return build_excel_response([("Tyre Retreads", headers, data)], f"vendor_retreads_{name}{suffix}.xlsx")
 
 
-@router.get("/tyre-inventory")
-def export_tyre_inventory(
-    from_date: Optional[str] = Query(None, description="Purchase date range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Purchase date range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    q = db.query(models.TyreInventory)
-    if from_date:
-        q = q.filter(models.TyreInventory.purchase_date >= from_date)
-    if to_date:
-        q = q.filter(models.TyreInventory.purchase_date <= to_date)
-    rows = q.order_by(models.TyreInventory.brand).all()
-    headers = [
-        "Brand", "Tyre Type", "Tyre Number", "Size", "Range (KM)",
-        "Cost", "Purchase Date", "Retread Cost", "Retread Count",
-    ]
-    data = [
-        [r.brand, r.tyre_type, r.tyre_number, r.size, r.range_km,
-         r.cost, r.purchase_date, r.retread_cost, r.retread_count]
-        for r in rows
-    ]
-    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
-    return build_excel_response([("Tyre Inventory", headers, data)], f"tyre_inventory{suffix}.xlsx")
-
-
-@router.get("/fuel-logs")
-def export_fuel_logs(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    q = (
-        db.query(models.FuelLog)
-        .join(models.Truck, models.Truck.id == models.FuelLog.truck_id)
-    )
-    if from_date:
-        q = q.filter(models.FuelLog.date >= from_date)
-    if to_date:
-        q = q.filter(models.FuelLog.date <= to_date)
-    records = q.order_by(models.FuelLog.date.desc()).all()
-    headers = [
-        "Truck ID", "Registration Number", "Date", "Odometer",
-        "Litres", "Price Per Litre", "Total Cost",
-        "Distance (KM)", "Mileage", "Fuel Station", "Logged By",
-    ]
-    data = [
-        [r.truck.truck_id, r.truck.registration_number, r.date, r.odometer,
-         r.litres, r.price_per_litre, r.total_cost,
-         r.distance, r.mileage, r.fuel_station, r.logged_by]
-        for r in records
-    ]
-    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
-    return build_excel_response([("Fuel Logs", headers, data)], f"fuel_logs{suffix}.xlsx")
-
-
-@router.get("/truck-run-records")
-def export_truck_run_records(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, on the trip's assigned date)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, on the trip's assigned date)"),
-    db: Session = Depends(get_db),
-):
-    """Truck Run Record page: every live trip per truck with its actual run distance
-    (trip sheet total km), plus a per-truck distance breakdown. Mirrors the page's
-    View Record / View Breakdown dialogs (trips matched on trip.vehicle_id == truck.truck_id)."""
-    try:
-        start = date.fromisoformat(from_date) if from_date else None
-        end = date.fromisoformat(to_date) if to_date else None
-    except ValueError:
-        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
-    q = (
-        db.query(models.Trip)
-        .options(joinedload(models.Trip.sheet))
-        .filter(models.Trip.deleted_at.is_(None))
-    )
-    if start:
-        q = q.filter(models.Trip.assigned_date >= start)
-    if end:
-        q = q.filter(models.Trip.assigned_date <= end)
-    trips_by_vehicle = {}
-    for tr in q.order_by(models.Trip.assigned_date.desc(), models.Trip.id.desc()).all():
-        trips_by_vehicle.setdefault(tr.vehicle_id, []).append(tr)
-
-    today = date.today()
-    run_rows, breakdown_rows = [], []
-    for truck in db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).order_by(models.Truck.truck_id).all():
-        trips = trips_by_vehicle.get(truck.truck_id, [])
-        kms = []
-        for tr in trips:
-            km = float(tr.sheet.total_km) if tr.sheet and tr.sheet.total_km else 0.0
-            run_rows.append([
-                truck.truck_id, truck.registration_number, tr.trip_id,
-                tr.assigned_date.isoformat() if tr.assigned_date else "",
-                tr.origin or "", tr.destination or "", km if km > 0 else "",
-            ])
-            if km > 0:
-                kms.append(km)
-        total = sum(kms)
-        dates = [tr.assigned_date for tr in trips if tr.assigned_date]
-        if dates:
-            e = min(dates)
-            months = max(1, (today.year - e.year) * 12 + (today.month - e.month) + 1)
-        else:
-            months = 1
-        monthly = total / months
-        breakdown_rows.append([
-            truck.truck_id, truck.registration_number, truck.manufacturer, truck.model_name,
-            len(trips), len(kms), round(total, 1), months, round(monthly, 1), round(monthly / 26, 1),
-            round(total / len(kms), 1) if kms else 0, max(kms) if kms else 0, min(kms) if kms else 0,
-        ])
-
-    run_headers = ["Truck ID", "Registration Number", "Trip ID", "Assigned Date", "From", "To", "Total Distance (KM)"]
-    bd_headers = [
-        "Truck ID", "Registration Number", "Manufacturer", "Model", "Total Trips", "Trips With Distance",
-        "Total Distance (KM)", "Months Spanned", "Monthly Avg (KM)", "Daily Avg (KM)",
-        "Avg Per Trip (KM)", "Longest Trip (KM)", "Shortest Trip (KM)",
-    ]
-    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
-    return build_excel_response(
-        [("Run Record", run_headers, run_rows), ("Breakdown", bd_headers, breakdown_rows)],
-        f"truck_run_records{suffix}.xlsx",
-    )
-
-
-@router.get("/customer-profitability")
-def export_customer_profitability(
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    cost_mode: str = "Advanced",
-    db: Session = Depends(get_db),
-):
-    """Customer Profitability Analytics page: one row per customer plus a route-level
-    breakdown, for the page's date range. Built from the very same aggregation the page
-    uses, with all three profit levels — Trip Profit, Gross Profit (after diesel) and
-    Final Profit (after Cost/KM) in the page's Cost/KM mode — so the file always matches
-    the screen."""
-    from datetime import date as _date
-    from routers.trips import get_customer_profitability, CPA_MODES
-
-    mode = cost_mode if cost_mode in CPA_MODES else "Advanced"
-    customers = get_customer_profitability(
-        date_from=_date.fromisoformat(from_date) if from_date else None,
-        date_to=_date.fromisoformat(to_date) if to_date else None,
-        db=db,
-    )
-
-    def levels(x: dict) -> list:
-        rev, trip = x["revenue" if "revenue" in x else "total_revenue"], x["profit" if "profit" in x else "total_profit"]
-        gross, final = trip - x["diesel"][mode], trip - x["truck_cost"][mode]
-        pct = lambda v: round(v / rev * 100, 2) if rev > 0 else 0.0
-        incomplete = x["cost_missing"][mode] or x["diesel_missing"][mode]
-        return [round(trip, 2), pct(trip), round(gross, 2), pct(gross), round(final, 2), pct(final),
-                f"{incomplete} trip(s) without a Cost/KM" if incomplete else ""]
-
-    lvl_headers = ["Trip Profit", "Trip Margin (%)", "Gross Profit", "Gross Margin (%)",
-                   f"Final Profit ({mode})", "Final Margin (%)", "Incomplete"]
-    cust_headers = ["Rank", "Customer", "Trips", "Revenue", "Expenses", *lvl_headers, "Total KM", "Routes"]
-    cust_rows = [
-        [i, c["customer_name"] + (" (custom)" if c["is_custom"] else ""), c["trip_count"], c["total_revenue"],
-         c["total_expense"], *levels(c), c["total_km"], len(c["routes"])]
-        for i, c in enumerate(customers, start=1)
-    ]
-    route_headers = ["Customer", "Route", "Trips", "Revenue", "Expenses", *lvl_headers, "Avg KM"]
-    route_rows = [
-        [c["customer_name"], r["route"], r["trip_count"], r["revenue"], r["expense"], *levels(r), r["avg_km"]]
-        for c in customers for r in c["routes"]
-    ]
-    return build_excel_response(
-        [("Customers", cust_headers, cust_rows), ("Routes", route_headers, route_rows)],
-        "customer_profitability.xlsx",
-    )

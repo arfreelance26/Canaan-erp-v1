@@ -5,6 +5,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getComplianceStatus } from "@/lib/compliance";
+import { showError } from "@/lib/feedback";
+import { RiFileTextLine as FileText, RiLoader4Line as Loader2 } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 
 /** Documents checked for the "expired" badge. A blank date is not counted:
@@ -31,6 +33,7 @@ type Props = { open: boolean; onClose: () => void; trucks: Truck[] };
 /** The trucks free for a new trip: not sold, not on an Assigned or running trip. */
 export function AvailableVehiclesDialog({ open, onClose, trucks }: Props) {
   const [search, setSearch] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -41,6 +44,30 @@ export function AvailableVehiclesDialog({ open, onClose, trucks }: Props) {
       .map((t) => ({ truck: t, expired: expiredDocs(t) }));
   }, [trucks, search]);
 
+  // The list as shown (search and order) as a PDF, expired documents named.
+  async function downloadPdf() {
+    setPdfBusy(true);
+    try {
+      const { downloadAvailableVehiclesPdf } = await import("@/lib/available-vehicles-pdf");
+      await downloadAvailableVehiclesPdf({
+        total: trucks.length,
+        search,
+        rows: rows.map(({ truck, expired }) => ({
+          registration: truck.registrationNumber ?? "",
+          truckId: truck.truckId ?? "",
+          type: truck.truckType ?? "",
+          branch: truck.branchRegisteredTo ?? "",
+          odometer: truck.odometer ? Number(truck.odometer) : null,
+          expired,
+        })),
+      });
+    } catch {
+      showError("Couldn't make the PDF. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   return (
     <Dialog
       open={open}
@@ -49,7 +76,18 @@ export function AvailableVehiclesDialog({ open, onClose, trucks }: Props) {
       className="max-w-2xl"
     >
       <div className="flex flex-col gap-3">
-        <PillSearch value={search} onChange={setSearch} placeholder="Search registration, ID, type or branch…" size="sm" />
+        <div className="flex items-center justify-between gap-3">
+          <PillSearch value={search} onChange={setSearch} placeholder="Search registration, ID, type or branch…" size="sm" />
+          <button
+            type="button"
+            onClick={downloadPdf}
+            disabled={pdfBusy || rows.length === 0}
+            className="flex shrink-0 items-center gap-2 rounded-full border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50"
+          >
+            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            Download PDF
+          </button>
+        </div>
 
         {rows.length === 0 ? (
           <EmptyState

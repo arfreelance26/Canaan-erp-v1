@@ -12,6 +12,7 @@ import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-col
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { RouteLine } from "@/components/trips/RouteLine";
+import { TripCategoryTag } from "@/components/trips/TripCategoryTag";
 import { getRouteStep, ROUTE_STEPS } from "@/lib/trip-stage";
 const PAGE_SIZE = 10;
 
@@ -105,7 +106,10 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
                   </td>
                   <td className="px-4 py-3 font-medium text-text-primary">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
                   <td className="px-4 py-3 text-text-primary">{trip.driverName ?? driver?.name ?? "—"}</td>
-                  <td className="px-4 py-3 font-medium text-text-primary">{trip.tripId}</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">
+                    {trip.tripId}
+                    {trip.tripCategory && <TripCategoryTag category={trip.tripCategory} className="mt-1 block" />}
+                  </td>
                   <td className="px-4 py-3 text-text-secondary text-xs">{trip.bookingReferenceNo}</td>
                   <td className="px-4 py-3 text-text-secondary">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
                   <td className="px-4 py-3 text-text-secondary">

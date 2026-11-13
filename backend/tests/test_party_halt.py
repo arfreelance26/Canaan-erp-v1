@@ -2,10 +2,8 @@
 lines; Mark as Paid records who saved it and when, with an optional proof;
 the outstanding total reaches the Admin morning summary."""
 from datetime import date, datetime, timedelta, timezone
-from io import BytesIO
 
 import pytest
-from openpyxl import load_workbook
 
 import daily_summary
 import models
@@ -105,14 +103,16 @@ def test_mark_paid_rules(api, api_as, world, db):
     api.post("/party-halt/999999/paid", data={"received_on": TODAY}, expect=404)
 
 
-def test_missed_on_invoice_export_and_the_morning_summary(api, world, db, halt_sac):
+def test_missed_on_invoice_report_and_the_morning_summary(api, world, db, halt_sac):
     trip = halted(api, world, db)
     invoice(api, trip, [TRANSPORT])
     assert row(api, trip)["status"] == "Missed on invoice"
 
-    wb = load_workbook(BytesIO(api.get("/party-halt/export", params={"status": "Missed on invoice", "search": trip["trip_id"]}).content))
-    rows = list(wb.active.values)
-    assert rows[0][0] == "Trip ID" and [r[0] for r in rows[1:]] == [trip["trip_id"]]
+    # The designed Customer Detention report (finance_report.py), one status and a search — as the page's View.
+    rep = api.get("/exports/resource-report/preview", params={"kind": "detention", "resource_type": "Missed on invoice",
+                                                              "search": trip["trip_id"]})["report"]
+    (sheet,) = [i for i in rep["items"] if i["title"] == "Missed on invoice"]
+    assert [r[0] for r in sheet["tables"][0]["rows"]] == [trip["trip_id"]]
 
     db.commit()
     summary = daily_summary.build(db, daily_summary.now_ist().date() - timedelta(days=1))

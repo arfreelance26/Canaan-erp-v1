@@ -70,7 +70,8 @@ function buildData(trips: Trip[], range: Range): Point[] {
 // Token colours: recharts takes CSS variables, so the chart flips with the theme.
 const C = {
   done: "var(--color-accent-500)",
-  open: "var(--color-fill-4)",
+  // Amber = "still to do" across the app (Expiring Soon, Due soon) — not red: an open trip may just be on the road.
+  open: "var(--color-warning-solid)",
   grid: "var(--color-separator-border)",
   tick: "var(--color-text-tertiary)",
   paper: "var(--color-background-primary-default)",
@@ -206,11 +207,12 @@ export function TripTrendChart({ trips }: Props) {
                 type="monotone"
                 dataKey="Open"
                 stackId="trips"
-                stroke="none"
+                stroke={C.open}
+                strokeWidth={1.5}
                 fill={C.open}
-                fillOpacity={0.6}
+                fillOpacity={0.18}
                 dot={false}
-                activeDot={{ r: 4, strokeWidth: 2, stroke: C.paper, fill: C.tick }}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: C.paper, fill: C.open }}
               />
             </ComposedChart>
           </ResponsiveContainer>

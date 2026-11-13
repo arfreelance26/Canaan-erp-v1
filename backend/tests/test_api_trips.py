@@ -2,11 +2,9 @@
 plus the sheet hand-over (Yard Supervisor → Trip Sheet Register), the
 Auditor's recheck flow, deletion/restore and the bulk/insight reads."""
 from datetime import date, datetime, timedelta
-from io import BytesIO
 from zoneinfo import ZoneInfo
 
 import pytest
-from openpyxl import load_workbook
 
 from world import add_sheet, complete_and_close, create_trip, fresh_trip
 
@@ -100,13 +98,13 @@ def test_flag(api, sheeted_trip):
     assert api.post(f"/trips/{sheeted_trip['id']}/flag")["verification_status"] == "flagged"
 
 
-def _export_trip_ids(api, **params):
-    res = api.get("/exports/audit-verified", params=params)
-    rows = list(load_workbook(BytesIO(res.content)).active.values)
-    return rows[0], [r[0] for r in rows[1:]], rows[1:]
+def _audit_rows(api, kind, **params):
+    """The designed Audit Verified / Audit Flagged report's rows, by Trip ID."""
+    rep = api.get("/exports/approvals-report/preview", params={"kind": kind, **params})["report"]
+    return {r["trip"]: r for g in rep["groups"] for r in g["rows"]}
 
 
-def test_audit_verified_export_filters(api, api_as, world):
+def test_audit_verified_report_filters(api, api_as, world):
     trip = fresh_trip(api, world)
     other = fresh_trip(api, world)
     auditor = api_as("Auditor")
@@ -115,47 +113,43 @@ def test_audit_verified_export_filters(api, api_as, world):
     code, other_code = trip["trip_id"], other["trip_id"]
     today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
 
-    headers, ids, rows = _export_trip_ids(api)
-    assert "Verified On" in headers and {code, other_code} <= set(ids)
-    row = rows[ids.index(code)]
-    assert row[headers.index("Verification Note")] == "All good" and row[headers.index("Was Disputed")] == "No"
+    rows = _audit_rows(api, "verified")
+    assert {code, other_code} <= set(rows)
+    assert rows[code]["note"] == "All good" and rows[code]["status"] == "Clean"
 
-    assert code in _export_trip_ids(api, from_date=today.isoformat(), to_date=today.isoformat())[1]
-    assert code not in _export_trip_ids(api, to_date=(today - timedelta(days=1)).isoformat())[1]
-    assert code not in _export_trip_ids(api, from_date=(today + timedelta(days=1)).isoformat())[1]
-    assert _export_trip_ids(api, search=f" {code.lower()} ")[1] == [code]
+    assert code in _audit_rows(api, "verified", from_date=today.isoformat(), to_date=today.isoformat())
+    assert code not in _audit_rows(api, "verified", to_date=(today - timedelta(days=1)).isoformat())
+    assert code not in _audit_rows(api, "verified", from_date=(today + timedelta(days=1)).isoformat())
+    assert set(_audit_rows(api, "verified", search=f" {code.lower()} ")) == {code}
 
 
 def test_audit_verified_hides_deleted_trips(api, api_as, world):
     trip = fresh_trip(api, world)
     tid, code = trip["id"], trip["trip_id"]
     api_as("Auditor").post(f"/trips/{tid}/recheck-verify", json={})
-    listed = lambda: any(t["trip_id"] == tid for t in api.get("/trips/audit-verified"))
-    assert listed() and code in _export_trip_ids(api)[1]
+    listed = lambda: any(t["trip_id"] == tid for t in api.get("/trips/audit-verified"))  # noqa: E731
+    assert listed() and code in _audit_rows(api, "verified")
 
     api.delete(f"/trips/{tid}", json={"reason": "Duplicate booking"})
-    assert not listed() and code not in _export_trip_ids(api)[1]
+    assert not listed() and code not in _audit_rows(api, "verified")
 
     api.post(f"/trips/{tid}/restore")
-    assert listed() and code in _export_trip_ids(api)[1]
+    assert listed() and code in _audit_rows(api, "verified")
 
 
-def test_audit_verified_export_uses_ist_days(api, monkeypatch):
+def test_audit_verified_report_uses_ist_days(api, world, monkeypatch):
     # 20:00 UTC on the 1st is 01:30 IST on the 2nd.
+    trip = fresh_trip(api, world)
     monkeypatch.setattr("routers.trips.audit_verified_rows", lambda db: [{
-        "trip_id_str": "TRP-IST", "driver_name": None, "origin": None, "destination": None, "scheduled_date": None,
-        "verified_by": "Auditor", "verified_role": "Auditor", "verified_at": datetime(2026, 1, 1, 20, 0),
+        "trip_id": trip["id"], "trip_id_str": trip["trip_id"], "driver_name": None, "origin": None, "destination": None,
+        "scheduled_date": None, "verified_by": "Auditor", "verified_role": "Auditor", "verified_at": datetime(2026, 1, 1, 20, 0),
         "verified_remark": "", "was_disputed": False,
     }])
-    assert _export_trip_ids(api, from_date="2026-01-02", to_date="2026-01-02")[1] == ["TRP-IST"]
-    assert _export_trip_ids(api, to_date="2026-01-01")[1] == []
+    assert set(_audit_rows(api, "verified", from_date="2026-01-02", to_date="2026-01-02")) == {trip["trip_id"]}
+    assert _audit_rows(api, "verified", to_date="2026-01-01") == {}
 
 
-def test_audit_flagged_export(api, api_as, world):
-    def export(**params):
-        rows = list(load_workbook(BytesIO(api.get("/exports/audit-flagged", params=params).content)).active.values)
-        return rows[0], {r[0]: r for r in rows[1:]}
-
+def test_audit_flagged_report(api, api_as, world):
     trip = fresh_trip(api, world)
     tid, code, day = trip["id"], trip["trip_id"], trip["scheduled_date"]
     returned = fresh_trip(api, world)
@@ -165,25 +159,30 @@ def test_audit_flagged_export(api, api_as, world):
     auditor.post(f"/trips/{returned['id']}/recheck-flag", json={"remark": "Check hire"})
     api.post(f"/trips/{returned['id']}/recheck-return", json={"remark": "Fixed"})
 
-    headers, rows = export()
+    rows = _audit_rows(api, "flagged")
     assert code in rows and returned["trip_id"] in rows and plain["trip_id"] not in rows
-    assert rows[code][headers.index("Reason")] == "Wrong toll"
-    assert rows[code][headers.index("Status")] == "Under Review"
-    assert rows[code][headers.index("Flagged By")] and rows[code][headers.index("Flagged On")]
-    assert rows[returned["trip_id"]][headers.index("Status")] == "Returned - awaiting Auditor"
+    assert rows[code]["reason"] == "Wrong toll" and rows[code]["status"] == "Under review"
+    assert rows[code]["flagged_by"] and rows[code]["flagged_on"]
+    assert rows[returned["trip_id"]]["status"] == "Returned — awaiting Auditor"
 
     d = date.fromisoformat(day)
-    assert code in export(from_date=day, to_date=day)[1]
-    assert code not in export(to_date=(d - timedelta(days=1)).isoformat())[1]
-    assert code not in export(from_date=(d + timedelta(days=1)).isoformat())[1]
-    assert set(export(search=f" {code.lower()} ")[1]) == {code}
-    assert code in export(search="wrong TOLL")[1]
+    assert code in _audit_rows(api, "flagged", from_date=day, to_date=day)
+    assert code not in _audit_rows(api, "flagged", to_date=(d - timedelta(days=1)).isoformat())
+    assert code not in _audit_rows(api, "flagged", from_date=(d + timedelta(days=1)).isoformat())
+    assert set(_audit_rows(api, "flagged", search=f" {code.lower()} ")) == {code}
+    assert code in _audit_rows(api, "flagged", search="wrong TOLL")
 
     api.delete(f"/trips/{tid}", json={"reason": "Duplicate booking"})
-    assert code not in export()[1]
+    assert code not in _audit_rows(api, "flagged")
 
 
-def test_trips_export_follows_search_and_dates(api, world):
+def _trip_report_ids(api, **params):
+    """Trip IDs in the designed Trip History report (every stage)."""
+    rep = api.get("/exports/trip-report/preview", params={"card": "All", **params})["report"]
+    return {r["trip_id"] for c in rep["by_category"] for r in c["rows"]}
+
+
+def test_trip_report_follows_search_and_dates(api, world):
     day = date.today().isoformat()
     other_day = (date.today() + timedelta(days=30)).isoformat()
     mine = fresh_trip(api, world, scheduled_date=day)
@@ -192,9 +191,7 @@ def test_trips_export_follows_search_and_dates(api, world):
     other = fresh_trip(api, world, scheduled_date=day)
     truck = next(t for t in api.get("/trucks") if t["truck_id"] == mine["vehicle_id"])
 
-    def export(**params):
-        rows = list(load_workbook(BytesIO(api.get("/exports/trips", params={"status": "Assigned,Completed", **params}).content)).active.values)
-        return {r[0] for r in rows[1:]}
+    export = lambda **params: _trip_report_ids(api, **params)  # noqa: E731
 
     codes = {mine["trip_id"], mine_later["trip_id"], other["trip_id"]}
     assert codes <= export()  # no search: everything, as before
@@ -220,6 +217,11 @@ def test_undo_verification(api, api_as, world):
     assert not any(t["trip_id"] == tid for t in api.get("/trips/audit-verified"))
     assert [e["event"] for e in api.get(f"/trips/{tid}/recheck-history")] == ["Verified", "Verification Undone"]
     assert any(e["event"] == "Verification Undone" for e in api.get("/trips/recheck-events"))
+    # Each row carries the truck too (Vehicle Based Record's Edit History shows and searches it).
+    trip = api.get(f"/trips/{tid}")
+    reg = next(t["registration_number"] for t in api.get("/trucks") if t["truck_id"] == trip["vehicle_id"])
+    row = next(e for e in api.get("/trips/recheck-events") if e["trip_id"] == tid)
+    assert row["vehicle_id"] == trip["vehicle_id"] and row["truck_registration"] == reg
     assert auditor.post(f"/trips/{tid}/recheck-verify", json={})["audit_verified"] is True  # decided again
 
 
@@ -375,3 +377,18 @@ def test_sheet_km_check(api, world):
 def test_trip_summary_is_admin_only(api, api_as, role):
     api.get("/trips/pnl-summary")
     api_as(role).get("/trips/pnl-summary", expect=403)
+
+
+def test_trip_report_by_category(api, world):
+    """Trip History's Trip Category filter: the View report keeps only that category."""
+    local = fresh_trip(api, world, trip_category="LOCAL")
+    outstation = fresh_trip(api, world, trip_category="OUTSTATION")
+
+    export = lambda **params: _trip_report_ids(api, **params)  # noqa: E731
+
+    assert {local["trip_id"], outstation["trip_id"]} <= export()
+    only_local = export(trip_category="LOCAL")
+    assert local["trip_id"] in only_local and outstation["trip_id"] not in only_local
+    both = export(trip_category="local, OUTSTATION")  # several, any case
+    assert {local["trip_id"], outstation["trip_id"]} <= both
+    assert local["trip_id"] not in export(trip_category="RETURN TRIP")

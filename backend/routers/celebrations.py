@@ -213,7 +213,6 @@ def overview(db: Session = Depends(get_db)):
         "defaults": settings_store.DEFAULT_CELEBRATION_MESSAGES,
         "max_message": settings_store.CELEBRATION_MESSAGE_MAX,
         "upcoming": _upcoming(db, today),
-        "festivals": settings_store.greeting_festivals(db),
         "history": [
             {"event": h.event, "actor": h.actor_name, "detail": h.detail, "at": h.created_at.isoformat() if h.created_at else None}
             for h in history
@@ -268,31 +267,6 @@ def set_messages(
     return settings_store.celebration_messages(db)
 
 
-class FestivalIn(BaseModel):
-    key: str
-    enabled: bool
-    dates: list[date] = []
-
-
-@router.put("/festivals")
-def set_festival(
-    payload: FestivalIn,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: TokenUser = Depends(require_roles()),
-):
-    """Admin: switch a festival greeting on/off and set its dates (they move
-    every year, so each year's date is entered here)."""
-    if payload.key not in settings_store.FESTIVALS:
-        raise HTTPException(400, "Unknown festival.")
-    saved = settings_store.set_greeting_festival(db, payload.key, payload.enabled, [d.isoformat() for d in payload.dates])
-    record_audit(
-        "celebrations.festival", request=request, actor_id=user.id, actor_name=user.name, actor_role=user.role,
-        detail=f"{payload.key}={'on' if payload.enabled else 'off'}; dates: {', '.join(saved['dates']) or 'none'}",
-    )
-    return saved
-
-
 # ── Joshine's greeting (every user) ──────────────────────────────────────────
 # A visit that started this long ago still counts as "now": the activity log
 # records this visit's own page loads, so the previous visit is the latest
@@ -316,7 +290,8 @@ def greeting_context(
 ):
     """What Joshine needs to greet the caller (lib/greetings.ts picks the
     words): when they were last here, and whether today is their birthday,
-    their work anniversary or a festival. Only the caller's own dates."""
+    their work anniversary, Christmas / New Year or Founding Day, and what
+    Joshine wears today. Only the caller's own dates."""
     today = _today_for(current_user, preview)
     now = datetime.utcnow()
     E = models.ActivityEvent
@@ -331,6 +306,9 @@ def greeting_context(
     last_seen = last[0].replace(tzinfo=ZoneInfo("UTC")).astimezone(IST) if last else None
 
     staff = db.get(models.Staff, current_user.id) if current_user.id is not None else None
+    founded_years = today.year - FOUNDED.year
+    founding_years = (founded_years if settings_store.founding_day_enabled(db) and founded_years > 0
+                      and (today.month, today.day) == (FOUNDED.month, FOUNDED.day) else None)
     birthday = bool(staff and settings_store.birthdays_enabled(db) and _is_birthday(staff.date_of_birth, today))
     if preview_birthday and current_user.role == "Admin":
         birthday = True
@@ -340,12 +318,9 @@ def greeting_context(
         work_years = years if years >= 1 else None
 
     festival = None
-    for key, f in settings_store.greeting_festivals(db).items():
-        if f["enabled"] and today.isoformat() in f["dates"]:
-            festival = {"key": key, "name": f["name"]}
-            break
-    if festival is None and settings_store.festive_season_enabled(db):
-        if (today.month, today.day) in ((12, 24), (12, 25)):
+    christmas = settings_store.festive_season_enabled(db) and (today.month, today.day) in ((12, 24), (12, 25))
+    if settings_store.festive_season_enabled(db):
+        if christmas:
             festival = {"key": "christmas", "name": "Christmas"}
         elif (today.month, today.day) == (1, 1):
             festival = {"key": "newyear", "name": "New Year"}
@@ -358,5 +333,9 @@ def greeting_context(
         "birthday": birthday,
         "work_years": work_years,
         "festival": festival,
+        # What Joshine wears today (JoshineOutfit.tsx): the person's birthday first,
+        # then Founding Day, then Christmas — each only while its switch is on.
+        "outfit": "birthday" if birthday else "founding" if founding_years else "christmas" if christmas else None,
+        "founding_years": founding_years,
     }
 

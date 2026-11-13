@@ -13,7 +13,8 @@ import type { StaffFiles } from "@/components/staff/StaffFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
@@ -351,7 +352,13 @@ export default function StaffPage() {
           </button>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <DownloadExcelButton path="/exports/staff" filename="staff.xlsx" />
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Our_Staff.xlsx"
+            title={`Our Staff Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "staff", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
         </div>
       </div>
 

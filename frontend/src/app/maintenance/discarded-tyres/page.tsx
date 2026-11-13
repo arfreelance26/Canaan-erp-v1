@@ -1,5 +1,7 @@
 "use client";
 
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { useEffect, useState } from "react";
 import { RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { tyreApi } from "@/lib/api";
@@ -77,6 +79,14 @@ export default function DiscardedTyresPage() {
             <p className="mt-0.5 text-sm text-text-secondary">Tyres taken out of service and written off</p>
           </div>
         </div>
+        {/* The designed report (tyre_reports.py). */}
+        <ReportViewButton
+          path="/exports/resource-report"
+          filename="Discarded_Tyres.xlsx"
+          title={`Discarded Tyres Report`}
+          params={{ kind: "tyre_discarded",  }}
+          pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+        />
       </div>
 
       {loading ? (

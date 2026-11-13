@@ -11,7 +11,8 @@ import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ApprovalsReport } from "@/lib/approvals-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
@@ -235,14 +236,13 @@ export default function FlaggedTripsPage() {
         <PillSearch placeholder="Search by trip ID, driver, or reason…" value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
-          <DownloadExcelButton
-            path="/exports/audit-flagged"
-            filename="audit_flagged_trips.xlsx"
-            params={{
-              ...(dateFrom ? { from_date: dateFrom } : {}),
-              ...(dateTo ? { to_date: dateTo } : {}),
-              ...(search ? { search } : {}),
-            }}
+          {/* The report: Summary + a sheet per status, follows the search and dates (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/approvals-report"
+            filename="Audit_Flagged_Trips.xlsx"
+            title={`Audit Flagged Trips Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "flagged", ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/approvals-report-pdf").then((m) => m.downloadApprovalsReportPdf({ report: report as ApprovalsReport, filename: file }))}
           />
         </div>
       </div>

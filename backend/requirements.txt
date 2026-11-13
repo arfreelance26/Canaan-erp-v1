@@ -31,6 +31,7 @@ bcrypt==4.1.1                 # Password hashing with bcrypt
 python-dotenv==1.0.0          # Load environment variables from .env
 email-validator==2.1.0        # Email validation
 openpyxl==3.1.5                # Excel (.xlsx) generation for export endpoints
+pymupdf==1.28.2                # Proof Pack PDF (proof_pack.py): merges bills, scans and photos
 
 # Scheduled Google Drive backup (backend/backup/)
 # ============================================================================

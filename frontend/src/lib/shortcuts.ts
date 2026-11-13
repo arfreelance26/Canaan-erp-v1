@@ -16,13 +16,14 @@ export const SHORTCUTS = {
   todo: { key: "T", label: "To-do" },
   notes: { key: "N", label: "Notes" },
   meetings: { key: "M", label: "Meetings" },
+  board: { key: "B", label: "Notice Board" },
   joshine: { key: "J", label: "Peek Joshine" },
 } as const;
 
 /** J: Joshine slides down to peek, or comes back up (components/joshine/JoshinePet.tsx). */
 export const JOSHINE_PEEK_EVENT = "joshine:peek";
 
-export type ShortcutPanel = "todo" | "notes" | "meetings";
+export type ShortcutPanel = "todo" | "notes" | "meetings" | "board";
 
 /** True when a key press should go to a text field rather than a shortcut. */
 export function isTypingTarget(target: EventTarget | null): boolean {
@@ -35,7 +36,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 // My profile. The shortcut goes to the newest non-fallback one if any — the
 // panel on the page you're looking at — otherwise to the fallback.
 type Entry = { toggle: () => void; fallback: boolean };
-const panels: Record<ShortcutPanel, Entry[]> = { todo: [], notes: [], meetings: [] };
+const panels: Record<ShortcutPanel, Entry[]> = { todo: [], notes: [], meetings: [], board: [] };
 
 /** Open or close the To-do / Notes panel, from a shortcut or a button. */
 export function toggleShortcutPanel(name: ShortcutPanel) {

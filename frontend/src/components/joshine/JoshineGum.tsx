@@ -7,10 +7,10 @@ import type { JoshineExpression } from "@/lib/joshine";
 /**
  * Joshine's chewing-gum bubble, a surprise that never plays the same way twice.
  *
- * When: after a random 20 s – 2 min with nobody touching anything, at most
- * once per random 3 – 10 min; and, rarely (every 20 – 40 min), even while
- * someone works, if they haven't typed for a few seconds, the mouse is
- * away from Joshine and no dialog is open.
+ * When: only when things are genuinely quiet — after a random 3 – 5 min with
+ * nobody touching anything, and at most once per random 30 – 45 min. Never
+ * while someone works, and never while Joshine wears her glasses or holds her
+ * chai (JoshinePet keeps it waiting then, and for five quiet minutes after).
  *
  * How (picked at random each time; the puffs vary too):
  *   normal  blow → tremble → POP → gum stuck on the face → shake → it falls off → blush
@@ -117,7 +117,6 @@ export function useGumBubble(allowed: boolean): { run: GumRun | null; phase: Gum
   const pointer = useRef({ x: -1, y: -1 });
   const idleNeeded = useRef(0);
   const nextAllowed = useRef(0);
-  const nextSurprise = useRef(0);
 
   function clear() {
     timers.current.forEach((t) => window.clearTimeout(t));
@@ -141,9 +140,8 @@ export function useGumBubble(allowed: boolean): { run: GumRun | null; phase: Gum
     timers.current.push(window.setTimeout(() => show(null, null), at));
   }
   function reroll(now: number) {
-    idleNeeded.current = rand(20 * SECOND, 2 * MINUTE);
-    nextAllowed.current = now + rand(3 * MINUTE, 10 * MINUTE);
-    nextSurprise.current = now + rand(20 * MINUTE, 40 * MINUTE);
+    idleNeeded.current = rand(3 * MINUTE, 5 * MINUTE);
+    nextAllowed.current = now + rand(30 * MINUTE, 45 * MINUTE);
   }
   function start(style: GumStyle = pickStyle(), surprise = false) {
     if (current.current.run || !allowedRef.current || prefersReducedMotion()) return;
@@ -205,21 +203,8 @@ export function useGumBubble(allowed: boolean): { run: GumRun | null; phase: Gum
     const check = window.setInterval(() => {
       const t = Date.now();
       if (document.hidden || current.current.run) return;
-      // Left alone long enough.
-      if (t >= nextAllowed.current && t - lastActive.current >= idleNeeded.current) {
-        start();
-        return;
-      }
-      // The rare one while working: not mid-typing, mouse away from
-      // Joshine (bottom-right corner), no dialog open.
-      const { x, y } = pointer.current;
-      const nearJoshine = x >= 0 && window.innerWidth - x < 260 && window.innerHeight - y < 260;
-      if (
-        t >= nextSurprise.current && t - lastKey.current >= 4 * SECOND && !nearJoshine
-        && !document.querySelector('[role="dialog"]')
-      ) {
-        start(pickStyle(), true);
-      }
+      // Left alone long enough (the only time it plays now).
+      if (t >= nextAllowed.current && t - lastActive.current >= idleNeeded.current) start();
     }, 4000);
 
     return () => {

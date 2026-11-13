@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session, undefer
 
 import models
@@ -142,26 +142,6 @@ def _filtered(items: list[dict], status: str | None, search: str | None, start: 
 def list_party_halt(db: Session = Depends(get_db)):
     items = rows(db)
     return {"rows": items, "totals": totals(items)}
-
-
-@router.get("/export", dependencies=[Depends(require_roles(*ROLES))])
-def export_party_halt(
-    status: Optional[str] = Query(None), search: Optional[str] = Query(None),
-    from_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    to_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    db: Session = Depends(get_db),
-):
-    """The page's list as Excel, following its status chip, search and dates."""
-    from excel_utils import build_excel_response
-    items = _filtered(rows(db), status, search, from_date, to_date)
-    headers = ["Trip ID", "Customer", "Completed", "Party Halt Days", "Amount", "Invoice No", "Invoice Date",
-               "Halt on Invoice", "Status", "Paid On", "Paid Amount", "Paid By", "Saved At", "Note", "Proof"]
-    data = [[r["trip_id"], r["customer"], date.fromisoformat(r["completed_date"]) if r["completed_date"] else None,
-             r["party_days"], r["amount"], r["invoice_no"], date.fromisoformat(r["invoice_date"]) if r["invoice_date"] else None,
-             r["billed_amount"], r["status"], date.fromisoformat(r["paid_on"]) if r["paid_on"] else None, r["paid_amount"],
-             r["paid_by"], datetime.fromisoformat(r["paid_saved_at"]).astimezone(IST).replace(tzinfo=None) if r["paid_saved_at"] else None,
-             r["paid_note"], r["proof_file_name"] or ""] for r in items]
-    return build_excel_response([("Customer Detention", headers, data)], "customer_detention.xlsx")
 
 
 def _trip_with_halt(db: Session, trip_id: int) -> float:

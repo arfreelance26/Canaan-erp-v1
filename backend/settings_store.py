@@ -4,7 +4,6 @@ Each getter returns the DB value when a row exists, otherwise the matching
 .env default — so behaviour is unchanged until an Admin overrides it from the
 UI, and a fresh database still boots with the .env configuration.
 """
-import json
 import os
 
 from sqlalchemy.orm import Session
@@ -256,33 +255,4 @@ def set_celebration_messages(db: Session, messages: dict) -> None:
     for k in DEFAULT_CELEBRATION_MESSAGES:
         if k in messages:
             _set(db, f"celebration_msg_{k}", str(messages.get(k) or "").strip()[:CELEBRATION_MESSAGE_MAX])
-
-
-# ── Festivals for Joshine's greeting ────────────────────────────────────────
-# Pongal, Deepavali and Ayudha Pooja move every year, so Admin sets each
-# year's date on Celebrations Management. Christmas and New Year are fixed and
-# come from the December season switch.
-FESTIVALS_KEY = "greeting_festivals"
-FESTIVALS = {"pongal": "Pongal", "deepavali": "Deepavali", "ayudha_pooja": "Ayudha Pooja"}
-
-
-def greeting_festivals(db: Session) -> dict:
-    """{key: {"name", "enabled", "dates": [ISO dates]}} for every festival."""
-    try:
-        saved = json.loads(_get(db, FESTIVALS_KEY) or "{}")
-    except ValueError:
-        saved = {}
-    out = {}
-    for key, name in FESTIVALS.items():
-        item = saved.get(key) or {}
-        dates = sorted({d for d in item.get("dates", []) if isinstance(d, str) and len(d) == 10})
-        out[key] = {"name": name, "enabled": bool(item.get("enabled", True)), "dates": dates}
-    return out
-
-
-def set_greeting_festival(db: Session, key: str, enabled: bool, dates: list[str]) -> dict:
-    current = greeting_festivals(db)
-    current[key] = {"name": FESTIVALS[key], "enabled": enabled, "dates": sorted(set(dates))}
-    _set(db, FESTIVALS_KEY, json.dumps({k: {"enabled": v["enabled"], "dates": v["dates"]} for k, v in current.items()}))
-    return current[key]
 

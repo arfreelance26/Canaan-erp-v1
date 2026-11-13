@@ -1,12 +1,15 @@
 "use client";
 
-import { RiTruckLine as TruckIcon, RiPencilLine as Pencil, RiEyeLine as Eye, RiPulseLine as Activity, RiCalendarScheduleLine as Scheduled } from "@remixicon/react";
+import { useMemo } from "react";
+import { RiPencilLine as Pencil, RiEyeLine as Eye, RiPulseLine as Activity, RiCalendarScheduleLine as Scheduled } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import { TruckTiles, type TruckView } from "@/components/fleet/TruckTiles";
+import { formatDate } from "@/lib/format-date";
 
-import { EmptyState } from "@/components/ui/EmptyState";
 type TruckMaintenanceTableProps = {
   trucks: Truck[];
+  view: TruckView;
   records: MaintenanceRecord[];
   onUpdateRecord: (truck: Truck) => void;
   /** Jobs saved before their cost was known. */
@@ -19,6 +22,7 @@ type TruckMaintenanceTableProps = {
 
 export function TruckMaintenanceTable({
   trucks,
+  view,
   records,
   onUpdateRecord,
   onScheduledRecords,
@@ -26,75 +30,48 @@ export function TruckMaintenanceTable({
   onViewRecord,
   onViewStatus,
 }: TruckMaintenanceTableProps) {
-  if (trucks.length === 0) {
-    return (
-      <EmptyState size="compact" illustration="logistics" title="No trucks yet" description="Add a truck under &ldquo;Our Fleet&rdquo; to get started" />
-    );
-  }
+  // Per truck: how many records, and the newest one (its last service).
+  const byTruck = useMemo(() => {
+    const map = new Map<string, { count: number; last: MaintenanceRecord }>();
+    for (const r of records) {
+      const cur = map.get(r.truckId);
+      if (!cur) map.set(r.truckId, { count: 1, last: r });
+      else {
+        cur.count += 1;
+        if (r.date > cur.last.date) cur.last = r;
+      }
+    }
+    return map;
+  }, [records]);
 
   return (
-    <div className="flex max-h-[75vh] flex-col gap-3 overflow-auto pr-1">
-      {trucks.map((truck) => {
-        const recordCount = records.filter((r) => r.truckId === truck.id).length;
-        return (
-          <div
-            key={truck.id}
-            className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-separator-border bg-background-primary-default px-5 py-4 shadow-sm transition duration-300 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
-          >
-            <div className="flex items-center gap-3.5">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-orange-border bg-orange-surface text-orange-text shadow-sm">
-                <TruckIcon className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-semibold text-text-primary">{truck.registrationNumber}</p>
-                <p className="mt-0.5 text-xs text-text-tertiary">
-                  {recordCount} maintenance record{recordCount === 1 ? "" : "s"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onUpdateRecord(truck)}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-warning-border bg-warning-surface px-3.5 text-caption-1-semibold text-warning-text transition duration-200 hover:bg-warning-surface-strong"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Update Record
-              </button>
-              <button
-                type="button"
-                onClick={() => onScheduledRecords(truck)}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-teal-border bg-teal-surface px-3.5 text-caption-1-semibold text-teal-text transition duration-200 hover:bg-teal-surface-strong"
-              >
-                <Scheduled className="h-3.5 w-3.5" />
-                Scheduled Records
-                {(scheduledCounts[truck.id] ?? 0) > 0 && (
-                  <span className="ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-teal-solid px-1.5 text-caption-2-semibold tabular-nums text-on-solid">
-                    {scheduledCounts[truck.id]}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => onViewRecord(truck)}
-                className="flex h-9 items-center gap-1.5 rounded-full bg-accent-solid px-3.5 text-caption-1-semibold text-on-solid shadow-sm transition duration-200 hover:bg-accent-solid-hover"
-              >
-                <Eye className="h-3.5 w-3.5" />
-                View Record
-              </button>
-              <button
-                type="button"
-                onClick={() => onViewStatus(truck)}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-purple-border bg-purple-surface px-3.5 text-caption-1-semibold text-purple-text transition duration-200 hover:bg-purple-surface-strong"
-              >
-                <Activity className="h-3.5 w-3.5" />
-                Full Status
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <TruckTiles
+      trucks={trucks}
+      view={view}
+      tile="border-orange-border bg-orange-surface text-orange-text"
+      emptyTitle="No trucks yet"
+      emptyDescription="Add a truck under “Our Fleet” to get started"
+      content={(truck) => {
+        const m = byTruck.get(truck.id);
+        const waiting = scheduledCounts[truck.id] ?? 0;
+        return {
+          facts: [
+            { label: "Records", value: m ? `${m.count}` : "None yet", tone: m ? undefined : "muted" },
+            { label: "Last service", value: m ? `${formatDate(m.last.date)} · ${m.last.maintenanceType}` : "—", tone: m ? undefined : "muted" },
+            { label: "Waiting for a cost", value: waiting ? `${waiting} job${waiting === 1 ? "" : "s"}` : "None", tone: waiting ? "warn" : "muted" },
+          ],
+          actions: [
+            { label: "Update Record", icon: Pencil, onClick: () => onUpdateRecord(truck),
+              cls: "border border-warning-border bg-warning-surface text-warning-text hover:bg-warning-surface-strong" },
+            { label: "Scheduled", icon: Scheduled, onClick: () => onScheduledRecords(truck), badge: waiting,
+              cls: "border border-teal-border bg-teal-surface text-teal-text hover:bg-teal-surface-strong" },
+            { label: "View Record", icon: Eye, onClick: () => onViewRecord(truck),
+              cls: "bg-accent-solid text-on-solid shadow-sm hover:bg-accent-solid-hover" },
+            { label: "Full Status", icon: Activity, onClick: () => onViewStatus(truck),
+              cls: "border border-purple-border bg-purple-surface text-purple-text hover:bg-purple-surface-strong" },
+          ],
+        };
+      }}
+    />
   );
 }

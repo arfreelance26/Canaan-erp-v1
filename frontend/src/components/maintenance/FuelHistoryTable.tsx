@@ -1,69 +1,88 @@
+import { useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import type { Truck } from "@/types/truck";
-import { RiTruckLine as TruckIcon, RiGasStationLine as Fuel, RiHistoryLine as History } from "@remixicon/react";
+import type { FuelLog } from "@/types/fuel-log";
+import { RiGasStationLine as Fuel, RiHistoryLine as History } from "@remixicon/react";
+import { TruckTiles, type TruckView } from "@/components/fleet/TruckTiles";
+import { formatDate } from "@/lib/format-date";
 
-import { EmptyState } from "@/components/ui/EmptyState";
 type FuelHistoryTableProps = {
   trucks: Truck[];
+  view: TruckView;
+  /** Every fuel log, for each truck's last fill and mileage (null while loading). */
+  fuelLogs: FuelLog[] | null;
   onViewHistory?: (truck: Truck) => void;
   onEnterFuelLog?: (truck: Truck) => void;
 };
 
-export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: FuelHistoryTableProps) {
+// The app's plausible range for a loaded truck's km/L (the same rule as the Fuel report).
+const PLAUSIBLE = (m: number) => m >= 1.5 && m <= 6;
+
+export function FuelHistoryTable({ trucks, view, fuelLogs, onViewHistory, onEnterFuelLog }: FuelHistoryTableProps) {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
   // Fuel history is open to the Maintenance team as well as Admin.
   const canViewFuelHistory = isAdmin || authUser?.softwareDesignation === "Maintenance";
-  if (trucks.length === 0) {
-    return (
-      <EmptyState size="compact" illustration="logistics" title="No trucks found" description="Add a truck in Our Fleet to get started" />
-    );
-  }
+
+  // Per truck: its newest fill, and the newest believable mileage.
+  const byTruck = useMemo(() => {
+    const map = new Map<string, { last: FuelLog; mileage: number | null }>();
+    const sorted = [...(fuelLogs ?? [])].sort((a, b) => b.date.localeCompare(a.date) || Number(b.odometer) - Number(a.odometer));
+    for (const log of sorted) {
+      const cur = map.get(log.truckId);
+      const m = parseFloat(log.mileage);
+      if (!cur) map.set(log.truckId, { last: log, mileage: PLAUSIBLE(m) ? m : null });
+      else if (cur.mileage === null && PLAUSIBLE(m)) cur.mileage = m;
+    }
+    return map;
+  }, [fuelLogs]);
+
+  const daysAgo = (date: string) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return Math.round((t.getTime() - d.getTime()) / 86_400_000);
+  };
 
   return (
-    <div className="flex max-h-[75vh] flex-col gap-3 overflow-auto pr-1">
-      {trucks.map((truck) => (
-        <div
-          key={truck.id}
-          className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-separator-border bg-background-primary-default px-5 py-4 shadow-sm transition duration-300 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
-        >
-          <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
-              <TruckIcon className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="font-semibold text-text-primary">{truck.registrationNumber}</p>
-              <p className="mt-0.5 text-xs text-text-tertiary">
-                {truck.truckId}
-                {(truck.manufacturer || truck.modelName) && (
-                  <> &middot; {[truck.manufacturer, truck.modelName].filter(Boolean).join(" ")}</>
-                )}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {canViewFuelHistory && (
-              <button
-                type="button"
-                onClick={() => onViewHistory?.(truck)}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-purple-border bg-purple-surface px-3.5 text-caption-1-semibold text-purple-text transition duration-200 hover:bg-purple-surface-strong"
-              >
-                <History className="h-3.5 w-3.5" />
-                View Fuel History
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onEnterFuelLog?.(truck)}
-              className="flex h-9 items-center gap-1.5 rounded-full bg-accent-solid px-3.5 text-caption-1-semibold text-on-solid shadow-sm transition duration-200 hover:bg-accent-solid-hover"
-            >
-              <Fuel className="h-3.5 w-3.5" />
-              Enter Fuel Log
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+    <TruckTiles
+      trucks={trucks}
+      view={view}
+      tile="border-accent-border bg-accent-surface text-accent-text"
+      emptyTitle="No trucks found"
+      emptyDescription="Add a truck in Our Fleet to get started"
+      content={(truck) => {
+        const f = byTruck.get(truck.id);
+        const loading = fuelLogs === null;
+        const ago = f ? daysAgo(f.last.date) : null;
+        const litres = f ? parseFloat(f.last.litres) : NaN;
+        return {
+          facts: [
+            {
+              label: "Last fill",
+              value: loading ? "…" : f ? `${formatDate(f.last.date)}${Number.isFinite(litres) ? ` · ${litres.toLocaleString("en-IN", { maximumFractionDigits: 1 })} L` : ""}` : "No fills yet",
+              tone: !loading && (!f || (ago !== null && ago > 30)) ? "warn" : undefined,
+            },
+            {
+              label: "Mileage",
+              value: loading ? "…" : f?.mileage != null ? `${f.mileage.toFixed(2)} km/L` : "—",
+              tone: f?.mileage == null ? "muted" : undefined,
+            },
+            ...(f && ago !== null ? [{ label: "Days since fill", value: ago === 0 ? "Today" : `${ago}`, tone: ago > 30 ? ("warn" as const) : undefined }] : []),
+          ],
+          actions: [
+            ...(canViewFuelHistory ? [{
+              label: "Fuel History", icon: History, onClick: () => onViewHistory?.(truck),
+              cls: "border border-purple-border bg-purple-surface text-purple-text hover:bg-purple-surface-strong",
+            }] : []),
+            {
+              label: "Enter Fuel Log", icon: Fuel, onClick: () => onEnterFuelLog?.(truck),
+              cls: "bg-accent-solid text-on-solid shadow-sm hover:bg-accent-solid-hover",
+            },
+          ],
+        };
+      }}
+    />
   );
 }

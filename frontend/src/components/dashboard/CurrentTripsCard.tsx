@@ -57,6 +57,21 @@ function fmtHire(v?: string | null): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+/** A trip's booking day — the same date the Booked On column shows. */
+function bookedOn(t: Trip): string | null {
+  return (t.bookingCreatedDate || t.assignedDate || "").slice(0, 10) || null;
+}
+
+/** "today", "yesterday", "3 days ago" — from the browser's calendar day. */
+function daysAgo(iso: string): { text: string; days: number } {
+  const [y, m, d] = iso.split("-").map(Number);
+  const then = new Date(y, m - 1, d).getTime();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const days = Math.round((today - then) / 86_400_000);
+  return { days, text: days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago` };
+}
+
 function fmtDate(d?: string | null): string {
   if (!d) return "—";
   try {
@@ -98,6 +113,9 @@ export function CurrentTripsCard() {
         ? "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_100px_170px]"
         : "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_170px]");
   const [trips, setTrips] = useState<Trip[]>([]);
+  // The most recent booking of any trip (not just the ones on this card): invoiced
+  // trips drop off the card but were still booked. Cancelled / deleted ones don't count.
+  const [lastBooked, setLastBooked] = useState<Trip | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   // Track IDs of trips newly assigned so we can highlight them
@@ -106,10 +124,20 @@ export function CurrentTripsCard() {
 
   useEffect(() => {
     tripsApi.list()
-      .then((all) => setTrips(all.filter((t) => {
-        if (t.isInvoiced || t.invoiceWaived) return false; // done — drop off the card
-        return ACTIVE_TRIP_STATUSES.has(t.status ?? "") || t.status === "Completed";
-      })))
+      .then((all) => {
+        setTrips(all.filter((t) => {
+          if (t.isInvoiced || t.invoiceWaived) return false; // done — drop off the card
+          return ACTIVE_TRIP_STATUSES.has(t.status ?? "") || t.status === "Completed";
+        }));
+        let latest: Trip | null = null;
+        for (const t of all) {
+          const d = bookedOn(t);
+          if (!d || t.status === "Cancelled") continue;
+          const best = latest ? bookedOn(latest)! : "";
+          if (d > best || (d === best && (t.tripId ?? "") > (latest?.tripId ?? ""))) latest = t;
+        }
+        setLastBooked(latest);
+      })
       .catch(() => {});
   }, [refreshKey]);
 
@@ -215,6 +243,21 @@ export function CurrentTripsCard() {
               {newCount} new
             </span>
           )}
+          {lastBooked && (() => {
+            const day = bookedOn(lastBooked)!;
+            const ago = daysAgo(day);
+            const stale = ago.days >= 3;   // no booking for 3+ days: bookings stopped, or aren't being entered
+            const who = canSeeCustomer ? customerById.get(lastBooked.customerId)?.name : undefined;
+            return (
+              <span
+                title={`${lastBooked.tripId}${who ? ` · ${who}` : ""}`}
+                className={`hidden rounded-full px-3 py-0.5 text-caption-1-semibold sm:inline ${stale ? "bg-warning-surface text-warning-text" : "bg-fill-2 text-text-secondary"}`}
+              >
+                Last booking: <span className={`tabular-nums ${stale ? "" : "text-text-primary"}`}>{fmtDate(day)}</span>
+                <span className="font-normal"> · {ago.text}</span>
+              </span>
+            );
+          })()}
           <span className="rounded-full bg-fill-2 px-3 py-0.5 text-caption-1-semibold text-text-secondary">
             <span className="font-semibold text-text-primary">{trips.length}</span> {trips.length === 1 ? "trip" : "trips"}
           </span>

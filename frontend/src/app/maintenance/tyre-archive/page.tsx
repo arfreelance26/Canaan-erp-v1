@@ -1,5 +1,7 @@
 "use client";
 
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { RiArchiveLine as ArchiveIcon, RiArrowGoBackLine as RotateCcw, RiDeleteBinLine as Trash2, RiUserLine as User, RiShieldCheckLine as ShieldCheck, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil } from "@remixicon/react";
@@ -176,6 +178,16 @@ export default function TyreArchivePage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by tyre, requester, or approver" value={search} onChange={setSearch} />
+        <div className="ml-auto">
+          {/* The designed report (tyre_reports.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Tyre_Archive.xlsx"
+            title={`Tyre Archive Report${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ kind: "tyre_archive", ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-separator-border bg-background-primary-default shadow-sm">

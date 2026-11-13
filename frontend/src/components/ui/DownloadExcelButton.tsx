@@ -8,7 +8,7 @@ import { showError } from "@/lib/feedback";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
 
 type Props = {
-  /** The export endpoint path, e.g. "/exports/drivers". */
+  /** The export endpoint path, e.g. "/exports/trucks". */
   path: string;
   /** Filename to use if the server doesn't send one. */
   filename: string;

@@ -6,7 +6,8 @@ import { RiHourglassLine as Hourglass } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { tripsApi, type PendingAuditTrip } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ApprovalsReport } from "@/lib/approvals-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate } from "@/lib/format-date";
@@ -76,13 +77,13 @@ export default function PendingAuditPage() {
         <PillSearch placeholder="Search by trip ID, driver, or truck…" value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
-          <DownloadExcelButton
-            path="/exports/pending-audit"
-            filename="pending_audit_trips.xlsx"
-            params={{
-              ...(dateFrom ? { from_date: dateFrom } : {}),
-              ...(dateTo ? { to_date: dateTo } : {}),
-            }}
+          {/* The report: Summary + a sheet per driver, follows the search and dates (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/approvals-report"
+            filename="Pending_Audit.xlsx"
+            title={`Pending Audit Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "pending", ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/approvals-report-pdf").then((m) => m.downloadApprovalsReportPdf({ report: report as ApprovalsReport, filename: file }))}
           />
         </div>
       </div>

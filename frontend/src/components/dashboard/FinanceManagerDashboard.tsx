@@ -114,7 +114,7 @@ export function FinanceManagerDashboard() {
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
   const router = useRouter();
-  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon } = useComplianceAlerts(trucks);
+  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon, notUploadedItems, noCostItems } = useComplianceAlerts(trucks);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().slice(0, 10);
@@ -151,7 +151,7 @@ export function FinanceManagerDashboard() {
         const date = truck[key] as string;
         if (!date) continue;
         const status = getComplianceStatus(date);
-        if (status === "Valid") continue;
+        if (status === "Valid" || status === "Not Uploaded") continue;
         alerts.push({ truck, doc: label, date, status });
       }
     }
@@ -184,6 +184,8 @@ export function FinanceManagerDashboard() {
       <ComplianceAlertBanner
         expired={complianceExpired}
         expiringSoon={complianceExpiringSoon}
+        notUploaded={notUploadedItems}
+        noCost={noCostItems}
         href="/maintenance/compliance"
         actionLabel="View Compliance"
       />

@@ -105,6 +105,17 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
   useEffect(() => { refreshPendingMaintenanceApprovals(); }, [refreshPendingMaintenanceApprovals]);
   useWebSocketEvent("maintenance_request_updated", refreshPendingMaintenanceApprovals);
 
+  // Maintenance Requests — the person's own rejected requests still to fix
+  // (Maintenance's from the form, Trip Sheet Register's from trip-sheet repairs).
+  const canSeeMaintenanceRequests = isAdmin || user?.softwareDesignation === "Maintenance" || user?.softwareDesignation === "Trip Sheet Register";
+  const [rejectedMaintenanceRequests, setRejectedMaintenanceRequests] = useState(0);
+  const refreshRejectedMaintenanceRequests = useCallback(() => {
+    if (!canSeeMaintenanceRequests) return;
+    maintenanceRequestsApi.listMine(500).then((r) => setRejectedMaintenanceRequests(r.filter((x) => x.status === "Rejected").length)).catch(() => {});
+  }, [canSeeMaintenanceRequests]);
+  useEffect(() => { refreshRejectedMaintenanceRequests(); }, [refreshRejectedMaintenanceRequests]);
+  useWebSocketEvent("maintenance_request_updated", refreshRejectedMaintenanceRequests);
+
   useWebSocketEvent("edit_approval_created", refreshPendingEditApprovals);
   useWebSocketEvent("edit_approval_updated", refreshPendingEditApprovals);
   useWebSocketEvent("deletion_approval_created", refreshPendingDeletionApprovals);
@@ -187,6 +198,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
     if (href === "/attendance/edit-approvals") return pendingEditApprovals;
     if (href === "/attendance/deletion-approvals") return pendingDeletionApprovals;
     if (href === "/attendance/maintenance-approvals") return pendingMaintenanceApprovals;
+    // My Requests holds Maintenance Requests: its red count is the rejected ones to fix.
+    if (href === "/personal/edit-delete-requests") return rejectedMaintenanceRequests;
     if (href === "/connect/chat") return chatUnread;
     if (href === "/attendance/payment-requests") return pendingPaymentRequests;
     return 0;

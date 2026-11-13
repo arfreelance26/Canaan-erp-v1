@@ -15,6 +15,10 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/feedback";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
+import { TripCategoryFilter, inTripCategory, type TripCategoryChoice } from "@/components/trips/TripCategoryFilter";
+import { TripCategoryTag } from "@/components/trips/TripCategoryTag";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -73,12 +77,13 @@ export default function SheetCollectionPage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  // Trip Category — stays set when the sheet status changes.
+  const [category, setCategory] = useState<TripCategoryChoice>("");
   useGlobalSearchQuery(setSearchQuery);
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Delivered" | "Overdue">("All");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   // Date range (Delivered On) — scopes the PDF export only. Defaults to today.
@@ -203,12 +208,14 @@ export default function SheetCollectionPage() {
 
   // Note: the date range (from/to) intentionally does NOT filter the table —
   // it only scopes the "Download PDF" export below.
-  const tableTrips = filtered.filter((t) => {
+  const statusTrips = filtered.filter((t) => {
     if (statusFilter === "Pending" && t.tripSheetCollected) return false;
     if (statusFilter === "Delivered" && !t.tripSheetCollected) return false;
     if (statusFilter === "Overdue" && !overdueIds.has(t.id)) return false;
     return true;
   });
+  // The category counts come from statusTrips, so each matches what picking it shows.
+  const tableTrips = statusTrips.filter((t) => inTripCategory(t, category));
 
   const totalPages = Math.max(1, Math.ceil(tableTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -357,154 +364,6 @@ export default function SheetCollectionPage() {
     }
   }
 
-  async function handleDownloadPDF(pdfTrips: Trip[]) {
-    if (downloading || pdfTrips.length === 0) return;
-
-    if (pdfTrips.length === 0) {
-      showError("No delivered trips match the selected date range.");
-      return;
-    }
-
-    setDownloading(true);
-    try {
-      const { default: jsPDF } = await import("jspdf");
-
-      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-
-      const pageW = pdf.internal.pageSize.getWidth();   // 297mm landscape
-      const pageH = pdf.internal.pageSize.getHeight();  // 210mm landscape
-      const marginX = 10;
-      const marginY = 14;
-      const rowH = 8;
-      const headerH = 9;
-
-      // Column definitions: [label, width]
-      const cols: [string, number][] = [
-        ["Trip ID",      26],
-        ["Booking Ref",  40],
-        ["Trip Date",    22],
-        ["Vehicle",      26],
-        ["Customer",     34],
-        ["Route",        40],
-        ["Container No", 30],
-        ["Driver",       32],
-        ["Delivered On", 27],
-      ];
-
-      function drawPageHeader(pageNum: number, totalPages: number) {
-        // Title
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(13);
-        pdf.setTextColor(27, 43, 94);
-        pdf.text("Trip Sheet Collection Report", marginX, marginY);
-
-        // Subtitle
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(
-          `Generated on ${today}  ·  ${pdfTrips.length} sheet${pdfTrips.length !== 1 ? "s" : ""} delivered${dateFrom || dateTo ? ` · ${dateFrom || "start"} to ${dateTo || "today"}` : ""}`,
-          marginX, marginY + 5,
-        );
-
-        // Page number
-        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
-
-        // Table header background
-        const tableTop = marginY + 10;
-        pdf.setFillColor(27, 43, 94);
-        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
-
-        // Header labels
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7);
-        pdf.setTextColor(255, 255, 255);
-        let x = marginX;
-        for (const [label, w] of cols) {
-          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
-          x += w;
-        }
-
-        return tableTop + headerH; // y position after header
-      }
-
-      // Pre-build row data
-      const rowData = pdfTrips.map((trip) => {
-        const customer = customerById.get(trip.customerId);
-        const deliveredOn = trip.tripSheetCollectedAt
-          ? (() => {
-              const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+")
-                ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
-              return new Date(utc).toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-            })()
-          : "—";
-        return [
-          trip.tripId,
-          trip.bookingReferenceNo,
-          formatDate(trip.scheduledDate) || "—",
-          trip.truckRegistration ?? trip.vehicleId ?? "—",
-          customer?.name ?? trip.shipperConsignee ?? "—",
-          `${trip.origin} > ${trip.destination}`,
-          containerRef(trip),
-          trip.driverName ?? "—",
-          deliveredOn,
-        ];
-      });
-
-      // Calculate total pages needed
-      const usableH = pageH - marginY - 20; // space below header block
-      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
-      const totalPages = Math.ceil(rowData.length / rowsPerPage);
-
-      let rowIndex = 0;
-      for (let page = 1; page <= totalPages; page++) {
-        if (page > 1) pdf.addPage();
-        const y = drawPageHeader(page, totalPages);
-
-        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
-        rowIndex += rowsPerPage;
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7.5);
-
-        for (let r = 0; r < pageRows.length; r++) {
-          const rowY = y + r * rowH;
-          // Alternating row background
-          if (r % 2 === 1) {
-            pdf.setFillColor(249, 250, 251);
-            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
-          }
-          // Row bottom border
-          pdf.setDrawColor(229, 231, 235);
-          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
-
-          // Cell text
-          pdf.setTextColor(30, 30, 30);
-          let x = marginX;
-          for (let c = 0; c < cols.length; c++) {
-            const [, w] = cols[c];
-            const text = String(pageRows[r][c] ?? "—");
-            // Clip text to column width
-            const clipped = pdf.splitTextToSize(text, w - 4)[0] ?? text;
-            pdf.text(clipped, x + 2, rowY + 5.5);
-            x += w;
-          }
-        }
-
-        // Outer border around table
-        const tableBodyH = pageRows.length * rowH;
-        pdf.setDrawColor(209, 213, 219);
-        pdf.rect(marginX, y, pageW - marginX * 2, tableBodyH, "S");
-      }
-
-      pdf.save(`trip-sheet-collection-${today.replace(/ /g, "-")}.pdf`);
-    } catch {
-      showError("Failed to generate PDF.");
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={8} />;
 
@@ -550,6 +409,7 @@ export default function SheetCollectionPage() {
             ]}
           />
         </div>
+        <TripCategoryFilter tour="trip-category-filter" trips={statusTrips} value={category} onChange={(v) => { setCategory(v); setPage(1); }} />
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
           {/* Scopes the View / PDF report to sheets delivered inside this range (it does not filter the table) */}
@@ -918,7 +778,10 @@ export default function SheetCollectionPage() {
                       </td>
 
                       {/* Trip ID — col 9 */}
-                      <td className="px-4 py-3 font-medium text-text-primary">{trip.tripId}</td>
+                      <td className="px-4 py-3 font-medium text-text-primary">
+                        {trip.tripId}
+                        {trip.tripCategory && <TripCategoryTag category={trip.tripCategory} className="mt-1 block" />}
+                      </td>
 
                       {/* Booking Ref — col 10 */}
                       <td className="px-4 py-3 text-text-secondary text-xs">{trip.bookingReferenceNo}</td>
@@ -1145,10 +1008,14 @@ export default function SheetCollectionPage() {
                 )}
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end shrink-0">
-                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg bg-accent-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-accent-solid-hover disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Download className="h-4 w-4" />
-                  {downloading ? "Generating..." : "Download PDF"}
-                </button>
+                {/* The designed report — the same trips as listed above (trip_pages_report.py). */}
+                <ReportViewButton
+                  path="/exports/resource-report"
+                  filename="Trip_Sheet_Collection.xlsx"
+                  title={`Trip Sheet Collection Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all dates"}${modalStatusFilter !== "All" ? ` — ${modalStatusFilter}` : ""}`}
+                  params={{ kind: "trips_sheets", ...(modalStatusFilter !== "All" ? { stage: modalStatusFilter } : {}), ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}) }}
+                  pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+                />
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RiBarChartBoxLine as BarChart3, RiMessage3Line as MessageSquare, RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp, RiDownloadLine as Download, RiEyeLine as Eye, RiFileExcel2Line as FileSpreadsheet, RiCloseLine as X } from "@remixicon/react";
+import { RiBarChartBoxLine as BarChart3, RiMessage3Line as MessageSquare, RiArrowDownSLine as ChevronDown, RiArrowUpSLine as ChevronUp } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { attendanceApi } from "@/lib/api";
@@ -9,6 +9,8 @@ import { showError } from "@/lib/feedback";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { AttendanceReport } from "@/lib/attendance-report-pdf";
 import { cn } from "@/lib/utils";
 import type { AttendanceSummaryRow, DriverAttendanceRemark } from "@/types/attendance";
 import { formatDate } from "@/lib/format-date";
@@ -117,8 +119,6 @@ export default function AttendanceReportPage() {
   const [latestDate, setLatestDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [downloading, setDownloading] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     attendanceApi.getLatestDate(category).then(setLatestDate).catch(() => {});
@@ -219,263 +219,6 @@ export default function AttendanceReportPage() {
   const driverColumns = ["Driver ID", "Name", "On Trip", "On Halt", "Leave", "On Workshop", "Not Marked", "Active Rate", "Remarks"];
   const staffColumns  = ["Staff ID",  "Name", "Present", "Absent",  "On Leave", "Not Marked", "% Present"];
 
-  async function handleDownloadPDF() {
-    if (downloading || filteredRows.length === 0) return;
-    setDownloading(true);
-    try {
-      const { default: jsPDF } = await import("jspdf");
-      const rangeLabel = fromDate === toDate
-        ? formatDate(fromDate)
-        : `${formatDate(fromDate)} - ${formatDate(toDate)}`;
-      const who = isDriver ? "Driver" : "Staff";
-
-      // status → RGB for jsPDF fills/text
-      const RGB: Record<string, [number, number, number]> = {
-        "Present": [22, 163, 74], "Absent": [220, 38, 38],
-        "On Leave": [161, 98, 7], "Leave": [161, 98, 7],
-        "On Trip": [37, 99, 235], "On Halt": [234, 88, 12],
-        "On Workshop": [124, 58, 237], "Holiday": [37, 99, 235], "Not Marked": [156, 163, 175],
-      };
-      const NAVY: [number, number, number] = [27, 43, 94];
-
-      if (viewMode === "datewise") {
-        // ── Register grid (landscape) ──────────────────────────────────────
-        const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const marginX = 8, marginY = 12;
-        const nameW = 48;
-        const cellW = (pageW - marginX * 2 - nameW) / dates.length;
-        const rowH = 6, headH = 9;
-
-        function docHeader() {
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(13);
-          pdf.setTextColor(...NAVY);
-          pdf.text(`${who} Attendance Register`, marginX, marginY);
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(8);
-          pdf.setTextColor(100, 100, 100);
-          pdf.text(`Period: ${rangeLabel}  |  ${filteredRows.length} ${who.toLowerCase()}${filteredRows.length !== 1 ? "s" : ""}`, marginX, marginY + 5);
-        }
-
-        function colHeader(y: number) {
-          pdf.setFillColor(...NAVY);
-          pdf.rect(marginX, y, pageW - marginX * 2, headH, "F");
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(7);
-          pdf.setTextColor(255, 255, 255);
-          pdf.text(who.toUpperCase(), marginX + 2, y + 6);
-          for (let i = 0; i < dates.length; i++) {
-            const dd = Number(dates[i].split("-")[2]);
-            pdf.text(String(dd), marginX + nameW + i * cellW + cellW / 2, y + 6, { align: "center" });
-          }
-        }
-
-        let curY = marginY + 9;
-        docHeader();
-        colHeader(curY);
-        curY += headH;
-
-        for (let ri = 0; ri < filteredRows.length; ri++) {
-          if (curY + rowH > pageH - marginY) {
-            pdf.addPage();
-            curY = marginY;
-            colHeader(curY);
-            curY += headH;
-          }
-          const r = filteredRows[ri];
-          if (ri % 2 === 1) {
-            pdf.setFillColor(245, 247, 250);
-            pdf.rect(marginX, curY, pageW - marginX * 2, rowH, "F");
-          }
-          // name + code
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(7);
-          pdf.setTextColor(31, 41, 55);
-          pdf.text(String(r.name).slice(0, 26), marginX + 2, curY + 4);
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(5.5);
-          pdf.setTextColor(150, 150, 150);
-          pdf.text(String(r.code), marginX + 2, curY + rowH - 0.6);
-          // status letters
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(7);
-          for (let i = 0; i < dates.length; i++) {
-            const recorded = statusMap[isDriver ? r.code : r.id]?.[dates[i]];
-            const [pyy, pmm, pdd] = dates[i].split("-").map(Number);
-            const pIsHoliday = !isDriver && (new Date(pyy, pmm - 1, pdd).getDay() === 0 || Boolean(holidayMap[dates[i]]));
-            const st = recorded ?? (pIsHoliday ? "Holiday" : "Not Marked");
-            const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
-            pdf.setTextColor(...(RGB[st] ?? RGB["Not Marked"]));
-            pdf.text(disp.abbr, marginX + nameW + i * cellW + cellW / 2, curY + 4, { align: "center" });
-          }
-          curY += rowH;
-        }
-
-        // legend
-        if (curY + 10 > pageH - marginY) { pdf.addPage(); curY = marginY; }
-        curY += 4;
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7);
-        pdf.setTextColor(80, 80, 80);
-        pdf.text("Legend:", marginX, curY);
-        let lx = marginX + 16;
-        const legendItems = isDriver
-          ? ["On Trip", "On Halt", "Leave", "On Workshop", "Not Marked"]
-          : ["Present", "Absent", "On Leave", "Holiday", "Not Marked"];
-        for (const s of legendItems) {
-          const disp = STATUS_DISPLAY[s] ?? STATUS_DISPLAY["Not Marked"];
-          pdf.setTextColor(...(RGB[s] ?? RGB["Not Marked"]));
-          pdf.text(disp.abbr, lx, curY);
-          pdf.setTextColor(90, 90, 90);
-          pdf.text(` = ${s}`, lx + 2, curY);
-          lx += 42;
-        }
-
-        pdf.save(`${who}_Attendance_Register_${fromDate}_to_${toDate}.pdf`);
-      } else {
-        // ── Summary table (portrait) ───────────────────────────────────────
-        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const marginX = 12, marginY = 14;
-        const rowH = 8, headH = 9;
-
-        const cols: [string, number][] = isDriver
-          ? [["#", 10], ["Driver ID", 26], ["Name", 52], ["Trip", 16], ["Halt", 16], ["Leave", 16], ["W.shop", 18], ["N/M", 14], ["Active %", 18]]
-          : [["#", 10], ["Staff ID", 26], ["Name", 64], ["Present", 22], ["Absent", 22], ["On Leave", 24], ["N/M", 16], ["% Pres", 22]];
-
-        function docHeader() {
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(13);
-          pdf.setTextColor(...NAVY);
-          pdf.text(`${who} Attendance Report`, marginX, marginY);
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(8);
-          pdf.setTextColor(100, 100, 100);
-          pdf.text(`Period: ${rangeLabel}  |  ${filteredRows.length} ${who.toLowerCase()}${filteredRows.length !== 1 ? "s" : ""}`, marginX, marginY + 5);
-        }
-
-        function colHeader(y: number) {
-          pdf.setFillColor(...NAVY);
-          pdf.rect(marginX, y, cols.reduce((s, [, w]) => s + w, 0), headH, "F");
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(7);
-          pdf.setTextColor(255, 255, 255);
-          let x = marginX;
-          for (const [label, w] of cols) { pdf.text(label.toUpperCase(), x + 2, y + 6); x += w; }
-        }
-
-        let curY = marginY + 9;
-        docHeader();
-        colHeader(curY);
-        curY += headH;
-
-        filteredRows.forEach((r, idx) => {
-          if (curY + rowH > pageH - marginY) {
-            pdf.addPage(); curY = marginY; colHeader(curY); curY += headH;
-          }
-          if (idx % 2 === 1) {
-            pdf.setFillColor(245, 247, 250);
-            pdf.rect(marginX, curY, cols.reduce((s, [, w]) => s + w, 0), rowH, "F");
-          }
-          const active = r.onTrip + r.onHalt + r.onWorkshop;
-          const driverPct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
-          const staffPct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
-          const cells = isDriver
-            ? [String(idx + 1), r.code, String(r.name).slice(0, 30), String(r.onTrip), String(r.onHalt), String(r.leave), String(r.onWorkshop), String(r.notMarked), `${driverPct}%`]
-            : [String(idx + 1), r.code, String(r.name).slice(0, 36), String(r.present), String(r.absent), String(r.onLeave), String(r.notMarked), `${staffPct}%`];
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(7.5);
-          pdf.setTextColor(40, 40, 40);
-          let x = marginX;
-          cells.forEach((c, ci) => { pdf.text(c, x + 2, curY + 5.5); x += cols[ci][1]; });
-          curY += rowH;
-        });
-
-        pdf.save(`${who}_Attendance_Report_${fromDate}_to_${toDate}.pdf`);
-      }
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to generate PDF.");
-    } finally {
-      setDownloading(false);
-    }
-  }
-
-  async function handleDownloadExcel() {
-    if (filteredRows.length === 0) return;
-    try {
-      const { utils, writeFile } = await import("xlsx");
-      const who = isDriver ? "Driver" : "Staff";
-      let data: Record<string, string | number>[];
-      // Explicit column order. Needed for the datewise register because its date
-      // columns are integer-like keys ("1".."31") and JS always orders those
-      // numerically *before* string keys like "Name" — so key insertion order
-      // alone can't put Name first; json_to_sheet must be told the header order.
-      let header: string[] | undefined;
-
-      if (viewMode === "datewise") {
-        // Register grid: one row per person, one column per date (abbreviation).
-        data = filteredRows.map((r) => {
-          const row: Record<string, string | number> = {
-            Name: r.name,
-            [isDriver ? "Driver ID" : "Staff ID"]: r.code,
-          };
-          dates.forEach((d) => {
-            const recorded = statusMap[isDriver ? r.code : r.id]?.[d];
-            const [yy, mm, dd] = d.split("-").map(Number);
-            const isHoliday = !isDriver && (new Date(yy, mm - 1, dd).getDay() === 0 || Boolean(holidayMap[d]));
-            const st = recorded ?? (isHoliday ? "Holiday" : "Not Marked");
-            row[String(dd)] = (STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"]).abbr;
-          });
-          return row;
-        });
-        const dateKeys = [...new Set(dates.map((d) => String(Number(d.split("-")[2]))))];
-        header = ["Name", isDriver ? "Driver ID" : "Staff ID", ...dateKeys];
-      } else if (isDriver) {
-        data = filteredRows.map((r, idx) => {
-          const active = r.onTrip + r.onHalt + r.onWorkshop;
-          const pct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
-          return {
-            Name: r.name,
-            "#": idx + 1,
-            "Driver ID": r.code,
-            "On Trip": r.onTrip,
-            "On Halt": r.onHalt,
-            Leave: r.leave,
-            "On Workshop": r.onWorkshop,
-            "Not Marked": r.notMarked,
-            "Active %": `${pct}%`,
-          };
-        });
-      } else {
-        data = filteredRows.map((r, idx) => {
-          const pct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
-          return {
-            Name: r.name,
-            "#": idx + 1,
-            "Staff ID": r.code,
-            Present: r.present,
-            Absent: r.absent,
-            "On Leave": r.onLeave,
-            "Not Marked": r.notMarked,
-            "% Present": `${pct}%`,
-          };
-        });
-      }
-
-      const ws = utils.json_to_sheet(data, header ? { header } : undefined);
-      const wb = utils.book_new();
-      const sheetName = viewMode === "datewise" ? "Register" : "Summary";
-      utils.book_append_sheet(wb, ws, sheetName);
-      const kind = viewMode === "datewise" ? "Register" : "Report";
-      writeFile(wb, `${who}_Attendance_${kind}_${fromDate}_to_${toDate}.xlsx`);
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to generate Excel.");
-    }
-  }
-
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -549,16 +292,14 @@ export default function AttendanceReportPage() {
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={fromDate} to={toDate} onFromChange={setFromDate} onToChange={setToDate} />
-          <button
-            type="button"
-            onClick={() => setShowReportModal(true)}
-            disabled={filteredRows.length === 0}
-            title={filteredRows.length === 0 ? "No data to view" : "View and download report"}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Eye className="h-4 w-4" />
-            View
-          </button>
+          {/* The person-wise report: Summary, Register, a sheet per person (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/attendance-report"
+            filename={`${isDriver ? "Driver" : "Staff"}_Attendance.xlsx`}
+            title={`${isDriver ? "Driver" : "Staff"} Attendance Report — ${fromDate.split("-").reverse().join("-")} to ${toDate.split("-").reverse().join("-")}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ category, from_date: fromDate, to_date: toDate, ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/attendance-report-pdf").then((m) => m.downloadAttendanceReportPdf({ report: report as AttendanceReport, filename: file }))}
+          />
         </div>
       </div>
 
@@ -767,124 +508,6 @@ export default function AttendanceReportPage() {
         </>
       )}
 
-      {showReportModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
-          <div className="w-full max-w-5xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
-              <div>
-                <p className="font-semibold text-text-primary">{isDriver ? "Driver" : "Staff"} Attendance {viewMode === "datewise" ? "Register" : "Report"}</p>
-                <p className="text-xs text-text-secondary">
-                  Period: {fromDate === toDate ? formatDate(fromDate) : `${formatDate(fromDate)} – ${formatDate(toDate)}`} · {filteredRows.length} {isDriver ? "driver" : "staff"}{filteredRows.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3"><X className="h-4 w-4" /></button>
-            </div>
-
-            <div className="overflow-auto p-4">
-              {viewMode === "datewise" ? (
-                <table className="border-collapse text-xs">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="bg-fill-1">
-                      <th className="sticky left-0 z-20 min-w-[150px] border-b border-r border-separator-border bg-fill-1 px-3 py-2 text-left font-semibold text-text-secondary">{isDriver ? "Driver" : "Staff"}</th>
-                      {dates.map((d) => (
-                        <th key={d} className="min-w-[28px] border-b border-separator-border px-1 py-2 text-center font-semibold text-text-secondary">{Number(d.split("-")[2])}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filteredRows.map((r) => (
-                      <tr key={r.id} className="hover:bg-fill-2">
-                        <td className="sticky left-0 z-10 border-r border-separator-border bg-background-primary-default px-3 py-1.5">
-                          <div className="whitespace-nowrap font-medium text-text-primary">{r.name}</div>
-                          <div className="text-[10px] text-text-tertiary">{r.code}</div>
-                        </td>
-                        {dates.map((d) => {
-                          const recorded = statusMap[isDriver ? r.code : r.id]?.[d];
-                          const [yy, mm, dd] = d.split("-").map(Number);
-                          const isHoliday = !isDriver && (new Date(yy, mm - 1, dd).getDay() === 0 || Boolean(holidayMap[d]));
-                          const st = recorded ?? (isHoliday ? "Holiday" : "Not Marked");
-                          const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
-                          return (
-                            <td key={d} className="px-1 py-1.5 text-center">
-                              <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded text-caption-2-semibold", disp.cls)}>{disp.abbr}</span>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <table className="w-full text-left text-sm">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="border-b border-separator-border bg-fill-1">
-                      {(isDriver
-                        ? ["#", "Driver ID", "Name", "On Trip", "On Halt", "Leave", "On Workshop", "Not Marked", "Active %"]
-                        : ["#", "Staff ID", "Name", "Present", "Absent", "On Leave", "Not Marked", "% Present"]
-                      ).map((col) => (
-                        <th key={col} className="px-3 py-2.5 text-caption-1-semibold text-text-secondary whitespace-nowrap">{col}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filteredRows.map((r, idx) => {
-                      const active = r.onTrip + r.onHalt + r.onWorkshop;
-                      const dPct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
-                      const sPct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
-                      return (
-                        <tr key={r.id} className="hover:bg-fill-2">
-                          <td className="px-3 py-2 text-text-tertiary text-xs">{idx + 1}</td>
-                          <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{r.code}</td>
-                          <td className="px-3 py-2 text-text-primary whitespace-nowrap">{r.name}</td>
-                          {isDriver ? (
-                            <>
-                              <td className="px-3 py-2 font-semibold text-accent-text">{r.onTrip}</td>
-                              <td className="px-3 py-2 font-semibold text-orange-text">{r.onHalt}</td>
-                              <td className="px-3 py-2 font-semibold text-warning-text">{r.leave}</td>
-                              <td className="px-3 py-2 font-semibold text-purple-text">{r.onWorkshop}</td>
-                              <td className="px-3 py-2 text-text-secondary">{r.notMarked}</td>
-                              <td className="px-3 py-2 text-text-primary">{dPct}%</td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="px-3 py-2 font-semibold text-success-text">{r.present}</td>
-                              <td className="px-3 py-2 font-semibold text-danger-text">{r.absent}</td>
-                              <td className="px-3 py-2 font-semibold text-warning-text">{r.onLeave}</td>
-                              <td className="px-3 py-2 text-text-secondary">{r.notMarked}</td>
-                              <td className="px-3 py-2 text-text-primary">{sPct}%</td>
-                            </>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleDownloadExcel}
-                disabled={filteredRows.length === 0}
-                className="flex items-center gap-2 rounded-lg border border-success-border-strong bg-success-surface px-4 py-2 text-body-semibold text-success-text hover:bg-success-surface-strong disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Download Excel
-              </button>
-              <button
-                type="button"
-                onClick={async () => { await handleDownloadPDF(); }}
-                disabled={downloading || filteredRows.length === 0}
-                className="flex items-center gap-2 rounded-lg bg-danger-solid px-4 py-2 text-body-semibold text-on-solid hover:bg-danger-solid-hover disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className="h-4 w-4" />
-                {downloading ? "Generating…" : "Download PDF"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

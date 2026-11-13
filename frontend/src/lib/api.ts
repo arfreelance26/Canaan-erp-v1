@@ -20,6 +20,7 @@ import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRo
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
 import type { MaintenanceRecord, MaintenanceProof, RepairLine } from "@/types/truck-maintenance";
+import type { Notice, NoticeExpiry, NoticeImage, NoticeSeenRow, UnseenNotice } from "@/types/notice";
 import type { MaintenanceRequest, MaintenanceRequestProof } from "@/types/maintenance-request";
 import type { TyreInventoryItem, TyreData, TyreRemarkPreset, TyreRemarkScenario, RetreadMoveInput, VendorRetread } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
@@ -2357,6 +2358,8 @@ export type TripRecheckEventRow = {
   tripDbId: string;
   tripIdStr: string;
   driverName: string | null;
+  vehicleId: string | null;
+  truckRegistration: string | null;
   origin: string | null;
   destination: string | null;
   event: RecheckEventType;
@@ -2591,6 +2594,8 @@ export const tripsApi = {
         tripDbId: String(r.trip_id ?? ""),
         tripIdStr: String(r.trip_id_str ?? ""),
         driverName: (r.driver_name as string | null) ?? null,
+        vehicleId: (r.vehicle_id as string | null) ?? null,
+        truckRegistration: (r.truck_registration as string | null) ?? null,
         origin: (r.origin as string | null) ?? null,
         destination: (r.destination as string | null) ?? null,
         event: String(r.event) as RecheckEventType,
@@ -3317,6 +3322,9 @@ function toMaintenanceRequest(b: B): MaintenanceRequest {
     rejectReason: b.reject_reason ?? null,
     recordId: b.record_id != null ? String(b.record_id) : null,
     requesterSeenAt: b.requester_seen_at ?? null,
+    resubmitCount: Number(b.resubmit_count ?? 0),
+    previousRejectReason: b.previous_reject_reason ?? null,
+    resubmittedAt: b.resubmitted_at ?? null,
     proofCount: Number(b.proof_count ?? 0),
     createdAt: b.created_at ?? "",
   };
@@ -3356,9 +3364,17 @@ export const maintenanceRequestsApi = {
     const qs = params.toString();
     return rawReq<B[]>(`/maintenance-requests${qs ? `?${qs}` : ""}`).then((d) => d.map(toMaintenanceRequest));
   },
-  /** The logged-in user's own requests (any status but Cancelled). */
-  listMine: (): Promise<MaintenanceRequest[]> =>
-    rawReq<B[]>("/maintenance-requests/mine").then((d) => d.map(toMaintenanceRequest)),
+  /** The logged-in user's own requests, newest first (any status but
+   *  Cancelled / Scheduled): 100 for the bell, up to 500 for Maintenance Requests. */
+  listMine: (limit?: number): Promise<MaintenanceRequest[]> =>
+    rawReq<B[]>(`/maintenance-requests/mine${limit ? `?limit=${limit}` : ""}`).then((d) => d.map(toMaintenanceRequest)),
+  /** Maintenance Requests → Submit for Re-Verification: a rejected request,
+   *  fixed by the person who submitted it, goes back to Maintenance Approvals. */
+  resubmit: (requestId: string, record: MaintenanceRecord, truckDbId: string): Promise<MaintenanceRequest> =>
+    rawReq<B>(`/maintenance-requests/${requestId}/resubmit`, {
+      method: "PUT",
+      body: JSON.stringify({ truck_id: parseInt(truckDbId), ...maintenanceRecordChanges(record) }),
+    }).then(toMaintenanceRequest),
   markMineSeen: (): Promise<void> => rawReq<void>("/maintenance-requests/mine/mark-seen", { method: "POST" }),
   approve: (id: string): Promise<MaintenanceRequest> =>
     rawReq<B>(`/maintenance-requests/${id}/approve`, { method: "PUT" }).then((b) => {
@@ -5740,10 +5756,9 @@ export type CelebrationsOverview = {
   maxMessage: number;
   upcoming: { date: string; days: number; kind: "birthday" | "season" | "founding"; title: string; detail: string }[];
   history: { event: string; actor: string | null; detail: string | null; at: string | null }[];
-  festivals: Record<FestivalKey, Festival>;
 };
-export type FestivalKey = "pongal" | "deepavali" | "ayudha_pooja";
-export type Festival = { name: string; enabled: boolean; dates: string[] };
+/** What Joshine wears today: the person's birthday, Founding Day (5 Jan) or Christmas (24–25 Dec). */
+export type JoshineOutfitKey = "birthday" | "founding" | "christmas";
 /** What Joshine's greeting needs to know about the signed-in person today. */
 export type GreetingContext = {
   today: string;
@@ -5753,6 +5768,9 @@ export type GreetingContext = {
   birthday: boolean;
   workYears: number | null;
   festival: { key: string; name: string } | null;
+  outfit: JoshineOutfitKey | null;
+  /** On Founding Day: how many years (for the crown). */
+  foundingYears: number | null;
 };
 /** Celebrations Management (Admin). */
 export const celebrationsApi = {
@@ -5765,18 +5783,15 @@ export const celebrationsApi = {
       maxMessage: Number(r.max_message ?? 250),
       upcoming: r.upcoming ?? [],
       history: r.history ?? [],
-      festivals: r.festivals ?? {},
     }) as CelebrationsOverview),
   setSwitch: (key: CelebrationKey, enabled: boolean) =>
     rawReq<{ key: string; enabled: boolean }>("/celebrations/switch", { method: "PUT", body: JSON.stringify({ key, enabled }) }),
   setMessages: (messages: Partial<CelebrationMessages>) =>
     rawReq<CelebrationMessages>("/celebrations/messages", { method: "PUT", body: JSON.stringify(messages) }),
-  setFestival: (key: FestivalKey, enabled: boolean, dates: string[]) =>
-    rawReq<Festival>("/celebrations/festivals", { method: "PUT", body: JSON.stringify({ key, enabled, dates }) }),
   /** Every user: whether Admin has tea time on for everyone. */
   teaTime: (): Promise<boolean> =>
     rawReq<{ enabled: boolean }>("/celebrations/tea-time").then((r) => Boolean(r.enabled)),
-  /** Every user: last visit, birthday, work anniversary and festival, for Joshine's greeting. */
+  /** Every user: last visit, birthday, work anniversary, Christmas / New Year / Founding Day, and Joshine's outfit. */
   greeting: () =>
     rawReq<B>(`/celebrations/greeting${previewQuery()}`).then((r) => ({
       today: String(r.today ?? ""),
@@ -5786,6 +5801,8 @@ export const celebrationsApi = {
       birthday: Boolean(r.birthday),
       workYears: typeof r.work_years === "number" ? r.work_years : null,
       festival: (r.festival as GreetingContext["festival"]) ?? null,
+      outfit: (["birthday", "founding", "christmas"] as const).find((k) => k === r.outfit) ?? null,
+      foundingYears: typeof r.founding_years === "number" ? r.founding_years : null,
     }) as GreetingContext),
 };
 
@@ -5965,6 +5982,55 @@ function toDocumentItem(b: B): DocumentItem {
   };
 }
 
+/** Reports Center's trip windows: how many trips each pill and each Trip
+ *  Category would give (GET /exports/trip-report-counts). */
+export type TripReportCounts = {
+  stages: Record<string, number>;
+  stageTotal: number;
+  categories: Record<string, number>;
+  categoryTotal: number;
+};
+
+/** Reports Center's Tyre Inventory window: tyres per status and per brand (GET /exports/tyre-report-counts). */
+export type TyreReportCounts = {
+  stages: Record<string, number>;
+  stageTotal: number;
+  brands: Record<string, number>;
+  brandTotal: number;
+};
+
+export const tyreReportApi = {
+  counts: (params: Record<string, string>): Promise<TyreReportCounts> =>
+    rawReq<B>(`/exports/tyre-report-counts?${new URLSearchParams(params)}`).then((d) => ({
+      stages: (d.stages ?? {}) as Record<string, number>,
+      stageTotal: Number(d.stage_total ?? 0),
+      brands: (d.brands ?? {}) as Record<string, number>,
+      brandTotal: Number(d.brand_total ?? 0),
+    })),
+};
+
+export const tripReportApi = {
+  counts: (params: Record<string, string>): Promise<TripReportCounts> =>
+    rawReq<B>(`/exports/trip-report-counts?${new URLSearchParams(params)}`).then((d) => ({
+      stages: (d.stages ?? {}) as Record<string, number>,
+      stageTotal: Number(d.stage_total ?? 0),
+      categories: (d.categories ?? {}) as Record<string, number>,
+      categoryTotal: Number(d.category_total ?? 0),
+    })),
+};
+
+export type ProofPackSummary = {
+  categories: { key: string; label: string }[];
+  canIncludeIds: boolean;
+  documents: number;
+  bytes: number;
+  amount: number;
+  missing: number;
+  maxDocuments: number;
+  maxBytes: number;
+  tooBig: boolean;
+};
+
 export const documentsApi = {
   /** Everything this role may see, plus the types it may filter by. Always fresh. */
   list: (): Promise<{ categories: { key: string; label: string }[]; items: DocumentItem[] }> =>
@@ -5972,6 +6038,22 @@ export const documentsApi = {
       categories: ((d.categories as B[]) ?? []).map((c) => ({ key: String(c.key), label: String(c.label) })),
       items: ((d.items as B[]) ?? []).map(toDocumentItem),
     })),
+  /** What a Proof Pack with these filters would hold (Reports Center), before building it. */
+  packSummary: (params: Record<string, string>): Promise<ProofPackSummary> =>
+    rawReq<B>(`/documents/pack/summary?${new URLSearchParams(params)}`).then((d) => ({
+      categories: ((d.categories as B[]) ?? []).map((c) => ({ key: String(c.key), label: String(c.label) })),
+      canIncludeIds: !!d.can_include_ids,
+      documents: Number(d.documents ?? 0),
+      bytes: Number(d.bytes ?? 0),
+      amount: Number(d.amount ?? 0),
+      missing: Number(d.missing ?? 0),
+      maxDocuments: Number(d.max_documents ?? 0),
+      maxBytes: Number(d.max_bytes ?? 0),
+      tooBig: !!d.too_big,
+    })),
+  /** The Proof Pack itself: one PDF of every document in the selection. */
+  pack: (params: Record<string, string>): Promise<{ blob: Blob; filename: string }> =>
+    fetchExcel(`/documents/pack?${new URLSearchParams(params)}`, "Proof_Pack.pdf"),
   /** Costs that still have no proof. */
   missing: (): Promise<DocumentItem[]> => rawReq<B[]>("/documents/missing").then((d) => d.map(toDocumentItem)),
   /** One document's file, fetched with the auth header (checked by the page's own rules). */
@@ -7118,6 +7200,112 @@ function toNoteUsage(b: B): NoteUsage {
 }
 
 // rawReq (not the cached req): a note just saved must never come back stale.
+// ── Notice Board (B) — backend/routers/notices.py ─────────────────────────────
+
+function toNotice(b: B): Notice {
+  return {
+    id: Number(b.id),
+    staffId: b.staff_id != null ? Number(b.staff_id) : null,
+    authorName: String(b.author_name ?? ""),
+    authorRole: b.author_role ?? null,
+    title: String(b.title ?? ""),
+    body: String(b.body ?? ""),
+    important: !!b.important,
+    pinned: !!b.pinned,
+    expiresAt: b.expires_at ?? null,
+    editedAt: b.edited_at ?? null,
+    createdAt: String(b.created_at ?? ""),
+    images: ((b.images ?? []) as B[]).map((i) => ({
+      id: Number(i.id), mime: String(i.mime ?? ""), fileName: String(i.file_name ?? "image"), sizeBytes: Number(i.size_bytes ?? 0),
+    })),
+    reactions: ((b.reactions ?? []) as B[]).map((r) => ({
+      emoji: String(r.emoji), count: Number(r.count ?? 0), mine: !!r.mine, names: (r.names ?? []).map(String),
+    })),
+    seenCount: Number(b.seen_count ?? 0),
+    seenByMe: !!b.seen_by_me,
+    mine: !!b.mine,
+    canEdit: !!b.can_edit,
+    canDelete: !!b.can_delete,
+    canSeeSeenBy: !!b.can_see_seen_by,
+  };
+}
+
+/** Uncached (rawReq): the board must never show stale notices. */
+export const noticesApi = {
+  list: (q?: string): Promise<Notice[]> =>
+    rawReq<B[]>(`/notices${q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`).then((d) => d.map(toNotice)),
+  unseen: (): Promise<UnseenNotice[]> =>
+    rawReq<B[]>("/notices/unseen").then((d) => d.map((u) => ({
+      id: Number(u.id), title: String(u.title ?? ""), preview: String(u.preview ?? ""), authorName: String(u.author_name ?? ""),
+      important: !!u.important, imageCount: Number(u.image_count ?? 0), createdAt: String(u.created_at ?? ""),
+    }))),
+  markSeen: (ids: number[]): Promise<void> =>
+    rawReq<void>("/notices/seen", { method: "POST", body: JSON.stringify({ ids }) }),
+  seenBy: (id: number): Promise<NoticeSeenRow[]> =>
+    rawReq<B[]>(`/notices/${id}/seen`).then((d) => d.map((r) => ({ name: String(r.name ?? ""), role: r.role ?? null, seenAt: String(r.seen_at ?? "") }))),
+  create: (payload: { title: string; body: string; important: boolean; expiresInDays: NoticeExpiry; hasImages: boolean }): Promise<Notice> =>
+    rawReq<B>("/notices", {
+      method: "POST",
+      body: JSON.stringify({
+        title: payload.title, body: payload.body, important: payload.important,
+        expires_in_days: payload.expiresInDays, has_images: payload.hasImages,
+      }),
+    }).then(toNotice),
+  /** expiresInDays: 0 = never, 1 / 7 / 30 = from now; leave out to keep it. */
+  update: (id: number, patch: { title?: string; body?: string; important?: boolean; expiresInDays?: 0 | 1 | 7 | 30 }): Promise<Notice> =>
+    rawReq<B>(`/notices/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: patch.title, body: patch.body, important: patch.important, expires_in_days: patch.expiresInDays,
+      }),
+    }).then(toNotice),
+  remove: (id: number): Promise<void> => rawReq<void>(`/notices/${id}`, { method: "DELETE" }),
+  pin: (id: number, pinned: boolean): Promise<Notice> =>
+    rawReq<B>(`/notices/${id}/pin`, { method: "PUT", body: JSON.stringify({ pinned }) }).then(toNotice),
+  react: (id: number, emoji: string): Promise<Notice> =>
+    rawReq<B>(`/notices/${id}/reactions`, { method: "PUT", body: JSON.stringify({ emoji }) }).then(toNotice),
+  uploadImage: async (id: number, file: File): Promise<NoticeImage> => {
+    const form = new FormData();
+    form.append("file", file, file.name || "image");
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/notices/${id}/images`, { method: "POST", headers: authHeaders(), body: form });
+    } catch {
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Upload failed: HTTP ${res.status}`));
+    const i = (await res.json()) as B;
+    return { id: Number(i.id), mime: String(i.mime ?? ""), fileName: String(i.file_name ?? "image"), sizeBytes: Number(i.size_bytes ?? 0) };
+  },
+  removeImage: (id: number, imageId: number): Promise<void> =>
+    rawReq<void>(`/notices/${id}/images/${imageId}`, { method: "DELETE" }),
+  /** A picture as a blob (the route needs the sign-in header, so no plain <img src>). */
+  imageBlob: async (id: number, imageId: number): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/notices/${id}/images/${imageId}`, { headers: authHeaders() });
+    } catch {
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not open the picture: HTTP ${res.status}`));
+    return res.blob();
+  },
+};
+
+/** A designed report's preview (sheets with formulas worked out) and the
+ *  figures behind it, for its PDF — e.g. GET /exports/maintenance-report/preview. */
+export function fetchReportPreview<T = unknown>(path: string): Promise<{ filename: string; sheets: { name: string; rows: string[][] }[]; report: T }> {
+  return rawReq<{ filename: string; sheets: { name: string; rows: string[][] }[]; report: T }>(path);
+}
+
 export const notesApi = {
   list: (): Promise<{ items: NoteSummary[]; usage: NoteUsage }> =>
     rawReq<B>("/notes").then((d) => ({ items: (d.items ?? []).map(toNoteSummary), usage: toNoteUsage(d.usage ?? {}) })),

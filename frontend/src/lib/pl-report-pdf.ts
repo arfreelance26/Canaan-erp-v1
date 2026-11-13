@@ -15,6 +15,8 @@
 import type { PlComputed } from "@/lib/api";
 
 type Report = {
+  /** View's choice: Trip Profitability, Truck Profitability, or both (the full report). */
+  part?: "both" | "trips" | "trucks";
   computed: PlComputed;
   startDate: string;
   endDate: string;
@@ -46,7 +48,10 @@ const d = (iso: string) => (iso ? iso.slice(0, 10).split("-").reverse().join("-"
 const signed = (v: number | null | undefined): Cell =>
   v == null ? { text: "-", align: "right" } : { text: money(v), align: "right", color: v < 0 ? RED : GREEN, bold: true };
 
-export async function downloadPlReportPdf({ computed, startDate, endDate, mode, search, filename, deliver }: Report): Promise<void> {
+export async function downloadPlReportPdf({ computed, startDate, endDate, mode, search, filename, deliver, part = "both" }: Report): Promise<void> {
+  const showTrips = part !== "trucks";
+  const showTrucks = part !== "trips";
+  const reportTitle = part === "trips" ? "Trip Profitability Report" : part === "trucks" ? "Truck Profitability Report" : "Profitability Report";
   const { default: jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const W = pdf.internal.pageSize.getWidth();
@@ -147,7 +152,7 @@ export async function downloadPlReportPdf({ computed, startDate, endDate, mode, 
   const emiFull = trucks.reduce((s, e) => s + (e.emiDetails ?? []).reduce((a, l) => a + l.fullForPeriod, 0), 0);
 
   // ── 1. Summary ───────────────────────────────────────────────────────────────
-  let y = pageTitle("Profitability Report", `${period} · Cost mode: ${mode} · Downloaded ${new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}${search ? ` · Search: "${search}" (only matching trips and trucks)` : ""}`);
+  let y = pageTitle(reportTitle, `${period} · Cost mode: ${mode} · Downloaded ${new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}${search ? ` · Search: "${search}" (only matching trips and trucks)` : ""}`);
   const boxW = (W - M * 2 - 8) / 2;
   const box = (x: number, title: string, question: string, lines: [string, string, Cell?][]) => {
     let by = y + 2;
@@ -166,7 +171,9 @@ export async function downloadPlReportPdf({ computed, startDate, endDate, mode, 
     }
     return by;
   };
-  const yTrips = box(M, "TRIP PROFITABILITY", "Was each trip a good deal? Each trip at steady costs per km, whether the truck was busy or quiet that month.", [
+  const otherBox = (x: number, title: string, label: string, v: number | null) =>
+    box(x, title, "In its own report — choose it, or \"Both\", under View.", [[label, "", signed(v)]]);
+  const yTrips = !showTrips ? otherBox(M, "TRIP PROFITABILITY", "Profit after all costs (Rs.)", tt.final) : box(M, "TRIP PROFITABILITY", "Was each trip a good deal? Each trip at steady costs per km, whether the truck was busy or quiet that month.", [
     ["Trips counted", `${tt.counted}${tt.flagged ? ` (+${tt.flagged} under audit review)` : ""}`],
     ["Hire (Rs.)", money(tt.hire)],
     ["Trip expenses (Rs.)", money(tt.tripExpenses)],
@@ -176,7 +183,7 @@ export async function downloadPlReportPdf({ computed, startDate, endDate, mode, 
     ["Profitable trips", `${tt.profitable} of ${tt.finalTrips}`],
     ["Trips that can't be judged", String(tt.unjudged)],
   ]);
-  const yTrucks = box(M + boxW + 8, "TRUCK PROFITABILITY", "What did each truck really make? The real bills: full EMI instalments (idle days too), actual repair bills and documents.", [
+  const yTrucks = !showTrucks ? otherBox(M + boxW + 8, "TRUCK PROFITABILITY", "Profit after all costs (Rs.)", kt.net) : box(M + boxW + 8, "TRUCK PROFITABILITY", "What did each truck really make? The real bills: full EMI instalments (idle days too), actual repair bills and documents.", [
     ["Trucks", `${kt.trucks}${kt.idle ? ` (${kt.idle} with no trips)` : ""}`],
     ["Hire (Rs.)", money(kt.hire)],
     ["Trip expenses + diesel (Rs.)", money(kt.tripExpenses + kt.diesel)],
@@ -190,7 +197,7 @@ export async function downloadPlReportPdf({ computed, startDate, endDate, mode, 
 
   // Why the two tabs differ.
   const w = kt.whyDiffer;
-  if (w && Math.abs(kt.net - w.tripsFinal) >= 1) {
+  if (part === "both" && w && Math.abs(kt.net - w.tripsFinal) >= 1) {
     text("WHY THE TWO TABS DIFFER", M, y, { size: 9, bold: true, color: NAVY });
     y += 5;
     const lines: [string, number][] = [
@@ -222,13 +229,14 @@ export async function downloadPlReportPdf({ computed, startDate, endDate, mode, 
   if (dh.noDieselTrips) worth.push(`${dh.noDieselTrips} trip(s) on ${dh.noDieselTrucks} truck(s) can't be judged: no diesel cost per km (needs 2+ fuel fills).`);
   if (dh.documentsWithoutCost) worth.push(`${dh.documentsWithoutCost} document(s) have an expiry date but no cost entered, so they count as Rs. 0.`);
   if (worth.length) {
-    if (y > H - 30) { pdf.addPage(); y = pageTitle("Profitability Report") + 2; }
+    if (y > H - 30) { pdf.addPage(); y = pageTitle(reportTitle) + 2; }
     text("WORTH KNOWING", M, y, { size: 9, bold: true, color: [197, 90, 17] });
     y += 5;
     worth.forEach((s, i) => { y = para(`${i + 1}. ${s}`, M + 3, y, W - M * 2 - 6, 8); });
   }
 
   // ── 2. Trucks ────────────────────────────────────────────────────────────────
+  if (showTrucks) {
   pdf.addPage();
   const truckSub = "The real bills for the period. EMI marked * is less than the full instalments — see the notes below the table.";
   y = pageTitle("Truck Profitability", truckSub) + 1;
@@ -271,7 +279,10 @@ export async function downloadPlReportPdf({ computed, startDate, endDate, mode, 
     }
   }
 
+  }
+
   // ── 3. Trips ─────────────────────────────────────────────────────────────────
+  if (showTrips) {
   pdf.addPage();
   const tripSub = "Each trip at steady costs per km. Truck expenses = EMI, maintenance, tyres, AdBlue and documents for the trip's km.";
   y = pageTitle("Trip Profitability", tripSub) + 1;
@@ -300,12 +311,14 @@ export async function downloadPlReportPdf({ computed, startDate, endDate, mode, 
     para(`${tt.flagged} trip(s) under audit review are listed in grey but left out of every total until the review is done.`, M + 2, y, W - M * 2, 7, GREY);
   }
 
+  }
+
   // Page numbers on every page.
   const n = pdf.getNumberOfPages();
   for (let i = 1; i <= n; i++) {
     pdf.setPage(i);
     text(`Page ${i} of ${n}`, W - M, H - 6, { size: 7, color: GREY, align: "right" });
-    text(`${COMPANY} · Profitability Report · ${period}`, M, H - 6, { size: 7, color: GREY });
+    text(`${COMPANY} · ${reportTitle} · ${period}`, M, H - 6, { size: 7, color: GREY });
   }
   const name = `${filename.replace(/\.xlsx$/i, "")}.pdf`;
   if (deliver) deliver(pdf, name);

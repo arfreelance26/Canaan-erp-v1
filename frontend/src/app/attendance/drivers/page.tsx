@@ -1,6 +1,6 @@
 "use client";
 
-import { RiLockLine as Lock, RiDownloadLine as Download, RiLoader4Line as Loader2, RiInformationLine as Info, RiCloseLine as X, RiEyeLine as Eye, RiProfileLine as IdCard, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
+import { RiLockLine as Lock, RiLoader4Line as Loader2, RiInformationLine as Info, RiProfileLine as IdCard, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { PagedTbody } from "@/components/ui/PagedTbody";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -15,7 +15,8 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/feedback";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { AttendanceReport } from "@/lib/attendance-report-pdf";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -55,13 +56,8 @@ export default function DriverAttendancePage() {
   const [remarks, setRemarks] = useState<DriverAttendanceRemark[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [downloading, setDownloading] = useState(false);
   const [fromDate, setFromDate] = useState(todayIst());
   const [toDate, setToDate] = useState(todayIst());
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportRecords, setReportRecords] = useState<DriverAttendanceRecord[]>([]);
-  const [reportRemarks, setReportRemarks] = useState<DriverAttendanceRemark[]>([]);
-  const [reportLoading, setReportLoading] = useState(false);
   const [lateEntryLog, setLateEntryLog] = useState<{ id: string; date: string; remark: string; createdAt: string | null } | null>(null);
   const [lateEntryRemark, setLateEntryRemark] = useState("");
   const [submittingLateEntry, setSubmittingLateEntry] = useState(false);
@@ -178,250 +174,6 @@ export default function DriverAttendancePage() {
     }
   }, []);
 
-  async function handleViewReport() {
-    setReportLoading(true);
-    setShowReportModal(true);
-    try {
-      const [r, rm] = await Promise.all([
-        attendanceApi.listDrivers(undefined, undefined, fromDate, toDate),
-        attendanceApi.listDriverRemarks(undefined, undefined, fromDate, toDate),
-      ]);
-      setReportRecords(r);
-      setReportRemarks(rm);
-    } finally {
-      setReportLoading(false);
-    }
-  }
-
-  async function handleDownloadPDF() {
-    if (downloading || drivers.length === 0) return;
-    setDownloading(true);
-    try {
-      const { default: jsPDF } = await import("jspdf");
-
-      // Fetch all records and remarks for the selected date range
-      const [rangeRecords, rangeRemarks] = await Promise.all([
-        attendanceApi.listDrivers(undefined, undefined, fromDate, toDate),
-        attendanceApi.listDriverRemarks(undefined, undefined, fromDate, toDate),
-      ]);
-
-      // Build sorted list of all dates in the range (inclusive)
-      const dates: string[] = [];
-      const [fy, fm, fd] = fromDate.split("-").map(Number);
-      const [ty, tm, td] = toDate.split("-").map(Number);
-      const cur = new Date(fy, fm - 1, fd);
-      const end = new Date(ty, tm - 1, td);
-      while (cur <= end) {
-        dates.push(
-          `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
-        );
-        cur.setDate(cur.getDate() + 1);
-      }
-
-      const isSingleDay = fromDate === toDate;
-      const rangeLabel = isSingleDay
-        ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
-        : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}`;
-
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const marginX = 14;
-      const marginY = 14;
-      const rowH = 8;
-      const headerH = 9;
-      const dayHeadH = 7; // height of the per-day date banner
-
-      const STATUS_COLORS: Record<string, [number, number, number]> = {
-        "On Trip":     [37, 99, 235],
-        "On Halt":     [234, 88, 12],
-        "Leave":       [161, 98, 7],
-        "On Workshop": [124, 58, 237],
-        "Not Marked":  [107, 114, 128],
-      };
-
-      const cols: [string, number][] = [
-        ["#",           10],
-        ["Driver ID",   30],
-        ["Driver Name", 72],
-        ["Status",      50],
-        ["Remarks",     21],
-      ];
-
-      // Build flat list of all rows across all dates
-      type PdfRow = { dateLabel: string; idx: number; driverId: string; name: string; status: string; remarkText: string };
-      const allRows: PdfRow[] = [];
-      for (const d of dates) {
-        const displayDate = new Date(d + "T00:00:00").toLocaleDateString("en-GB", {
-          day: "2-digit", month: "2-digit", year: "numeric", weekday: "short",
-        }).replace(/\//g, "-");
-        drivers.forEach((driver, idx) => {
-          const record = rangeRecords.find((r) => r.driverId === driver.driverId && r.date === d);
-          const status = record?.status ?? "Not Marked";
-          const driverRemarks = rangeRemarks.filter((r) => r.driverId === driver.driverId && r.date === d);
-          const remarkText = driverRemarks.map((r) => r.remark).join("; ");
-          allRows.push({ dateLabel: displayDate, idx: idx + 1, driverId: driver.driverId, name: driver.name ?? "—", status, remarkText });
-        });
-      }
-
-      // Estimate total pages: each row is rowH, day banners add dayHeadH, page header is ~24mm
-      const usableH = pageH - marginY - 10;
-      const colHeaderH = headerH;
-
-      // We'll render dynamically — track cursor Y
-      let pageNum = 1;
-      let curY = marginY;
-      let isFirstPage = true;
-      let currentDayLabel = "";
-      let tableStartY = 0;
-      let rowsOnPage: number[] = []; // heights so we can draw border at end
-
-      function drawDocHeader() {
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(13);
-        pdf.setTextColor(27, 43, 94);
-        pdf.text("Driver Attendance Report", marginX, curY);
-        curY += 6;
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`Period: ${rangeLabel}  ·  ${drivers.length} driver${drivers.length !== 1 ? "s" : ""}`, marginX, curY);
-        curY += 6;
-      }
-
-      function drawColHeader() {
-        pdf.setFillColor(27, 43, 94);
-        pdf.rect(marginX, curY, pageW - marginX * 2, colHeaderH, "F");
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7);
-        pdf.setTextColor(255, 255, 255);
-        let x = marginX;
-        for (const [label, w] of cols) {
-          pdf.text(label.toUpperCase(), x + 2, curY + 6);
-          x += w;
-        }
-        tableStartY = curY;
-        rowsOnPage = [];
-        curY += colHeaderH;
-      }
-
-      function closeBorder() {
-        if (rowsOnPage.length > 0) {
-          const totalRowH = rowsOnPage.reduce((a, b) => a + b, 0);
-          pdf.setDrawColor(209, 213, 219);
-          pdf.rect(marginX, tableStartY, pageW - marginX * 2, colHeaderH + totalRowH, "S");
-        }
-      }
-
-      function newPage() {
-        closeBorder();
-        pdf.addPage();
-        pageNum++;
-        curY = marginY;
-        // Continuation header
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`Driver Attendance Report — ${rangeLabel} (continued)`, marginX, curY);
-        pdf.text(`Page ${pageNum}`, pageW - marginX, curY, { align: "right" });
-        curY += 6;
-        drawColHeader();
-      }
-
-      // First page header
-      drawDocHeader();
-      drawColHeader();
-      isFirstPage = false;
-
-      for (let i = 0; i < allRows.length; i++) {
-        const row = allRows[i];
-
-        // Inject day banner when date changes
-        if (!isSingleDay && row.dateLabel !== currentDayLabel) {
-          // Need space for banner + at least one data row
-          if (curY + dayHeadH + rowH > pageH - marginY) {
-            newPage();
-          }
-          currentDayLabel = row.dateLabel;
-          pdf.setFillColor(239, 246, 255);
-          pdf.rect(marginX, curY, pageW - marginX * 2, dayHeadH, "F");
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(7.5);
-          pdf.setTextColor(27, 43, 94);
-          pdf.text(row.dateLabel, marginX + 3, curY + 5);
-          rowsOnPage.push(dayHeadH);
-          curY += dayHeadH;
-        }
-
-        // Page break check for data row
-        if (curY + rowH > pageH - marginY) {
-          newPage();
-          // Re-inject day banner on new page if mid-day
-          if (!isSingleDay) {
-            pdf.setFillColor(239, 246, 255);
-            pdf.rect(marginX, curY, pageW - marginX * 2, dayHeadH, "F");
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(7.5);
-            pdf.setTextColor(27, 43, 94);
-            pdf.text(`${row.dateLabel} (cont.)`, marginX + 3, curY + 5);
-            rowsOnPage.push(dayHeadH);
-            curY += dayHeadH;
-          }
-        }
-
-        // Alternating row background
-        const rowIndexInTable = rowsOnPage.length;
-        if (rowIndexInTable % 2 === 1) {
-          pdf.setFillColor(249, 250, 251);
-          pdf.rect(marginX, curY, pageW - marginX * 2, rowH, "F");
-        }
-        pdf.setDrawColor(229, 231, 235);
-        pdf.line(marginX, curY + rowH, pageW - marginX, curY + rowH);
-
-        // Cell content
-        let x = marginX;
-        const cells = [String(row.idx), row.driverId, row.name, row.status, row.remarkText || "—"];
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        for (let c = 0; c < cols.length; c++) {
-          const [, w] = cols[c];
-          if (c === 3) {
-            const [cr, cg, cb] = STATUS_COLORS[row.status] ?? [107, 114, 128];
-            pdf.setTextColor(cr, cg, cb);
-          } else {
-            pdf.setTextColor(30, 30, 30);
-          }
-          const clipped = pdf.splitTextToSize(cells[c], w - 4)[0] ?? "";
-          pdf.text(clipped, x + 2, curY + 5.5);
-          x += w;
-        }
-
-        rowsOnPage.push(rowH);
-        curY += rowH;
-      }
-
-      // Close the final border
-      closeBorder();
-
-      // Add page numbers on every page
-      const totalPages = pdf.getNumberOfPages();
-      for (let p = 1; p <= totalPages; p++) {
-        pdf.setPage(p);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7);
-        pdf.setTextColor(150, 150, 150);
-        pdf.text(`Page ${p} of ${totalPages}`, pageW - marginX, pageH - 6, { align: "right" });
-      }
-
-      const fileSuffix = isSingleDay ? fromDate : `${fromDate}_to_${toDate}`;
-      pdf.save(`driver-attendance-${fileSuffix}.pdf`);
-    } catch {
-      showError("Failed to generate PDF.");
-    } finally {
-      setDownloading(false);
-    }
-  }
-
   // Admin has no date restrictions. Non-admin: locked if date is older than 2 days.
   const isLockedDate = useMemo(() => {
     if (isAdmin) return false;
@@ -480,9 +232,9 @@ export default function DriverAttendancePage() {
           </button>
 )}
           {/* Day being marked */}
-          <div className="flex h-10 items-center gap-1 rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition-transform duration-300 hover:shadow-md [&_.border-gold-solid]:!border-0 [&_.border-gold-solid]:!bg-transparent [&_.border-gold-solid]:!px-1 [&_.border-gold-solid]:!py-1 [&_.border-gold-solid]:!shadow-none [&_.border-brand-gold_svg]:!text-text-secondary">
-            <div className="w-[128px]">
-              <DatePickerInput value={date} onChange={(v) => setDate(v)} clearable={false} />
+          <div className="flex h-10 items-center rounded-full border border-border-button-default bg-background-primary-default px-3 shadow-xs transition-colors hover:border-border-button-hover">
+            <div className="w-[112px]">
+              <DatePickerInput value={date} onChange={(v) => setDate(v)} clearable={false} variant="bare" aria-label="Attendance date" />
             </div>
           </div>
         </div>
@@ -561,15 +313,14 @@ export default function DriverAttendancePage() {
             onFromChange={(v) => { setFromDate(v); if (v > toDate) setToDate(v); }}
             onToChange={(v) => { setToDate(v); if (v < fromDate) setFromDate(v); }}
           />
-          <button
-            type="button"
-            onClick={handleViewReport}
-            disabled={reportLoading}
-            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-solid px-5 text-body-medium text-on-solid shadow-sm transition duration-300 hover:bg-accent-solid-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-            View
-          </button>
+          {/* The person-wise report: Summary, Register, a sheet per driver (+ its PDF). */}
+          <ReportViewButton
+            path="/exports/attendance-report"
+            filename="Driver_Attendance.xlsx"
+            title={`Driver Attendance Report — ${fromDate.split("-").reverse().join("-")} to ${toDate.split("-").reverse().join("-")}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ category: "driver", from_date: fromDate, to_date: toDate, ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/attendance-report-pdf").then((m) => m.downloadAttendanceReportPdf({ report: report as AttendanceReport, filename: file }))}
+          />
         </div>
       </div>
 
@@ -584,126 +335,6 @@ export default function DriverAttendancePage() {
         onUpdateRemark={handleUpdateRemark}
         onDeleteRemark={handleDeleteRemark}
       />
-
-      {showReportModal && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-scrim/50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}
-        >
-          <div className="w-full max-w-5xl rounded-xl bg-background-primary-default shadow-2xl flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
-              <div>
-                <p className="font-semibold text-text-primary">Driver Attendance Report</p>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  {fromDate === toDate
-                    ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
-                    : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}`}
-                  {" · "}{drivers.length} driver{drivers.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowReportModal(false)}
-                className="rounded-lg p-1.5 text-text-tertiary hover:bg-fill-3"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Report table */}
-            <div className="flex-1 overflow-auto px-5 py-4">
-              {reportLoading ? (
-                <div className="flex items-center justify-center py-16 gap-2 text-sm text-text-tertiary">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Loading report…
-                </div>
-              ) : reportRecords.length === 0 && drivers.length === 0 ? (
-                <EmptyState size="compact" illustration="no-data" title="No attendance data for the selected range" />
-              ) : (
-                <table className="w-full text-left text-sm">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="border-b border-separator-border bg-fill-1">
-                      {["#", "Driver ID", "Driver Name", "Date", "Status", "Remarks"].map((col) => (
-                        <th key={col} className="px-3 py-2.5 text-caption-1-semibold text-text-secondary whitespace-nowrap">
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                    {(() => {
-                      const dates: string[] = [];
-                      const [fy, fm, fd] = fromDate.split("-").map(Number);
-                      const [ty, tm, td] = toDate.split("-").map(Number);
-                      const cur = new Date(fy, fm - 1, fd);
-                      const end = new Date(ty, tm - 1, td);
-                      while (cur <= end) {
-                        dates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
-                        cur.setDate(cur.getDate() + 1);
-                      }
-                      // One row per day per person; only the current page of rows is drawn.
-                      const cells = dates.flatMap((d) => drivers.map((driver) => ({ d, driver })));
-                      return (
-                        <PagedTbody className="divide-y divide-separator-border" items={cells}>
-                          {({ d, driver }, i) => {
-                          const rowIdx = i + 1;
-                          const record = reportRecords.find((r) => r.driverId === driver.driverId && r.date === d);
-                          const status = record?.status ?? "Not Marked";
-                          const driverRemarks = reportRemarks.filter((r) => r.driverId === driver.driverId && r.date === d);
-                          const remarkText = driverRemarks.map((r) => r.remark).join("; ") || "—";
-                          const statusColor: Record<string, string> = {
-                            "On Trip": "text-accent-text bg-accent-surface",
-                            "On Halt": "text-orange-text bg-orange-surface",
-                            "Leave": "text-warning-text bg-warning-surface",
-                            "On Workshop": "text-purple-text bg-purple-surface",
-                            "Not Marked": "text-text-secondary bg-fill-1",
-                          };
-                          return (
-                            <tr key={`${d}-${driver.driverId}`} className="hover:bg-fill-2">
-                              <td className="px-3 py-2 text-text-tertiary text-xs">{rowIdx}</td>
-                              <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{driver.driverId}</td>
-                              <td className="px-3 py-2 text-text-primary whitespace-nowrap">{driver.name}</td>
-                              <td className="px-3 py-2 text-text-secondary whitespace-nowrap">
-                                {new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}
-                              </td>
-                              <td className="px-3 py-2">
-                                <span className={`rounded-full px-2 py-0.5 text-caption-1-medium ${statusColor[status] ?? "text-text-secondary bg-fill-1"}`}>
-                                  {status}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-text-secondary text-xs max-w-[200px] truncate">{remarkText}</td>
-                            </tr>
-                          );
-                          }}
-                        </PagedTbody>
-                      );
-                    })()}
-                </table>
-              )}
-            </div>
-
-            {/* Footer actions */}
-            <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
-              <DownloadExcelButton
-                path="/exports/driver-attendance"
-                filename={`driver_attendance_${fromDate}_to_${toDate}.xlsx`}
-                params={{ from_date: fromDate, to_date: toDate }}
-                direct
-                className="flex items-center gap-2 rounded-lg border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap"
-              />
-              <button
-                type="button"
-                onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }}
-                disabled={downloading || drivers.length === 0}
-                className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className="h-4 w-4" />
-                {downloading ? "Generating..." : "Download PDF"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Edit History — every mark/remark event ever logged, across every
           driver, in one searchable log. */}

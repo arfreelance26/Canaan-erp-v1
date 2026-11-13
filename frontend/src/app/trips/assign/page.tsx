@@ -16,12 +16,15 @@ import type { DriverAssignment } from "@/types/driver-assignment";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
+import { TRIP_CATEGORY_LABEL } from "@/components/trips/TripCategoryTag";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+import { TripCategoryFilter, inTripCategory, type TripCategoryChoice } from "@/components/trips/TripCategoryFilter";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import dynamic from "next/dynamic";
@@ -65,6 +68,7 @@ export default function AssignTripsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [category, setCategory] = useState<TripCategoryChoice>("");
   useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
@@ -222,9 +226,10 @@ export default function AssignTripsPage() {
   }
 
   // Show only Assigned trips in Assign Trips page
-  const assignedTrips = trips
+  const assignedBeforeCategory = trips
     .filter((trip) => trip.status === "Assigned")
     .filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
+  const assignedTrips = assignedBeforeCategory.filter((t) => inTripCategory(t, category));
 
   if (loading) return <PageSkeleton hasButton hasSearch columns={6} />;
 
@@ -267,9 +272,17 @@ export default function AssignTripsPage() {
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
+        <TripCategoryFilter tour="trip-category-filter" trips={assignedBeforeCategory} value={category} onChange={setCategory} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           {/* Only the trips this page lists (status Assigned), not every trip in the system */}
-          <DownloadExcelButton path="/exports/trips" filename="assigned_trips.xlsx" params={{ status: "Assigned" }} />
+          {/* The designed report: Summary, a sheet per stage, and its PDF (trip_pages_report.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Assign_Trips.xlsx"
+            title={`Assign Trips Report${category ? ` — ${TRIP_CATEGORY_LABEL[category]}` : ""}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "trips_assign", ...(category ? { trip_category: category } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
         </div>
       </div>
 

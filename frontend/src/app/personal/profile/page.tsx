@@ -30,6 +30,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { EventsButton } from "@/components/layout/EventsButton";
 import { NotesButton } from "@/components/layout/NotesButton";
 import { TodoButton } from "@/components/layout/TodoButton";
+import { NoticeBoardTile } from "@/components/layout/NoticeBoard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useEnter } from "@/lib/motion";
@@ -197,10 +198,11 @@ export default function ProfilePage() {
       {/* Your workspace — the personal tools that used to sit in the Topbar */}
       <section data-enter className="flex flex-col gap-3">
         <h2 data-tour="workspace" className="text-title-3-semibold text-text-primary">Your workspace</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <EventsButton variant="tile" />
           <TodoButton variant="tile" />
           <NotesButton variant="tile" />
+          <NoticeBoardTile />
         </div>
       </section>
 

@@ -680,6 +680,8 @@ class TripRecheckEventListOut(BaseModel):
     trip_id: int
     trip_id_str: str
     driver_name: Optional[str] = None
+    vehicle_id: Optional[str] = None
+    truck_registration: Optional[str] = None
     origin: Optional[str] = None
     destination: Optional[str] = None
     event: TripRecheckEventType
@@ -1980,6 +1982,9 @@ class MaintenanceRequestOut(OrmBase):
     reject_reason: Optional[str] = None
     record_id: Optional[int] = None
     requester_seen_at: Optional[datetime] = None
+    resubmit_count: int = 0
+    previous_reject_reason: Optional[str] = None
+    resubmitted_at: Optional[datetime] = None
     proof_count: int = 0
     created_at: Optional[datetime] = None
 

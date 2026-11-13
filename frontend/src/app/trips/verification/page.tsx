@@ -19,13 +19,17 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiFileTextLine as FileText, RiAlertLine as AlertTriangle, RiDownloadLine as Download, RiEyeLine as Eye, RiCloseLine as X, RiDeleteBinLine as Trash2, RiStackLine as Layers, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiFileList3Line as ClipboardList, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/feedback";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDateTime } from "@/lib/format-date";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
+import { TRIP_CATEGORY_LABEL } from "@/components/trips/TripCategoryTag";
+import { TripCategoryFilter, inTripCategory, type TripCategoryChoice } from "@/components/trips/TripCategoryFilter";
+import { TripCategoryTag } from "@/components/trips/TripCategoryTag";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { GlassSelect } from "@/components/ui/GlassSelect";
@@ -146,6 +150,8 @@ export default function TripVerificationPage() {
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
+  // Trip Category — stays set across the status cards, and scopes the View report too.
+  const [category, setCategory] = useState<TripCategoryChoice>("");
   useGlobalSearchQuery(setSearchQuery);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<"All" | "Tax Invoice" | "Bill of Supply" | "Transport Memo">("All");
@@ -153,7 +159,6 @@ export default function TripVerificationPage() {
   const PAGE_SIZE = 10;
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [downloading, setDownloading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<TripEditEventRow[]>([]);
@@ -526,141 +531,6 @@ export default function TripVerificationPage() {
   const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
 
 
-  async function handleDownloadPDF(pdfTrips: Trip[]) {
-    if (downloading) return;
-
-    if (pdfTrips.length === 0) {
-      showError("No invoiced trips found for the selected date range.");
-      return;
-    }
-
-    setDownloading(true);
-    try {
-      const { default: jsPDF } = await import("jspdf");
-
-      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const marginX = 10;
-      const marginY = 14;
-      const rowH = 8;
-      const headerH = 9;
-
-      const fmtDate = (iso: string) =>
-        new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
-      const dateRangeLabel = dateFrom && dateTo && dateFrom === dateTo
-        ? fmtDate(dateFrom)
-        : `${dateFrom ? fmtDate(dateFrom) : "start"} to ${dateTo ? fmtDate(dateTo) : "today"}`;
-
-      const cols: [string, number][] = [
-        ["Invoice No",    36],
-        ["Invoice Type",  30],
-        ["Invoice Date",  24],
-        ["Trip ID",       24],
-        ["Booking Ref",   32],
-        ["Trip Date",     24],
-        ["Bill To",       36],
-        ["Route",         40],
-        ["Container No",  28],
-        ["Vehicle",       27],
-      ];
-
-      function drawPageHeader(pageNum: number, totalPages: number) {
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(13);
-        pdf.setTextColor(27, 43, 94);
-        pdf.text("Invoiced Trips Report", marginX, marginY);
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(
-          `Generated on ${today}  ·  ${pdfTrips.length} invoice${pdfTrips.length !== 1 ? "s" : ""}  ·  ${dateRangeLabel}`,
-          marginX, marginY + 5,
-        );
-        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
-
-        const tableTop = marginY + 10;
-        pdf.setFillColor(27, 43, 94);
-        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
-
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7);
-        pdf.setTextColor(255, 255, 255);
-        let x = marginX;
-        for (const [label, w] of cols) {
-          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
-          x += w;
-        }
-        return tableTop + headerH;
-      }
-
-      const rowData = pdfTrips.map((trip) => {
-        const inv = invoiceData.get(trip.id);
-        const invDate = inv?.invoice_date
-          ? fmtDate(inv.invoice_date as string)
-          : "—";
-        return [
-          inv?.invoice_no ?? "—",
-          inv?.invoice_type ?? "—",
-          invDate,
-          trip.tripId,
-          trip.bookingReferenceNo ?? "—",
-          trip.scheduledDate ? fmtDate(trip.scheduledDate + "T00:00:00") : "—",
-          inv?.bill_to ?? trip.shipperConsignee ?? "—",
-          `${trip.origin} > ${trip.destination}`,
-          trip.containerNumber ?? trip.containerNumber1 ?? "—",
-          trip.truckRegistration ?? "—",
-        ];
-      });
-
-      const usableH = pageH - marginY - 20;
-      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
-      const totalPages = Math.ceil(rowData.length / rowsPerPage);
-
-      let rowIndex = 0;
-      for (let page = 1; page <= totalPages; page++) {
-        if (page > 1) pdf.addPage();
-        const y = drawPageHeader(page, totalPages);
-
-        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
-        rowIndex += rowsPerPage;
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7.5);
-
-        for (let r = 0; r < pageRows.length; r++) {
-          const rowY = y + r * rowH;
-          if (r % 2 === 1) {
-            pdf.setFillColor(249, 250, 251);
-            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
-          }
-          pdf.setDrawColor(229, 231, 235);
-          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
-
-          pdf.setTextColor(30, 30, 30);
-          let x = marginX;
-          for (let c = 0; c < cols.length; c++) {
-            const [, w] = cols[c];
-            const clipped = pdf.splitTextToSize(String(pageRows[r][c] ?? "—"), w - 4)[0] ?? "";
-            pdf.text(clipped, x + 2, rowY + 5.5);
-            x += w;
-          }
-        }
-
-        pdf.setDrawColor(209, 213, 219);
-        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
-      }
-
-      pdf.save(`invoiced-trips-${today.replace(/ /g, "-")}.pdf`);
-    } catch {
-      showError("Failed to generate PDF.");
-    } finally {
-      setDownloading(false);
-    }
-  }
 
 
   // Date range reference depends on status:
@@ -681,12 +551,15 @@ export default function TripVerificationPage() {
 
   // The date range beside the View button only filters that report (see the
   // View modal, which uses inReportRange) — the table always lists every trip.
-  const allFiltered = useMemo(
+  const searched = useMemo(
     () => trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers)),
     [trips, searchQuery, trucks, drivers, customers],
   );
+  // The status cards count within the chosen category (as on Trip History)…
+  const allFiltered = useMemo(() => searched.filter((t) => inTripCategory(t, category)), [searched, category]);
 
-  const filteredTrips = useMemo(() => allFiltered
+  // …and the category pill counts within the chosen status card.
+  const stageTrips = useMemo(() => searched
     .filter((t) => {
       if (statusFilter === "Pending")        return !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id);
       if (statusFilter === "Rejected")       return rejectedIds.has(t.id);
@@ -705,7 +578,8 @@ export default function TripVerificationPage() {
     .sort((a, b) => {
       const order = (t: Trip) => invoicedIds.has(t.id) ? 4 : waivedIds.has(t.id) ? 3 : verifiedIds.has(t.id) ? 1 : rejectedIds.has(t.id) ? 2 : 0;
       return order(a) - order(b);
-    }), [allFiltered, statusFilter, invoiceTypeFilter, invoiceData, verifiedIds, rejectedIds, invoicedIds, waivedIds]);
+    }), [searched, statusFilter, invoiceTypeFilter, invoiceData, verifiedIds, rejectedIds, invoicedIds, waivedIds]);
+  const filteredTrips = useMemo(() => stageTrips.filter((t) => inTripCategory(t, category)), [stageTrips, category]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
@@ -797,6 +671,7 @@ export default function TripVerificationPage() {
       {/* Toolbar: search on the left, invoice-date range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
+        <TripCategoryFilter tour="trip-category-filter" trips={stageTrips} value={category} onChange={(v) => { setCategory(v); setPage(1); }} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <div title="Invoice Date — scopes the View report to trips invoiced in this range">
             <DateRangePill
@@ -1097,7 +972,10 @@ export default function TripVerificationPage() {
                       <td className="px-4 py-3 text-text-secondary">
                         {trip.origin} <span className="text-text-tertiary">→</span> {trip.destination}
                       </td>
-                      <td className="px-4 py-3 font-medium text-text-primary">{trip.tripId}</td>
+                      <td className="px-4 py-3 font-medium text-text-primary">
+                        {trip.tripId}
+                        {trip.tripCategory && <TripCategoryTag category={trip.tripCategory} className="mt-1 block" />}
+                      </td>
                       <td className="px-4 py-3 text-text-secondary text-xs">{trip.bookingReferenceNo}</td>
                       <td className="px-4 py-3 font-medium text-accent-text">{fmt(hireAmt)}</td>
                       <td className="px-4 py-3 font-medium text-text-secondary">{fmt(expenseAmt)}</td>
@@ -1321,6 +1199,7 @@ export default function TripVerificationPage() {
           : !dateFrom ? `Up to ${fmtDate(dateTo)}`
           : dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
         const pdfTrips = trips.filter((t) => {
+          if (!inTripCategory(t, category)) return false;
           // Status filter
           if (modalStatusFilter === "Pending" && (verifiedIds.has(t.id) || rejectedIds.has(t.id) || invoicedIds.has(t.id) || waivedIds.has(t.id))) return false;
           if (modalStatusFilter === "Rejected" && !rejectedIds.has(t.id)) return false;
@@ -1417,17 +1296,14 @@ export default function TripVerificationPage() {
                 )}
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
-                <DownloadExcelButton
-                  path="/exports/trips"
-                  filename="invoiced_trips.xlsx"
-                  direct
-                  params={{ is_invoiced: "true" }}
-                  className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
+                {/* The designed report — the same trips as listed above (trip_pages_report.py). */}
+                <ReportViewButton
+                  path="/exports/resource-report"
+                  filename="Verification_and_Invoicing.xlsx"
+                  title={`Verification & Invoicing Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all dates"}${modalStatusFilter !== "All" ? ` — ${modalStatusFilter}` : ""}${category ? ` — ${TRIP_CATEGORY_LABEL[category]}` : ""}`}
+                  params={{ kind: "trips_verification", ...(modalStatusFilter !== "All" ? { stage: modalStatusFilter } : {}), ...(category ? { trip_category: category } : {}), ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}) }}
+                  pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
                 />
-                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Download className="h-4 w-4" />
-                  {downloading ? "Generating..." : "Download PDF"}
-                </button>
               </div>
             </div>
           </div>

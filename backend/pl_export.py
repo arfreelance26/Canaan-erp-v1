@@ -218,9 +218,22 @@ def _active_emi_regs(db: Session) -> set[str]:
     }
 
 
-def build(db: Session, start: date, end: date, mode: str, search: str = ""):
-    """Returns (xlsx bytes, filename, preview sheets)."""
+PARTS = {"both": "Profitability Report", "trips": "Trip Profitability Report", "trucks": "Truck Profitability Report"}
+
+
+def build(db: Session, start: date, end: date, mode: str, search: str = "", part: str = "both"):
+    """Returns (xlsx bytes, filename, preview sheets).
+
+    part: "both" (the full report), "trips" (Trip Profitability: Summary's trip
+    lines and one trip worked out, Trips, Trip Expenses, Rates) or "trucks"
+    (Truck Profitability: Summary's truck lines, Trucks, Rates, Maintenance,
+    EMI). Same figures either way — the halves never refer to each other's
+    sheets (both look rates up on Rates), so a half drops the other's sheets
+    cleanly and its Summary names the other half's total for the same period."""
     import pl_compute
+
+    half = part if part in PARTS else "both"      # (not "part": the loops below reuse that name)
+    show_trips, show_trucks = half != "trucks", half != "trips"
 
     # Every number comes from pl_compute — the same figures the page shows.
     # Full precision, so the preview equals what Excel's own formulas give.
@@ -544,7 +557,7 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
 
     # ── Summary ──────────────────────────────────────────────────────────────
     s = summary
-    s.put(1, 1, "Profitability Report", bold=True, size=16, color=NAVY)
+    s.put(1, 1, PARTS[half], bold=True, size=16, color=NAVY)
     s.put(2, 1, f"{_d(start.isoformat())} to {_d(end.isoformat())}  ·  Cost mode: {mode}")
     s.put(3, 1, f"Downloaded {datetime.now(IST).strftime('%d-%m-%Y %I:%M %p')}", color="808080")
     if search:
@@ -557,9 +570,9 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
     n_review = len(trips) - n_counted
     losses = sum(1 for rr in counted_rows if (rr, 17) in trip_s.values and trip_s.value(rr, 17) < 0)
     running = tot(13) + tot(14) + tot(15) + tot(16)
-    s.put(5, 1, "TRIP PROFITABILITY — was each trip a good deal? (counted trips, steady costs per km)", bold=True, color="FFFFFF", fill=NAVY)
-    s.put(5, 2, "", fill=NAVY)
+    r = 5
     big = [
+        ] if not show_trips else [
         ("Trips", n_counted, f'=COUNTIF(Trips!$R${first}:$R${last},"Counted")', None),
         ("Trips under audit review (not counted)", n_review, f'=COUNTIF(Trips!$R${first}:$R${last},"Under review")', None),
         ("Hire (money in) (₹)", tot(9), f"=Trips!I{tr_total}", MONEY),
@@ -570,23 +583,23 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         ("Profit after all costs (₹)", tot(17), f"=Trips!Q{tr_total}", MONEY),
         ("Trips that made a loss", losses, f'=COUNTIFS(Trips!$Q${first}:$Q${last},"<0",Trips!$R${first}:$R${last},"Counted")', None),
     ]
-    for j, (label, v, f, fmt) in enumerate(big):
-        r = 6 + j
-        is_profit = label.startswith("Profit")
-        s.put(r, 1, label, bold=is_profit)
-        s.put(r, 2, v, formula=f if trips else None, fmt=fmt, bold=True,
-              color=("00612E" if (v or 0) >= 0 else "C00000") if is_profit else None)
-
-    # Truck Profitability: the real bills, from the Trucks sheet's TOTAL row.
-    r = 6 + len(big) + 1
-    s.put(r, 1, "TRUCK PROFITABILITY — what did each truck really make? (the real bills)", bold=True, color="FFFFFF", fill=NAVY)
-    s.put(r, 2, "", fill=NAVY)
+    if show_trips:
+        s.put(r, 1, "TRIP PROFITABILITY — was each trip a good deal? (counted trips, steady costs per km)", bold=True, color="FFFFFF", fill=NAVY)
+        s.put(r, 2, "", fill=NAVY)
+        for j, (label, v, f, fmt) in enumerate(big):
+            rr = r + 1 + j
+            is_profit = label.startswith("Profit")
+            s.put(rr, 1, label, bold=is_profit)
+            s.put(rr, 2, v, formula=f if trips else None, fmt=fmt, bold=True,
+                  color=("00612E" if (v or 0) >= 0 else "C00000") if is_profit else None)
+        r = r + 1 + len(big) + 1
 
     def ttot(col):
         return truck_s.value(t_total, col)
 
     t_rows = range(t_first, t_last + 1)
     truck_lines = [
+        ] if not show_trucks else [
         ("Trucks", len(trucks), None, None),
         ("Trucks with no trips (idle)", sum(1 for e in trucks if not e.get("trip_count")), None, None),
         ("Hire (money in) (₹)", ttot(6), f"=Trucks!F{t_total}", MONEY),
@@ -600,17 +613,36 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
         ("Trucks that made a loss", sum(1 for rr in t_rows if truck_s.value(rr, 14) < 0),
          f'=COUNTIF(Trucks!$N${t_first}:$N${t_last},"<0")', None),
     ]
-    for j, (label, v, f, fmt) in enumerate(truck_lines):
-        rr = r + 1 + j
-        is_profit = label.startswith("Profit")
-        s.put(rr, 1, label, bold=is_profit)
-        s.put(rr, 2, v, formula=f if trucks else None, fmt=fmt, bold=True,
-              color=("00612E" if (v or 0) >= 0 else "C00000") if is_profit else None)
-    r = r + 1 + len(truck_lines) + 1
+    if show_trucks:
+        # Truck Profitability: the real bills, from the Trucks sheet's TOTAL row.
+        s.put(r, 1, "TRUCK PROFITABILITY — what did each truck really make? (the real bills)", bold=True, color="FFFFFF", fill=NAVY)
+        s.put(r, 2, "", fill=NAVY)
+        for j, (label, v, f, fmt) in enumerate(truck_lines):
+            rr = r + 1 + j
+            is_profit = label.startswith("Profit")
+            s.put(rr, 1, label, bold=is_profit)
+            s.put(rr, 2, v, formula=f if trucks else None, fmt=fmt, bold=True,
+                  color=("00612E" if (v or 0) >= 0 else "C00000") if is_profit else None)
+        r = r + 1 + len(truck_lines) + 1
 
-    s.put(r, 1, "HOW ONE TRIP IS WORKED OUT", bold=True, color="FFFFFF", fill=NAVY)
-    s.put(r, 2, "", fill=NAVY)
-    if example:
+    # A half on its own names the other half's total for the same period (its own report).
+    if half != "both":
+        other = (("Truck Profitability for the same period — profit after all costs, the real bills (₹)", res["truck_totals"]["net"])
+                 if half == "trips" else
+                 ("Trip Profitability for the same period — profit after all costs, steady costs per km (₹)",
+                  sum(t["money"]["final_profit"] for t in trips
+                      if not t.get("excluded_from_totals") and t["money"].get("final_profit") is not None)))
+        s.put(r, 1, "THE OTHER VIEW", bold=True, color="FFFFFF", fill=NAVY)
+        s.put(r, 2, "", fill=NAVY)
+        s.put(r + 1, 1, other[0], wrap=True)
+        s.put(r + 1, 2, other[1], fmt=MONEY, bold=True)
+        s.put(r + 2, 1, "Choose \"Both\" under View for one file with both, and why they differ.", color="808080")
+        r += 4
+
+    if show_trips:
+        s.put(r, 1, "HOW ONE TRIP IS WORKED OUT", bold=True, color="FFFFFF", fill=NAVY)
+        s.put(r, 2, "", fill=NAVY)
+    if show_trips and example:
         _, er, profit, t, km, hire, texp, diesel, rt = example
         route = f"{t.get('from_location')} → {t.get('to_location')}"
 
@@ -652,12 +684,12 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
                 s.ws.cell(row=rr, column=1).border = Border(top=THIN)
                 s.ws.cell(row=rr, column=2).border = Border(top=THIN)
         r = r + 1 + len(steps)
-    else:
+    elif show_trips:
         s.put(r + 1, 1, "No counted trip in this period has its truck's rates set, so there's no example to show.")
         r += 2
 
-    # Why the Trips and Trucks sheets end on different profits (no search only).
-    why = res["truck_totals"].get("why_differ")
+    # Why the Trips and Trucks sheets end on different profits (no search only; the full report only).
+    why = res["truck_totals"].get("why_differ") if half == "both" else None
     if why:
         r += 1
         s.put(r, 1, "WHY THE TRIPS AND TRUCKS SHEETS DIFFER", bold=True, color="FFFFFF", fill=NAVY)
@@ -805,20 +837,23 @@ def build(db: Session, start: date, end: date, mode: str, search: str = ""):
 
     for sh in (trip_s, exp_s, truck_s, rate_s, maint_s, emi_s):
         sh.ws.sheet_view.zoomScale = 90
+    dropped = {"trips": (truck_s, maint_s, emi_s), "trucks": (trip_s, exp_s)}.get(half, ())
+    for sh in dropped:
+        wb.remove(sh.ws)
     wb.calculation.fullCalcOnLoad = True
 
     buf = BytesIO()
     wb.save(buf)
     # (A header value: typed text goes through as letters and digits only.)
     tag = re.sub(r"[^A-Za-z0-9]+", "_", search).strip("_")[:40]
-    filename = f"Profitability_{_d(start.isoformat())}_to_{_d(end.isoformat())}_{mode}{'_' + tag if tag else ''}.xlsx"
-    preview = [
-        summary.preview("Summary"),
-        trip_s.preview("Trips", first_row=2),
-        exp_s.preview("Trip Expenses"),
-        truck_s.preview("Trucks", first_row=2),
-        rate_s.preview("Rates"),
-        maint_s.preview("Maintenance"),
-        emi_s.preview("EMI"),
-    ]
+    prefix = {"both": "Profitability", "trips": "Trip_Profitability", "trucks": "Truck_Profitability"}[half]
+    filename = f"{prefix}_{_d(start.isoformat())}_to_{_d(end.isoformat())}_{mode}{'_' + tag if tag else ''}.xlsx"
+    preview = [summary.preview("Summary")]
+    if show_trips:
+        preview += [trip_s.preview("Trips", first_row=2), exp_s.preview("Trip Expenses")]
+    if show_trucks:
+        preview.append(truck_s.preview("Trucks", first_row=2))
+    preview.append(rate_s.preview("Rates"))
+    if show_trucks:
+        preview += [maint_s.preview("Maintenance"), emi_s.preview("EMI")]
     return buf.getvalue(), filename, preview

@@ -1,5 +1,9 @@
 "use client";
 
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import { AuditHistoryButton } from "@/components/audit/AuditHistoryButton";
+import { useAuth } from "@/context/AuthContext";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RiTruckLine as TruckIcon, RiFileTextLine as FileText, RiFileList3Line as ClipboardList, RiCalculatorLine as Calculator, RiRouteLine as Route, RiDashboard3Line as Gauge, RiMoneyRupeeCircleLine as IndianRupee, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
 import { driversApi, tripsApi, trucksApi, customersApi } from "@/lib/api";
@@ -9,6 +13,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
+import { TripCategoryTag } from "@/components/trips/TripCategoryTag";
 import { TripAuditActions, TripAuditBadge } from "@/components/audit/TripAuditActions";
 import { truckImageUrl } from "@/components/fleet/VehicleImages";
 import { COMPLIANCE_DOCS } from "@/lib/compliance-docs";
@@ -86,6 +91,9 @@ export default function VehicleRecordPage() {
   const [bookingTrip, setBookingTrip] = useState<Trip | null>(null);
   const [sheetTrip, setSheetTrip] = useState<Trip | null>(null);
   const [breakdownTrip, setBreakdownTrip] = useState<Trip | null>(null);
+  // Trip Breakdown works out Trip / Gross / Final Profit: Admin only (the Auditor uses View Trip Sheet).
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
 
   // Flag / Verify hand the updated trip back — patch it in for instant feedback.
   const patchTrip = (updated: Trip) => setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
@@ -184,14 +192,18 @@ export default function VehicleRecordPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center gap-3.5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
-          <TruckIcon className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Vehicle Based Record</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Read-only record of every vehicle</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent-border bg-accent-surface text-accent-text shadow-sm">
+            <TruckIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-title-1-semibold tracking-tight text-text-primary">Vehicle Based Record</h1>
+            <p className="mt-0.5 text-sm text-text-secondary">Read-only record of every vehicle</p>
+          </div>
         </div>
+        {/* Admin only: every audit action logged on this page's trips */}
+        <AuditHistoryButton scope="vehicle" />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -205,6 +217,14 @@ export default function VehicleRecordPage() {
           <div title="Scopes Total Trips, KM and Hire to this date range — leave blank for the lifetime record">
             <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
           </div>
+          {/* The designed report (record_reports.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Vehicle_Based_Record.xlsx"
+            title={`Vehicle Based Record Report — ${dateFrom || dateTo ? `${dateFrom ? dateFrom.split("-").reverse().join("-") : "start"} to ${dateTo ? dateTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "vehicle_record", ...(dateFrom ? { from_date: dateFrom } : {}), ...(dateTo ? { to_date: dateTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+          />
         </div>
       </div>
 
@@ -303,6 +323,7 @@ export default function VehicleRecordPage() {
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Date</th>
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Driver</th>
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Route</th>
+                              <th className="px-3 py-2 font-semibold text-text-tertiary">Trip Category</th>
                               <th className="px-3 py-2 text-right font-semibold text-text-tertiary">KM</th>
                               <th className="px-3 py-2 text-right font-semibold text-text-tertiary">Hire</th>
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Documents</th>
@@ -325,6 +346,9 @@ export default function VehicleRecordPage() {
                                   </td>
                                   <td className="px-3 py-2 text-text-secondary">
                                     {trip.origin || "—"} <span className="text-text-tertiary">→</span> {trip.destination || "—"}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <TripCategoryTag category={trip.tripCategory} />
                                   </td>
                                   <td className="px-3 py-2 text-right tabular-nums text-text-primary">
                                     {sheet ? kms(kmForTrip(sheet)) : <span className="text-text-tertiary">…</span>}
@@ -353,6 +377,7 @@ export default function VehicleRecordPage() {
                                           <ClipboardList className="h-3.5 w-3.5" />
                                           View Trip Sheet
                                         </button>
+                                        {isAdmin && (
                                         <button
                                           type="button"
                                           onClick={() => setBreakdownTrip(trip)}
@@ -361,6 +386,7 @@ export default function VehicleRecordPage() {
                                           <Calculator className="h-3.5 w-3.5" />
                                           Trip Breakdown
                                         </button>
+                                        )}
                                       </div>
                                       {/* Auditor decision buttons — shared with Driver Record. */}
                                       <TripAuditActions trip={trip} onUpdated={patchTrip} />
@@ -372,7 +398,7 @@ export default function VehicleRecordPage() {
                           </PagedTbody>
                           <tfoot>
                             <tr className="border-t border-separator-border bg-fill-1">
-                              <td colSpan={4} className="px-3 py-2 text-right font-semibold text-text-secondary">Total</td>
+                              <td colSpan={5} className="px-3 py-2 text-right font-semibold text-text-secondary">Total</td>
                               <td className="px-3 py-2 text-right font-semibold tabular-nums text-text-primary">{kms(totals.km)}</td>
                               <td className="px-3 py-2 text-right font-semibold tabular-nums text-text-primary">{money(totals.hire)}</td>
                               <td />
@@ -413,7 +439,7 @@ export default function VehicleRecordPage() {
       />
       {/* Same window as Profitability's — hire, each trip expense, km, Cost/KM. */}
       <TripBreakdownDialog
-        open={breakdownTrip !== null}
+        open={isAdmin && breakdownTrip !== null}
         onClose={() => setBreakdownTrip(null)}
         tripId={breakdownTrip ? Number(breakdownTrip.id) : null}
         mode="Advanced"

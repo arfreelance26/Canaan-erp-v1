@@ -3,7 +3,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
-import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
+import { getComplianceStatus, isMissingCost, NO_COST_TAG, type ComplianceField } from "@/lib/compliance";
 import { formatDate } from "@/lib/format-date";
 import { trucksApi, complianceRecordsApi } from "@/lib/api";
 
@@ -88,26 +88,39 @@ type ComplianceTableProps = {
   trucks: Truck[];
   /** After a document is renewed / corrected / undone — the page reloads trucks. */
   onChanged: () => void;
+  /** The page's document filter: that column is tinted (the list is sorted by it). */
+  highlight?: ComplianceField;
 };
 
 const TABLE_STATUS: Record<string, string> = {
   Valid:           "bg-success-surface text-success-text",
   "Expiring Soon": "bg-warning-surface text-warning-text",
   Expired:         "bg-danger-surface text-danger-text",
+  "Not Uploaded":  "bg-fill-2 text-text-secondary",
 };
 
 // ---------------------------------------------------------------------------
 // Inline table cell
 // ---------------------------------------------------------------------------
 
-function ComplianceCell({ date, field = "default" }: { date: string; field?: ComplianceField }) {
+function ComplianceCell({ date, cost, field = "default" }: { date: string; cost: string | number; field?: ComplianceField }) {
   const status = getComplianceStatus(date, field);
   return (
     <div className="flex flex-col gap-1">
       <span className="whitespace-nowrap text-text-secondary">{formatDate(date)}</span>
-      <span className={cn("inline-flex w-fit rounded-full px-2 py-0.5 text-caption-1-medium whitespace-nowrap", TABLE_STATUS[status])}>
-        {status}
-      </span>
+      <div className="flex flex-wrap gap-1">
+        <span className={cn("inline-flex w-fit rounded-full px-2 py-0.5 text-caption-1-medium whitespace-nowrap", TABLE_STATUS[status])}>
+          {status}
+        </span>
+        {isMissingCost(date, cost) && (
+          <span
+            title="Uploaded without a cost: counts as ₹0 in Profitability and the Running Cost Calculator until it's entered."
+            className={cn("inline-flex w-fit rounded-full px-2 py-0.5 text-caption-1-medium whitespace-nowrap", NO_COST_TAG)}
+          >
+            No Cost
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -573,6 +586,12 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
 // Table
 // ---------------------------------------------------------------------------
 
+/** The column index of each document (for the highlight). */
+const DOC_COLUMN: Partial<Record<ComplianceField, number>> = {
+  rc: 2, fc: 3, roadTax: 4, nationalPermit: 5, localPermit: 6, pollution: 7, insurance: 8,
+};
+const HIGHLIGHT = "bg-accent-surface/60";
+
 const COLUMNS = [
   "Truck ID", "Registration No.",
   "RC Validity", "FC Validity", "Road Tax",
@@ -580,7 +599,8 @@ const COLUMNS = [
   "",
 ];
 
-export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
+export function ComplianceTable({ trucks, onChanged, highlight }: ComplianceTableProps) {
+  const hl = highlight ? DOC_COLUMN[highlight] : undefined;
   const [viewTruck,    setViewTruck]    = useState<Truck | null>(null);
   const [historyTruck, setHistoryTruck] = useState<Truck | null>(null);
   const [renewTruck,   setRenewTruck]   = useState<Truck | null>(null);
@@ -599,7 +619,7 @@ export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-separator-border bg-fill-1">
               {COLUMNS.map((col, i) => (
-                <th key={i} className="whitespace-nowrap px-4 py-3 text-caption-1-semibold text-text-secondary">
+                <th key={i} className={`whitespace-nowrap px-4 py-3 text-caption-1-semibold ${i === hl ? "bg-accent-surface text-accent-text" : "text-text-secondary"}`}>
                   {col}
                 </th>
               ))}
@@ -610,13 +630,13 @@ export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
               <tr key={truck.truckId} className="hover:bg-fill-2">
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-text-primary">{truck.truckId}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-text-secondary">{truck.registrationNumber}</td>
-                <td className="px-4 py-3"><ComplianceCell date={truck.rcValidityDate}           field="rc"             /></td>
-                <td className="px-4 py-3"><ComplianceCell date={truck.fcExpiryDate}             field="fc"             /></td>
-                <td className="px-4 py-3"><ComplianceCell date={truck.roadTaxDate}              field="roadTax"        /></td>
-                <td className="px-4 py-3"><ComplianceCell date={truck.nationalPermitDate}       field="nationalPermit" /></td>
-                <td className="px-4 py-3"><ComplianceCell date={truck.localPermitDate}          field="localPermit"    /></td>
-                <td className="px-4 py-3"><ComplianceCell date={truck.pollutionCertificateDate} field="pollution"      /></td>
-                <td className="px-4 py-3"><ComplianceCell date={truck.insuranceExpiryDate}      field="insurance"      /></td>
+                <td className={`px-4 py-3 ${hl === DOC_COLUMN.rc ? HIGHLIGHT : ""}`}><ComplianceCell date={truck.rcValidityDate}           cost={truck.rcExpenses}                   field="rc"             /></td>
+                <td className={`px-4 py-3 ${hl === DOC_COLUMN.fc ? HIGHLIGHT : ""}`}><ComplianceCell date={truck.fcExpiryDate}             cost={truck.fcExpenses}                   field="fc"             /></td>
+                <td className={`px-4 py-3 ${hl === DOC_COLUMN.roadTax ? HIGHLIGHT : ""}`}><ComplianceCell date={truck.roadTaxDate}              cost={truck.roadTaxExpenses}              field="roadTax"        /></td>
+                <td className={`px-4 py-3 ${hl === DOC_COLUMN.nationalPermit ? HIGHLIGHT : ""}`}><ComplianceCell date={truck.nationalPermitDate}       cost={truck.nationalPermitExpenses}       field="nationalPermit" /></td>
+                <td className={`px-4 py-3 ${hl === DOC_COLUMN.localPermit ? HIGHLIGHT : ""}`}><ComplianceCell date={truck.localPermitDate}          cost={truck.localPermitExpenses}          field="localPermit"    /></td>
+                <td className={`px-4 py-3 ${hl === DOC_COLUMN.pollution ? HIGHLIGHT : ""}`}><ComplianceCell date={truck.pollutionCertificateDate} cost={truck.pollutionCertificateExpenses} field="pollution"      /></td>
+                <td className={`px-4 py-3 ${hl === DOC_COLUMN.insurance ? HIGHLIGHT : ""}`}><ComplianceCell date={truck.insuranceExpiryDate}      cost={truck.insuranceExpenses}            field="insurance"      /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button

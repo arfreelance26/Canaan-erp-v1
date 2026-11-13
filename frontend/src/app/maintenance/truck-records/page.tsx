@@ -10,7 +10,8 @@ import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { MaintenanceReport } from "@/lib/maintenance-report-pdf";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate, inDateRange } from "@/lib/format-date";
 
@@ -214,13 +215,13 @@ export default function TruckMaintenanceRecordPage() {
           {/* Export date range — same pickers, restyled as one minimal pill */}
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
 
-          <DownloadExcelButton
-            path="/exports/maintenance-records"
-            filename="maintenance_records.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The Truck Maintenance report (maintenance_report.py) — every record, truck by truck. */}
+          <ReportViewButton
+            path="/exports/maintenance-report"
+            filename="Truck_Maintenance.xlsx"
+            title={`Truck Maintenance Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/maintenance-report-pdf").then((m) => m.downloadMaintenanceReportPdf({ report: report as MaintenanceReport, filename: file }))}
           />
         </div>
       </div>

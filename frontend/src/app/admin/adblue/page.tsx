@@ -13,7 +13,8 @@ import type { AdBlueLog } from "@/types/adblue-log";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { onRevalidated } from "@/lib/api-cache";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { cn } from "@/lib/utils";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
@@ -172,13 +173,13 @@ export default function AdblueManagementPage() {
         <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/adblue-logs"
-            filename="adblue_logs.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The designed report (record_reports.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="AdBlue_History.xlsx"
+            title={`AdBlue History Report — ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "adblue", ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>

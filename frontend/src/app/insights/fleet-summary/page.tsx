@@ -9,10 +9,12 @@ import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { TripReport } from "@/lib/trip-report-pdf";
 import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
 import { showError } from "@/lib/feedback";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { RiTruckLine as TruckIcon, RiHistoryLine as History, RiFileSearchLine as FileSearch, RiCloseLine as X, RiLoader4Line as Loader2, RiShieldCheckLine as ShieldCheck, RiDashboard3Line as Gauge, RiToolsLine as Wrench, RiDownloadLine as Download, RiArrowDownSLine as ChevronDown, RiArrowRightLine as ArrowRight } from "@remixicon/react";
+import { RiTruckLine as TruckIcon, RiHistoryLine as History, RiFileSearchLine as FileSearch, RiCloseLine as X, RiLoader4Line as Loader2, RiShieldCheckLine as ShieldCheck, RiDashboard3Line as Gauge, RiToolsLine as Wrench, RiArrowRightLine as ArrowRight } from "@remixicon/react";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PagedTbody } from "@/components/ui/PagedTbody";
@@ -45,28 +47,6 @@ function defaultDateRange() {
   };
 }
 
-function buildExcelRows(tripList: Trip[], sheetMap: Map<string, TripSheetData>) {
-  return tripList.map((t) => {
-    const s = sheetMap.get(t.id);
-    return {
-      "Trip ID":           t.tripId,
-      "Booking Date":      t.bookingCreatedDate ? t.bookingCreatedDate.slice(0, 10) : "",
-      "Trip Category":     t.tripCategory || "",
-      "Origin":            t.origin || "",
-      "Destination":       t.destination || "",
-      "Total KM":          s?.totalKm ? Number(s.totalKm) : "",
-      "Hire Amount (₹)":  s?.hireAmount ? Number(s.hireAmount) : "",
-    };
-  });
-}
-
-async function downloadExcel(rows: ReturnType<typeof buildExcelRows>, filename: string) {
-  const { utils, writeFile } = await import("xlsx");
-  const ws = utils.json_to_sheet(rows);
-  const wb = utils.book_new();
-  utils.book_append_sheet(wb, ws, "Trip History");
-  writeFile(wb, filename);
-}
 
 const CAT_COLOR: Record<string, string> = {
   "LOCAL":       "bg-accent-surface-strong text-accent-text",
@@ -92,7 +72,7 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
   const [loading, setLoading]   = useState(true);
   const [dateFrom, setDateFrom] = useState(defaultDateRange().from);
   const [dateTo,   setDateTo]   = useState(defaultDateRange().to);
-  const [dlOpen,   setDlOpen]   = useState(false);
+  const [reportScope, setReportScope] = useState<"range" | "all">("range");
 
   useEffect(() => {
     async function load() {
@@ -125,7 +105,7 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
   const regFormatted = truck.registrationNumber.replace(/^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{1,4})$/, "$1 $2 $3 $4");
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/40 p-4" onClick={() => dlOpen && setDlOpen(false)}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/40 p-4">
       <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-background-primary-default shadow-xl animate-modal-in" onClick={(e) => e.stopPropagation()}>
 
         {/* ── Header ── */}
@@ -183,30 +163,29 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
             onFromChange={(v) => setDateFrom(dateTo && v > dateTo ? dateTo : v)}
             onToChange={(v) => setDateTo(dateFrom && v < dateFrom ? dateFrom : v)}
           />
-          <div className="relative">
-            <button type="button" disabled={loading} onClick={() => setDlOpen((v) => !v)}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-separator-border bg-background-primary-default px-5 text-body-medium text-text-primary shadow-sm transition duration-300 hover:border-border-button-default hover:shadow-md disabled:pointer-events-none disabled:opacity-40">
-              <Download className="h-3.5 w-3.5 text-text-secondary" />
-              Download Excel
-              <ChevronDown className="h-3 w-3 text-text-tertiary" />
-            </button>
-            {dlOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-separator-border bg-background-primary-default shadow-lg">
-                <button type="button"
-                  onClick={() => { setDlOpen(false); downloadExcel(buildExcelRows(trips, sheets), `${truck.registrationNumber}_trips_${dateFrom}_to_${dateTo}.xlsx`); }}
-                  className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-fill-2 transition-colors">
-                  <span className="text-caption-1-semibold text-text-primary">Selected Timeline</span>
-                  <span className="text-[10px] text-text-tertiary">{dateFrom} → {dateTo}</span>
+          <div className="flex items-center gap-2">
+            {/* Selected dates or every trip — the truck's trips as the Trip History report (trip_report.py). */}
+            <div role="radiogroup" aria-label="Report scope" className="flex gap-0.5 rounded-full border border-separator-border bg-fill-2 p-0.5">
+              {([["range", "Selected dates"], ["all", `All ${allTrips.length} trips`]] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="radio"
+                  aria-checked={reportScope === v}
+                  onClick={() => setReportScope(v)}
+                  className={`rounded-full px-3 py-1.5 text-caption-1-semibold transition-colors ${reportScope === v ? "bg-background-primary-default text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                >
+                  {label}
                 </button>
-                <div className="h-px bg-fill-2" />
-                <button type="button"
-                  onClick={() => { setDlOpen(false); downloadExcel(buildExcelRows(allTrips, sheets), `${truck.registrationNumber}_full_trip_report.xlsx`); }}
-                  className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-fill-2 transition-colors">
-                  <span className="text-caption-1-semibold text-text-primary">Full Report</span>
-                  <span className="text-[10px] text-text-tertiary">All {allTrips.length} trips for this truck</span>
-                </button>
-              </div>
-            )}
+              ))}
+            </div>
+            <ReportViewButton
+              path="/exports/trip-report"
+              filename={`${truck.registrationNumber}_Trips.xlsx`}
+              title={`${truck.registrationNumber} — Trip History Report — ${reportScope === "all" ? "all trips" : `${dateFrom.split("-").reverse().join("-")} to ${dateTo.split("-").reverse().join("-")}`}`}
+              params={{ card: "All", search: truck.registrationNumber, ...(reportScope === "range" ? { from_date: dateFrom, to_date: dateTo } : {}) }}
+              pdf={(report, file) => import("@/lib/trip-report-pdf").then((m) => m.downloadTripReportPdf({ report: report as TripReport, filename: file }))}
+            />
           </div>
         </div>
 
@@ -311,11 +290,12 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
 function ExpiryBadge({ date, field }: { date: string; field: ComplianceField }) {
   const label = date
     ? new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-    : "Not Set";
+    : "Not Uploaded";
   const status = getComplianceStatus(date, field);
   const cls =
     status === "Expired"        ? "bg-danger-surface text-danger-text border-danger-border" :
     status === "Expiring Soon"  ? "bg-warning-surface text-warning-text border-warning-border" :
+    status === "Not Uploaded"   ? "bg-fill-2 text-text-secondary border-separator-border" :
                                    "bg-success-surface text-success-text border-success-border";
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-caption-1-semibold ${cls}`}>

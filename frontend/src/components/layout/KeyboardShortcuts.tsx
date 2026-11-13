@@ -14,6 +14,7 @@ const EventsButton = dynamic(() => import("./EventsButton").then((m) => m.Events
 /**
  * Listens for the app-wide shortcuts in lib/shortcuts.ts:
  * D toggles dark mode, T opens To-do, N opens Notes, M opens Meetings,
+ * B opens the Notice Board (it drops down beside the bell — Topbar),
  * J sends Joshine down to peek (or brings it back).
  */
 export function KeyboardShortcuts() {
@@ -32,6 +33,7 @@ export function KeyboardShortcuts() {
       else if (key === SHORTCUTS.todo.key) toggleShortcutPanel("todo");
       else if (key === SHORTCUTS.notes.key) toggleShortcutPanel("notes");
       else if (key === SHORTCUTS.meetings.key) toggleShortcutPanel("meetings");
+      else if (key === SHORTCUTS.board.key) toggleShortcutPanel("board");
       else if (key === SHORTCUTS.joshine.key) window.dispatchEvent(new Event(JOSHINE_PEEK_EVENT));
       else return;
       e.preventDefault();

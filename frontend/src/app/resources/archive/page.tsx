@@ -9,7 +9,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -304,10 +305,12 @@ export default function ArchivePage() {
           ))}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <DownloadExcelButton
-            path="/deletion-approvals/archive-export"
-            params={typeFilter === "All" ? undefined : { resource_type: typeFilter }}
-            filename={typeFilter === "All" ? "archive.xlsx" : `archive_${typeFilter.toLowerCase()}.xlsx`}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Archive.xlsx"
+            title={`Archive Report — ${typeFilter === "All" ? "everything" : PLURAL_LABEL[typeFilter]}${search.trim() ? ` — "${search.trim()}"` : ""}`}
+            params={{ kind: "archive", ...(typeFilter === "All" ? {} : { resource_type: typeFilter }), ...(search.trim() ? { search: search.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>

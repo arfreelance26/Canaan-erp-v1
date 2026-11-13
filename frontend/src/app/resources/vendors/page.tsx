@@ -12,7 +12,8 @@ import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-appro
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
@@ -230,7 +231,14 @@ export default function VendorsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search vendors..." value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <DownloadExcelButton path="/exports/vendors" filename="vendors.xlsx" />
+          {/* Summary + a sheet per category, 12 months' spend, PAN masked (+ its PDF). */}
+            <ReportViewButton
+              path="/exports/resource-report"
+              filename="Our_Vendors.xlsx"
+              title={`Our Vendors Report — last 12 months${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+              params={{ kind: "vendors", ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+              pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
+            />
         </div>
       </div>
 

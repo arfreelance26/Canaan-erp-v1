@@ -3,14 +3,16 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { ComplianceTable } from "@/components/fleet/ComplianceTable";
-import { getComplianceStatus } from "@/lib/compliance";
+import { COMPLIANCE_URGENCY, compareByUrgency, getComplianceStatus, isMissingCost, type ComplianceField, type ComplianceStatus } from "@/lib/compliance";
+import { Segmented } from "@/components/ui/Segmented";
 import { RiShieldCheckLine as ShieldCheck, RiHistoryLine as History, RiFileHistoryLine as FileClock } from "@remixicon/react";
 import { trucksApi, type ComplianceEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { ReportViewButton } from "@/components/ui/ReportViewButton";
+import type { ResourceReport } from "@/lib/resource-report-pdf";
 import { Dialog } from "@/components/ui/Dialog";
 import { formatDateTime } from "@/lib/format-date";
 
@@ -21,21 +23,47 @@ import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PagedTbody } from "@/components/ui/PagedTbody";
 
-/** Each document: its date field, its cost field and its name. */
-const DOC_COSTS: [keyof Truck, keyof Truck, string][] = [
-  ["rcValidityDate", "rcExpenses", "RC"],
-  ["fcExpiryDate", "fcExpenses", "FC"],
-  ["roadTaxDate", "roadTaxExpenses", "Road Tax"],
-  ["nationalPermitDate", "nationalPermitExpenses", "National Permit"],
-  ["localPermitDate", "localPermitExpenses", "Local Permit"],
-  ["pollutionCertificateDate", "pollutionCertificateExpenses", "Pollution Cert."],
-  ["insuranceExpiryDate", "insuranceExpenses", "Insurance"],
+/** Each document: its date field, its cost field, its name and its warning window (as in the table). */
+const DOC_COSTS: [keyof Truck, keyof Truck, string, ComplianceField][] = [
+  ["rcValidityDate", "rcExpenses", "RC", "rc"],
+  ["fcExpiryDate", "fcExpenses", "FC", "fc"],
+  ["roadTaxDate", "roadTaxExpenses", "Road Tax", "roadTax"],
+  ["nationalPermitDate", "nationalPermitExpenses", "National Permit", "nationalPermit"],
+  ["localPermitDate", "localPermitExpenses", "Local Permit", "localPermit"],
+  ["pollutionCertificateDate", "pollutionCertificateExpenses", "Pollution Cert.", "pollution"],
+  ["insuranceExpiryDate", "insuranceExpenses", "Insurance", "insurance"],
 ];
+
+type DocEntry = (typeof DOC_COSTS)[number];
+
+/** The document filter: All, or one document (its ComplianceField). */
+type DocFilter = "all" | Exclude<ComplianceField, "default">;
+const DOC_FILTERS: { value: DocFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "rc", label: "RC" },
+  { value: "fc", label: "FC" },
+  { value: "roadTax", label: "Road Tax" },
+  { value: "nationalPermit", label: "National Permit" },
+  { value: "localPermit", label: "Local Permit" },
+  { value: "pollution", label: "Pollution Certificate" },
+  { value: "insurance", label: "Insurance" },
+];
+const DOC_FILTER_KEY = "compliance-doc-filter";
+
+/** The documents in view: every one, or just the one picked. */
+function docsFor(doc: DocFilter): DocEntry[] {
+  return doc === "all" ? DOC_COSTS : DOC_COSTS.filter(([, , , field]) => field === doc);
+}
+
+/** The documents with no expiry date entered: "Not Uploaded", not expired. */
+function docsNotUploaded(t: Truck, docs: DocEntry[] = DOC_COSTS): string[] {
+  return docs.filter(([date]) => !t[date]).map(([, , label]) => label);
+}
 
 /** The documents a truck holds (expiry date set) with no cost entered —
  *  they count as ₹0 in Profitability and the Running Cost Calculator. */
-function docsWithoutCost(t: Truck): string[] {
-  return DOC_COSTS.filter(([date, cost]) => t[date] && !(Number(t[cost]) > 0)).map(([, , label]) => label);
+function docsWithoutCost(t: Truck, docs: DocEntry[] = DOC_COSTS): string[] {
+  return docs.filter(([date, cost]) => isMissingCost(t[date] as string, t[cost] as string)).map(([, , label]) => label);
 }
 
 export default function CompliancePage() {
@@ -50,6 +78,11 @@ export default function CompliancePage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  // ?search=<registration> — the Dashboard's Compliance Overview opens a truck here.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("search");
+    if (q) setSearchQuery(q);
+  }, []);
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -59,6 +92,24 @@ export default function CompliancePage() {
   const [editHistorySearch, setEditHistorySearch] = useState("");
   // "No cost entered" card: show only the trucks with a document missing its cost.
   const [onlyMissingCost, setOnlyMissingCost] = useState(false);
+  // "Not Uploaded" card: show only the trucks with a document never entered.
+  const [onlyNotUploaded, setOnlyNotUploaded] = useState(false);
+  // One document (or All): the cards count only it, and the trucks are sorted
+  // expired → not uploaded → due soon → valid by it. Remembered on this browser.
+  const [doc, setDoc] = useState<DocFilter>("all");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DOC_FILTER_KEY) as DocFilter | null;
+      if (saved && DOC_FILTERS.some((f) => f.value === saved)) setDoc(saved);
+    } catch { /* storage blocked: start on All */ }
+  }, []);
+  function pickDoc(next: DocFilter) {
+    setDoc(next);
+    try { localStorage.setItem(DOC_FILTER_KEY, next); } catch { /* not remembered */ }
+  }
+  const docs = docsFor(doc);
+  const docEntry = doc === "all" ? null : docs[0];
+  const docLabel = DOC_FILTERS.find((f) => f.value === doc)?.label ?? "All";
 
   // Fetched fresh every time it's opened, covering every compliance document
   // update ever logged — searching by registration/truck ID doubles as that
@@ -80,31 +131,46 @@ export default function CompliancePage() {
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
   const summary = useMemo(() => {
-    const counts = { Valid: 0, "Expiring Soon": 0, Expired: 0 };
+    const counts: Record<ComplianceStatus, number> = { Valid: 0, "Expiring Soon": 0, Expired: 0, "Not Uploaded": 0 };
     for (const truck of trucks) {
-      const dates = [
-        truck.rcValidityDate,
-        truck.fcExpiryDate,
-        truck.roadTaxDate,
-        truck.nationalPermitDate,
-        truck.localPermitDate,
-        truck.pollutionCertificateDate,
-        truck.insuranceExpiryDate,
-      ];
-      for (const date of dates) {
-        counts[getComplianceStatus(date)] += 1;
+      for (const [date, , , field] of docsFor(doc)) {
+        counts[getComplianceStatus(String(truck[date] ?? ""), field)] += 1;
       }
     }
     return counts;
-  }, [trucks]);
+  }, [trucks, doc]);
+
+  // Each filter's dot: red if a truck has that document expired, amber if one is only due soon.
+  const docOptions = useMemo(() => DOC_FILTERS.map((f) => {
+    if (f.value === "all") return f;
+    const [date, , , field] = docsFor(f.value)[0];
+    const statuses = trucks.map((t) => getComplianceStatus(String(t[date] ?? ""), field));
+    const dot = statuses.includes("Expired") ? "bg-danger-solid" : statuses.includes("Expiring Soon") ? "bg-warning-solid" : undefined;
+    return { ...f, dot };
+  }), [trucks]);
 
   if (loading) return <PageSkeleton hasButton hasSearch statCards={4} columns={6} />;
 
-  const missingCost = trucks.reduce((n, t) => n + docsWithoutCost(t).length, 0);
-  const trucksMissingCost = trucks.filter((t) => docsWithoutCost(t).length > 0).length;
+  const missingCost = trucks.reduce((n, t) => n + docsWithoutCost(t, docs).length, 0);
+  const trucksMissingCost = trucks.filter((t) => docsWithoutCost(t, docs).length > 0).length;
+  const trucksNotUploaded = trucks.filter((t) => docsNotUploaded(t, docs).length > 0).length;
   const filteredTrucks = trucks.filter((t) =>
-    (!onlyMissingCost || docsWithoutCost(t).length > 0) &&
+    (!onlyMissingCost || docsWithoutCost(t, docs).length > 0) &&
+    (!onlyNotUploaded || docsNotUploaded(t, docs).length > 0) &&
     (!searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase())));
+  // One document picked: expired first, then not uploaded, then due soon, then valid.
+  if (docEntry) {
+    const [date, , , field] = docEntry;
+    const key = (t: Truck) => ({ date: String(t[date] ?? ""), reg: t.registrationNumber || t.truckId || "" });
+    filteredTrucks.sort((a, b) => compareByUrgency(key(a), key(b), field));
+  }
+  // The line above the table: how many trucks are in each group for that document.
+  const groupCounts = docEntry
+    ? COMPLIANCE_URGENCY.map((st) => ({
+        st,
+        n: filteredTrucks.filter((t) => getComplianceStatus(String(t[docEntry[0]] ?? ""), docEntry[3]) === st).length,
+      }))
+    : [];
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -134,53 +200,95 @@ export default function CompliancePage() {
         </div>
       </div>
 
-      <ReminderAlertBanner items={docReminders} />
+      <ReminderAlertBanner
+        items={docReminders}
+        notUploaded={trucks
+          .map((t) => ({ t, docs: docsNotUploaded(t) }))
+          .filter((x) => x.docs.length > 0)
+          .sort((a, b) => b.docs.length - a.docs.length || (a.t.registrationNumber || "").localeCompare(b.t.registrationNumber || ""))
+          .map(({ t, docs }) => ({ entity: t.registrationNumber || t.truckId, count: docs.length, detail: `Not uploaded: ${docs.join(", ")}` }))}
+        noCost={trucks
+          .map((t) => ({ t, docs: docsWithoutCost(t) }))
+          .filter((x) => x.docs.length > 0)
+          .sort((a, b) => b.docs.length - a.docs.length || (a.t.registrationNumber || "").localeCompare(b.t.registrationNumber || ""))
+          .map(({ t, docs }) => ({ entity: t.registrationNumber || t.truckId, count: docs.length, detail: `No cost: ${docs.join(", ")}` }))}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
-          <DownloadExcelButton
-            path="/exports/trucks"
-            filename="fleet_compliance.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
+          {/* The designed report: Summary, a sheet per item, and its PDF (finance_report.py). */}
+          <ReportViewButton
+            path="/exports/resource-report"
+            filename="Compliance_and_Renewals.xlsx"
+            title={`Compliance & Renewals Report${docEntry ? ` — ${docLabel}` : ""} — renewals ${exportFrom || exportTo ? `${exportFrom ? exportFrom.split("-").reverse().join("-") : "start"} to ${exportTo ? exportTo.split("-").reverse().join("-") : "today"}` : "all time"}${searchQuery.trim() ? ` — "${searchQuery.trim()}"` : ""}`}
+            params={{ kind: "compliance", ...(docEntry ? { resource_type: docEntry[2] } : {}), ...(exportFrom ? { from_date: exportFrom } : {}), ...(exportTo ? { to_date: exportTo } : {}), ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}) }}
+            pdf={(report, file) => import("@/lib/resource-report-pdf").then((m) => m.downloadResourceReportPdf({ report: report as ResourceReport, filename: file }))}
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {/* Which document: All, or one — the cards count it and the trucks are sorted by it. */}
+      <div data-tour="compliance-doc-filter" className="-mt-2">
+        <Segmented<DocFilter> value={doc} onChange={pickDoc} options={docOptions} label="Document" size="md" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
-          <p className="text-caption-1-medium text-text-secondary">Valid</p>
+          <p className="text-caption-1-medium text-text-secondary">Valid{docEntry ? ` · ${docLabel}` : ""}</p>
           <p className="mt-1 text-title-1-semibold text-success-text">{summary.Valid}</p>
         </div>
         <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
-          <p className="text-caption-1-medium text-text-secondary">Expiring Soon</p>
+          <p className="text-caption-1-medium text-text-secondary">Expiring Soon{docEntry ? ` · ${docLabel}` : ""}</p>
           <p className="mt-1 text-title-1-semibold text-warning-text">{summary["Expiring Soon"]}</p>
         </div>
         <div className="rounded-xl border border-separator-border bg-background-primary-default p-4">
-          <p className="text-caption-1-medium text-text-secondary">Expired</p>
+          <p className="text-caption-1-medium text-text-secondary">Expired{docEntry ? ` · ${docLabel}` : ""}</p>
           <p className="mt-1 text-title-1-semibold text-danger-text">{summary.Expired}</p>
+          <p className="mt-0.5 text-caption-2-regular text-text-tertiary">past the expiry date</p>
         </div>
+        {/* No expiry date entered: a gap to fill, not an expiry. Click to list those trucks. */}
+        <button
+          type="button"
+          data-tour="compliance-not-uploaded"
+          onClick={() => { setOnlyNotUploaded((v) => !v); setOnlyMissingCost(false); }}
+          aria-pressed={onlyNotUploaded}
+          disabled={summary["Not Uploaded"] === 0 && !onlyNotUploaded}
+          title="Documents with no expiry date entered yet. Upload the document and its expiry date to track it."
+          className={`rounded-xl border p-4 text-left transition-colors ${
+            onlyNotUploaded
+              ? "border-border-button-default bg-fill-2"
+              : "border-separator-border bg-background-primary-default hover:border-border-button-default hover:bg-fill-1"
+          } disabled:cursor-default disabled:hover:bg-background-primary-default`}
+        >
+          <p className="text-caption-1-medium text-text-secondary">Not Uploaded{docEntry ? ` · ${docLabel}` : ""}</p>
+          <p className={`mt-1 text-title-1-semibold ${summary["Not Uploaded"] ? "text-text-primary" : "text-success-text"}`}>{summary["Not Uploaded"]}</p>
+          <p className="mt-0.5 text-caption-2-regular text-text-tertiary">
+            {summary["Not Uploaded"] === 0
+              ? "Every document is entered"
+              : onlyNotUploaded
+                ? "Showing these trucks · click to show all"
+                : `on ${trucksNotUploaded} truck${trucksNotUploaded === 1 ? "" : "s"} · click to list`}
+          </p>
+        </button>
         {/* Documents held with no cost entered: they count as ₹0 in Profitability
             and the Running Cost Calculator. Click to list just those trucks. */}
         <button
           type="button"
           data-tour="compliance-no-cost"
-          onClick={() => setOnlyMissingCost((v) => !v)}
+          onClick={() => { setOnlyMissingCost((v) => !v); setOnlyNotUploaded(false); }}
           aria-pressed={onlyMissingCost}
           disabled={missingCost === 0 && !onlyMissingCost}
           title="Documents with an expiry date but no cost. Their cost counts as ₹0 in Profitability and the Running Cost Calculator until it's entered."
           className={`rounded-xl border p-4 text-left transition-colors ${
             onlyMissingCost
-              ? "border-warning-border-strong bg-warning-surface"
-              : "border-separator-border bg-background-primary-default hover:border-warning-border hover:bg-warning-surface/50"
+              ? "border-accent-border-strong bg-accent-surface"
+              : "border-separator-border bg-background-primary-default hover:border-accent-border hover:bg-accent-surface/50"
           } disabled:cursor-default disabled:hover:bg-background-primary-default`}
         >
           <p className="text-caption-1-medium text-text-secondary">No cost entered</p>
-          <p className={`mt-1 text-title-1-semibold ${missingCost ? "text-warning-text" : "text-success-text"}`}>{missingCost}</p>
+          <p className={`mt-1 text-title-1-semibold ${missingCost ? "text-accent-text" : "text-success-text"}`}>{missingCost}</p>
           <p className="mt-0.5 text-caption-2-regular text-text-tertiary">
             {missingCost === 0
               ? "Every document has its cost"
@@ -192,14 +300,37 @@ export default function CompliancePage() {
       </div>
 
       {onlyMissingCost && missingCost > 0 && (
-        <p className="-mt-2 text-xs text-warning-text-strong">
+        <p className="-mt-2 text-xs text-accent-text">
           These trucks hold documents with no cost entered:{" "}
-          {trucks.filter((t) => docsWithoutCost(t).length).slice(0, 4).map((t) => `${t.registrationNumber} (${docsWithoutCost(t).join(", ")})`).join(" · ")}
+          {trucks.filter((t) => docsWithoutCost(t, docs).length).slice(0, 4).map((t) => `${t.registrationNumber} (${docsWithoutCost(t, docs).join(", ")})`).join(" · ")}
           {trucksMissingCost > 4 ? ` · and ${trucksMissingCost - 4} more` : ""}. Open a truck below and enter each document&apos;s cost.
         </p>
       )}
 
-      <ComplianceTable trucks={filteredTrucks} onChanged={() => setRefreshKey((k) => k + 1)} />
+      {onlyNotUploaded && summary["Not Uploaded"] > 0 && (
+        <p className="-mt-2 text-xs text-text-secondary">
+          These trucks have documents not uploaded yet:{" "}
+          {trucks.filter((t) => docsNotUploaded(t, docs).length).slice(0, 4).map((t) => `${t.registrationNumber} (${docsNotUploaded(t, docs).join(", ")})`).join(" · ")}
+          {trucksNotUploaded > 4 ? ` · and ${trucksNotUploaded - 4} more` : ""}. Open a truck below and add each document with its expiry date.
+        </p>
+      )}
+
+      {docEntry && filteredTrucks.length > 0 && (
+        <p className="-mt-2 text-xs text-text-secondary">
+          <span className="font-semibold text-text-primary">{docLabel}:</span>{" "}
+          {groupCounts.map(({ st, n }, i) => (
+            <span key={st}>
+              {i > 0 && " · "}
+              <span className={n && st === "Expired" ? "font-semibold text-danger-text" : n && st === "Expiring Soon" ? "font-semibold text-warning-text" : undefined}>
+                {n} {st === "Expiring Soon" ? "due soon" : st.toLowerCase()}
+              </span>
+            </span>
+          ))}
+          {" "}· sorted in that order
+        </p>
+      )}
+
+      <ComplianceTable trucks={filteredTrucks} highlight={docEntry?.[3]} onChanged={() => setRefreshKey((k) => k + 1)} />
 
 
       {/* Edit History — every compliance document update ever logged, across
