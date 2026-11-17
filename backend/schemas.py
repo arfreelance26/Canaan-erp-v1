@@ -368,6 +368,12 @@ class CustomerDestinationBase(OrmBase):
     cargo_classification: Optional[str] = None
     container_type: Optional[str] = None
     weight_in_tons: Optional[str] = None
+    # Pinned on the map (both ends, or none) and where the km came from.
+    origin_lat: Optional[Decimal] = Field(None, ge=-90, le=90)
+    origin_lon: Optional[Decimal] = Field(None, ge=-180, le=180)
+    destination_lat: Optional[Decimal] = Field(None, ge=-90, le=90)
+    destination_lon: Optional[Decimal] = Field(None, ge=-180, le=180)
+    distance_source: Optional[Literal["map", "address", "typed", "auto"]] = None   # auto: Geoapify, from a trip sheet
 
 
 class CustomerDestinationCreate(CustomerDestinationBase):
@@ -723,6 +729,7 @@ class TripEditEventListOut(BaseModel):
     event: TripEditEventType
     actor_name: str
     actor_role: Optional[str] = None
+    remark: Optional[str] = None
     created_at: datetime
 
 
@@ -1410,6 +1417,9 @@ class TripClosureOut(TripClosureCreate):
 class TripSheetCreate(OrmBase):
     # Optimistic locking — client echoes back the version it last saw
     client_version: Optional[int] = None
+    # Admin only: why this new sheet is saved while an earlier closed trip of the
+    # truck has no sheet yet (trip_km.missing_sheets). Not stored on the sheet.
+    skip_reason: Optional[str] = Field(None, max_length=300, exclude=True)   # never sent back
 
     trip_sheet_no: Optional[str] = None
     booking_reference_no: Optional[str] = None
@@ -1467,6 +1477,8 @@ class TripSheetCreate(OrmBase):
     diesel_remarks: Optional[str] = None
     diesel_entries: Optional[list] = None  # [{date, odometer, litres, costPerLitre, totalCost, fuelStation}]
     km_variance_remark: Optional[str] = None
+    # "one_way" (a Return Trip follows) or "two_way" (comes back empty). Required on all but Return Trip sheets.
+    km_basis: Optional[Literal["one_way", "two_way"]] = None
     toll_charges: Optional[Decimal] = None
     toll_count: Optional[int] = 0
     remarks: Optional[str] = None
@@ -2080,6 +2092,11 @@ class TripSheetKmCheckIn(BaseModel):
     trip_scheduled_date: Optional[_DateType] = None
     start_km: Optional[Decimal] = None
     end_km: Optional[Decimal] = None
+    # The sheet is open for editing: Geoapify may work out the expected km when the
+    # trip and its route have none (credits). Read-only views never spend credits.
+    lookup_distance: bool = False
+    # The sheet's answer so far: the expected km is one way or both ways.
+    km_basis: Optional[Literal["one_way", "two_way"]] = None
 
 
 class AdBlueLogCreate(OrmBase):

@@ -722,7 +722,7 @@ export function TripFormDialog({
         setVehicleAssignmentId(stored);
       }
     } catch {}
-  }, [draftActive, assignableDrivers]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draftActive, assignableDrivers]);
 
   // Save: persist the truck only alongside a real in-progress booking (a customer
   // chosen) and only after restore has run. A lone truck selection is never stored,
@@ -736,14 +736,14 @@ export function TripFormDialog({
         sessionStorage.removeItem(TRIP_VEHICLE_DRAFT_KEY);
       }
     } catch {}
-  }, [draftActive, vehicleAssignmentId, form.customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draftActive, vehicleAssignmentId, form.customerId]);
 
   // Auto-zero lift-on for Coastal trips
   useEffect(() => {
     if (form.cargoClassification === "COASTAL") {
       setForm((prev) => ({ ...prev, liftOnAmount: "0" }));
     }
-  }, [form.cargoClassification]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.cargoClassification]);
 
   const getTruckBranch = (truck: Truck): string => branchOverrides[truck.id] ?? truck.branchRegisteredTo;
 
@@ -891,7 +891,7 @@ export function TripFormDialog({
       return;
     }
     defaultBattaApi.list(String(selectedBranch.id)).then(setDefaultBattaRates).catch(() => setDefaultBattaRates([]));
-  }, [selectedBranch?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedBranch?.id]);
 
   // Keep driverAdvanceAmount in sync while "DEFAULT" is selected — branch,
   // trip category, or container type changing all flow through here since
@@ -2103,6 +2103,27 @@ export function TripFormDialog({
               )}
             </Field>
 
+            <Field label="Approximate KM">
+              <DecimalInput
+                type="number"
+                min="0"
+                step="1"
+                value={form.approxKm ?? ""}
+                onChange={(e) => update("approxKm", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={inputClass}
+                placeholder="Enter approximate KM"
+              />
+              <span className="mt-1 text-xs text-text-tertiary">
+                Auto-fetched from customer destination — editable if needed. Used as baseline for ±10% KM variance check in trip sheet.
+              </span>
+              {Number(form.approxKm) > IMPLAUSIBLE_APPROX_KM && (
+                <p className="mt-1 text-xs text-danger-text">
+                  {Number(form.approxKm).toLocaleString("en-IN")} km looks unusually high for a single trip — please double-check this wasn&apos;t entered by mistake.
+                </p>
+              )}
+            </Field>
+
           </div>
         </section>
 
@@ -2151,27 +2172,6 @@ export function TripFormDialog({
                 value={form.scheduledDate}
                 onChange={(v) => update("scheduledDate", v)}
               />
-            </Field>
-
-            <Field label="Approximate KM">
-              <DecimalInput
-                type="number"
-                min="0"
-                step="1"
-                value={form.approxKm ?? ""}
-                onChange={(e) => update("approxKm", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
-                placeholder="Enter approximate KM"
-              />
-              <span className="mt-1 text-xs text-text-tertiary">
-                Auto-fetched from customer destination — editable if needed. Used as baseline for ±10% KM variance check in trip sheet.
-              </span>
-              {Number(form.approxKm) > IMPLAUSIBLE_APPROX_KM && (
-                <p className="mt-1 text-xs text-danger-text">
-                  {Number(form.approxKm).toLocaleString("en-IN")} km looks unusually high for a single trip — please double-check this wasn&apos;t entered by mistake.
-                </p>
-              )}
             </Field>
 
             <Field label="Assigned Vehicle" className="sm:col-span-2">

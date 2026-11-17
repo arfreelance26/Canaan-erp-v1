@@ -89,6 +89,10 @@ def pytest_configure(config):
 
     # Must be set before anything imports database.py / main.py.
     os.environ["DATABASE_URL"] = _server_url(TEST_DB)
+    # No real Geoapify calls (they spend the account's credits): with the key
+    # empty, the distance lookups say "not set up". Tests that need Geoapify
+    # fake it (tests/test_route_distance.py). load_dotenv never overrides this.
+    os.environ["GEOAPIFY_API_KEY"] = ""
 
     import database
     from sqlalchemy import event

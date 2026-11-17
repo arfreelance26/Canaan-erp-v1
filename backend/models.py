@@ -434,7 +434,17 @@ class CustomerDestination(Base):
     origin_state = Column(String(100), nullable=True)
     origin_address = Column(String(500), nullable=True)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
-    approx_distance_km = Column(Numeric(8, 2), nullable=True)
+    approx_distance_km = Column(Numeric(8, 2), nullable=True)   # one way, road km
+    # The route's exact ends, when pinned on the map (Our Customers → Destinations
+    # → Pick on map); the distance is then worked out between these, not the text.
+    origin_lat = Column(Numeric(9, 6), nullable=True)
+    origin_lon = Column(Numeric(9, 6), nullable=True)
+    destination_lat = Column(Numeric(9, 6), nullable=True)
+    destination_lon = Column(Numeric(9, 6), nullable=True)
+    # Where approx_distance_km came from: "map" (pinned), "address" (matched from
+    # the address text), "typed" (entered by hand), "auto" (Geoapify, filled in
+    # from a trip sheet — trip_km.expected_km); empty for older routes.
+    distance_source = Column(String(20), nullable=True)
     # Moved here from CustomerPricing — a destination is now 1:1 with a single
     # cargo/container/weight combo (create a separate destination row per
     # combo instead of multiple pricing rows per destination). This makes the
@@ -857,6 +867,11 @@ class TripSheet(Base):
     diesel_remarks = Column(Text, nullable=True)
     diesel_entries = Column(JSON, nullable=True)  # [{date, odometer, litres, costPerLitre, totalCost, fuelStation}]
     km_variance_remark = Column(Text, nullable=True)
+    # How this sheet's km are counted (every category but Return Trip): "one_way" (a Return Trip
+    # follows: End KM at the drop point, the way back is on the Return Trip's sheet)
+    # or "two_way" (the truck comes back empty: End KM back at base). Required on
+    # those sheets; a Return Trip leaves it empty (trip_km.expected_km).
+    km_basis = Column(String(10), nullable=True)
     # Toll
     toll_charges = Column(Numeric(10, 2), default=0)
     toll_count = Column(Integer, default=0)
@@ -2277,6 +2292,9 @@ class TripEditEvent(Base):
     ), nullable=False)
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=True)
+    # Why, when the save needed one — e.g. Admin saving a trip sheet over an
+    # earlier closed trip that has no sheet yet (trip_km.missing_sheets).
+    remark = Column(String(300), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
@@ -2810,3 +2828,33 @@ class NoticeSeen(Base):
     notice_id = Column(Integer, ForeignKey("notices.id", ondelete="CASCADE"), primary_key=True)
     staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), primary_key=True)
     seen_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# Geoapify (road distance) — a lasting cache and the credit log (geo_usage.py)
+# ---------------------------------------------------------------------------
+
+class GeoCache(Base):
+    """Every Geoapify answer (place lookup, route, place name), so the same
+    question is never paid for twice — across restarts too."""
+    __tablename__ = "geo_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(64), nullable=False, unique=True)        # sha256 of the request (without the key)
+    kind = Column(String(20), nullable=False)                    # geocode / route / reverse
+    # length > 65535 makes MySQL use MEDIUMTEXT: a route's path can be long.
+    value = Column(Text(length=5_000_000), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class GeoUsage(Base):
+    """One paid Geoapify request: who, what, how many credits. Feeds the daily
+    budget, each person's hourly limit, and Admin's usage line."""
+    __tablename__ = "geo_usage"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, nullable=True)                    # null: the system (no signed-in user)
+    staff_name = Column(String(100), nullable=True)
+    kind = Column(String(20), nullable=False)
+    credits = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)

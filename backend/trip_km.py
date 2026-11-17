@@ -96,13 +96,181 @@ def highest_other_reading(db: Session, truck: models.Truck, trip_id: int, includ
     return max(nums) if nums else None
 
 
+# ── Expected km (Trip Sheet → the End KM hint and the KM variance check) ─────
+# What this trip should run, ONE WAY (every trip is one way; the way back is its
+# own Return Trip), so a wrong End KM stands out. First found wins:
+#   trip    the trip's Approx KM (copied from its route at booking)
+#   route   its customer route's Approx Distance (added after the booking)
+#   map     Geoapify: between the route's pins (exact), else from the trip's origin
+#           and destination text. An exact result is saved onto the route as
+#           "auto" (only when the route has no km) — credits once per route, and
+#           Assign Trip fills it for the next booking. A rough match (a place not
+#           found exactly) is shown but not saved, and the form asks no reason for it.
+# It's a check, never written into the sheet: End KM stays the real odometer reading.
+
+EXPECTED_TOLERANCE = 0.15   # the KM variance check asks for a reason beyond this
+_GEO_CACHE: dict[tuple, dict] = {}   # Geoapify answers this run (successes only)
+
+
+def _geo_estimate(o_addr, o_state, d_addr, d_state, o_pin, d_pin) -> dict | None:
+    """Geoapify's one-way road km for these ends, or None (no key, not found, offline)."""
+    import geo_distance
+    key = (o_addr, o_state, d_addr, d_state, o_pin, d_pin)
+    if key in _GEO_CACHE:
+        return _GEO_CACHE[key]
+    try:
+        r = geo_distance.road_distance(o_addr, o_state, d_addr, d_state, o_pin, d_pin)
+    except geo_distance.GeoError:
+        return None
+    _GEO_CACHE[key] = r
+    return r
+
+
+# How many legs a sheet's km cover, by the sheet's answer to "Is there a Return
+# Trip after this one?" — "one_way" (a Return Trip follows; the way back is on its
+# sheet) or "two_way" (the truck comes back empty). Asked on every category but
+# Return Trip, which is the way back itself: one way.
+BOTH_WAYS_CATEGORIES: set[str] = set()
+ASKED_CATEGORIES = {"OUTSTATION", "LOCAL", "LOCAL CFS", "SHIFTING"}
+
+
+def legs_for(category: str | None, basis: str | None) -> int | None:
+    """1 or 2 legs for this sheet — None when the sheet hasn't answered yet (all but Return Trip)."""
+    c = (category or "").upper()
+    if c in ASKED_CATEGORIES:
+        return {"one_way": 1, "two_way": 2}.get(basis or "")
+    return 2 if c in BOTH_WAYS_CATEGORIES else 1
+
+
+def expected_km(db: Session, trip: models.Trip, allow_geo: bool = False, basis: str | None = None) -> dict | None:
+    """What this sheet should run: the route's one-way km × its legs (legs_for),
+    where that comes from, and whether it's sure enough to ask for a reason when
+    the sheet is far off — or None. An unanswered sheet (not a Return Trip) gets
+    legs=None and pending=True (no hint, no check until answered).
+    allow_geo: Geoapify may be asked (credits) — only for a sheet open for editing."""
+    base = _one_way_km(db, trip, allow_geo)
+    if not base:
+        return None
+    legs = legs_for(trip.trip_category, basis or (trip.sheet.km_basis if trip.sheet else None))
+    one_way = base["km"]
+    if legs is None:
+        return {**base, "one_way_km": one_way, "legs": None, "pending": True}
+    return {**base, "km": one_way * legs, "one_way_km": one_way, "legs": legs, "pending": False,
+            "detail": base["detail"] + (f", × 2 (both ways: {_fmt(one_way)} km there and back)" if legs == 2 else ", one way")}
+
+
+def _one_way_km(db: Session, trip: models.Trip, allow_geo: bool = False) -> dict | None:
+    """The route's one-way km, where that comes from, and whether it's sure."""
+    own = _km(trip.approx_km)
+    if own > 0:
+        return {"km": own, "source": "trip", "sure": True, "detail": "this trip's Approx KM"}
+    route = db.get(models.CustomerDestination, trip.customer_destination_id) if trip.customer_destination_id else None
+    if route is not None and _km(route.approx_distance_km) > 0:
+        return {"km": _km(route.approx_distance_km), "source": "route", "sure": True, "detail": "the route's Approx Distance"}
+
+    # Geoapify: the route's pins, else the trip's own text (the route's states help the lookup).
+    pins = None
+    if route is not None and None not in (route.origin_lat, route.origin_lon, route.destination_lat, route.destination_lon):
+        pins = ((float(route.origin_lat), float(route.origin_lon)), (float(route.destination_lat), float(route.destination_lon)))
+    o_addr = (trip.origin or (route.origin_address if route else "") or "").strip()
+    d_addr = (trip.destination or (route.destination_address if route else "") or "").strip()
+    if not allow_geo or (not pins and not (o_addr and d_addr)):
+        return None
+    r = _geo_estimate(o_addr, route.origin_state if route else None, d_addr, route.destination_state if route else None,
+                      pins[0] if pins else None, pins[1] if pins else None)
+    if not r or r["km"] < 1:
+        return None
+    km = round(r["km"])
+    if r["sure"] and route is not None and _km(route.approx_distance_km) <= 0:
+        route.approx_distance_km = km
+        route.distance_source = "auto"
+        db.commit()
+    where = "between the route's pins" if pins else f"{o_addr} → {d_addr}"
+    return {"km": km, "source": "map", "sure": bool(r["sure"]),
+            "detail": f"worked out by Geoapify, {where}" + ("" if r["sure"] else " (rough: a place wasn't found exactly)")}
+
+
+def next_trip(db: Session, trip: models.Trip, vehicle_id: str | None = None) -> dict | None:
+    """The same truck's next trip after this one (any stage; not cancelled or deleted)."""
+    vehicle_id = (vehicle_id or "").strip() or (trip.vehicle_id or "").strip()
+    day = trip_day(trip)
+    if not vehicle_id or not day:
+        return None
+    after = []
+    for t in (db.query(models.Trip).filter(models.Trip.vehicle_id == vehicle_id, models.Trip.id != trip.id,
+                                           models.Trip.deleted_at.is_(None), models.Trip.status != "Cancelled").all()):
+        d = trip_day(t)
+        if d and (d > day or (d == day and t.id > trip.id)):
+            after.append((d, t.id, t))
+    if not after:
+        return None
+    d, _, t = min(after, key=lambda x: (x[0], x[1]))
+    return {"trip_db_id": t.id, "trip_code": t.trip_id, "category": (t.trip_category or "").upper(), "date": d.isoformat()}
+
+
+# ── Skipped trips ────────────────────────────────────────────────────────────
+# A trip's Start KM follows the End KM of the truck's trip before it. A Closed
+# trip (booking sheet closed) between the truck's last trip with km and this one
+# that has no trip sheet yet is a gap: its sheet must be entered first, or this
+# one's km swallow its distance. Saving a new sheet over such a gap is blocked
+# for everyone but Admin (with a reason).
+
+def trip_day(trip: models.Trip):
+    """A trip's date for ordering when it may have no sheet: its scheduled date, else the nearest one."""
+    return trip.scheduled_date or trip.assigned_date or trip.booking_created_date
+
+
+def missing_sheets(db: Session, trip: models.Trip, vehicle_id: str | None, scheduled_date=None) -> list[dict]:
+    """The truck's Closed trips with no trip sheet, between its last trip with
+    km and this one (oldest first). Cancelled and deleted trips don't count."""
+    vehicle_id = (vehicle_id or "").strip() or (trip.vehicle_id or "").strip()
+    if not vehicle_id:
+        return []
+    day = scheduled_date or trip_day(trip)
+    if not day:
+        return []
+    others = truck_sheets(db, vehicle_id, exclude_trip_id=trip.id)
+    before = [o for o in others if o["date"] and o["date"] <= day]
+    since = before[-1]["date"] if before else None
+    since_id = before[-1]["trip_db_id"] if before else None
+    q = (db.query(models.Trip)
+         .join(models.TripClosure, models.TripClosure.trip_id == models.Trip.id)
+         .outerjoin(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+         .filter(models.Trip.vehicle_id == vehicle_id, models.Trip.id != trip.id,
+                 models.Trip.deleted_at.is_(None), models.Trip.status != "Cancelled",
+                 models.TripSheet.id.is_(None)))
+    out = []
+    for t in q.all():
+        d = trip_day(t)
+        if not d:
+            continue
+        # Before this trip (same day: booked earlier), and not before the last trip with km.
+        if d > day or (d == day and t.id > trip.id):
+            continue
+        if since and (d < since or (d == since and t.id < since_id)):
+            continue
+        out.append({"trip_db_id": t.id, "trip_code": t.trip_id, "date": d})
+    out.sort(key=lambda r: (r["date"], r["trip_db_id"]))
+    return out
+
+
+def missing_message(missing: list[dict]) -> str:
+    names = ", ".join(f"{m['trip_code']} ({_fmt_date(m['date'])})" for m in missing[:3])
+    more = f" and {len(missing) - 3} more" if len(missing) > 3 else ""
+    one = len(missing) == 1
+    return (f"Enter the trip sheet for {names}{more} first. {'It is' if one else 'They are'} this truck's earlier "
+            f"closed trip{'' if one else 's'} with no trip sheet, so this trip's km would include "
+            f"{'its' if one else 'their'} distance.")
+
+
 def check(db: Session, trip: models.Trip, vehicle_id: str | None, scheduled_date,
-          start_km, end_km) -> dict:
+          start_km, end_km, allow_geo: bool = False, km_basis: str | None = None) -> dict:
     """Warnings for a sheet with these readings, plus the neighbouring trips
     and what saving would do to the truck's odometer."""
     vehicle_id = (vehicle_id or "").strip() or (trip.vehicle_id or "").strip()
     truck = db.query(models.Truck).filter(models.Truck.truck_id == vehicle_id).first() if vehicle_id else None
-    result = {"warnings": [], "previous": None, "next": None, "highest_other_reading": None, "odometer_note": None}
+    result = {"warnings": [], "previous": None, "next": None, "highest_other_reading": None, "odometer_note": None,
+              "missing": [], "expected": None, "next_trip": None}
     if not truck:
         return result
     start, end = _km(start_km), _km(end_km)
@@ -112,6 +280,13 @@ def check(db: Session, trip: models.Trip, vehicle_id: str | None, scheduled_date
     prev = next((o for o in reversed(others) if (o["date"] or date_type.min, o["start_km"]) <= key), None)
     nxt = next((o for o in others if (o["date"] or date_type.min, o["start_km"]) > key), None)
     result["previous"], result["next"] = prev, nxt
+    # The truck's real previous trip: the latest Closed trip with no sheet, if it is after `prev`.
+    result["missing"] = missing_sheets(db, trip, vehicle_id, d)
+    # What the trip should run: the End KM hint and the KM variance check.
+    result["expected"] = expected_km(db, trip, allow_geo, km_basis)
+    # The truck's next booked trip after this one — a Return Trip there answers
+    # "Is there a Return Trip after this one?" on the sheet.
+    result["next_trip"] = next_trip(db, trip, vehicle_id)
     warn = lambda field, msg: result["warnings"].append({"field": field, "message": msg})
 
     if prev and start and prev["end_km"]:

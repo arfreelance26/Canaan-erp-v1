@@ -173,6 +173,7 @@ NOT_WORK = frozenset({
     "DELETE /chat/messages/{message_id}",
     "PATCH /chat/messages/{message_id}",
     "PUT /chat/messages/{message_id}/reaction",
+    "POST /customers/route-distance",   # a distance lookup (Calculate / Pick on map); the route save is the work
     "DELETE /party-halt/{trip_id}/paid",
     "POST /chat/messages/{message_id}/payment-status",
     "POST /chat/owner-view/change-password",

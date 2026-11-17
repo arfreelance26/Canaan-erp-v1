@@ -258,6 +258,12 @@ def _run_schema_migrations():
         "ALTER TABLE customer_destinations ADD COLUMN approx_distance_km DECIMAL(8,2) NULL",
         "ALTER TABLE customer_destinations ADD COLUMN origin_state VARCHAR(100) NULL",
         "ALTER TABLE customer_destinations ADD COLUMN origin_address VARCHAR(500) NULL",
+        # Pinned on the map (Pick on map) + where the km came from
+        "ALTER TABLE customer_destinations ADD COLUMN origin_lat DECIMAL(9,6) NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN origin_lon DECIMAL(9,6) NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN destination_lat DECIMAL(9,6) NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN destination_lon DECIMAL(9,6) NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN distance_source VARCHAR(20) NULL",
         "ALTER TABLE trips ADD COLUMN approx_trip_distance DECIMAL(8,2) NULL",
         # User who entered/last modified a fuel log (ERP staff name, not the system marker)
         "ALTER TABLE fuel_logs ADD COLUMN entered_by_name VARCHAR(100) NULL",
@@ -584,6 +590,10 @@ def _run_schema_migrations():
         "ENUM('Booking Created','Booking Edited','Trip Sheet Saved','Trip Updated',"
         "'Trip Closed','Verification Confirmed','Verification Rejected',"
         "'Trip Deleted','Trip Restored') NOT NULL",
+        # Why a save needed a reason (Admin saving a trip sheet over a skipped trip)
+        "ALTER TABLE trip_edit_events ADD COLUMN remark VARCHAR(300) NULL",
+        # Outstation sheets: km counted one way (a Return Trip follows) or both ways
+        "ALTER TABLE trip_sheets ADD COLUMN km_basis VARCHAR(10) NULL",
         # Event Management — "Mark as Completed" (any participant) moves a meeting
         # from Upcoming into the History tab (own history for everyone, all-users
         # history for Admin).

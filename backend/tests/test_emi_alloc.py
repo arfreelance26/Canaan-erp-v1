@@ -60,6 +60,7 @@ def test_a_trip_carries_the_steady_rate_on_both_page_and_breakdown(api, world):
     api.post(f"/trips/{trip['id']}/sheet", json={
         "trip_sheet_no": f"TS-{trip['trip_id']}", "trip_sheet_date": date.today().isoformat(),
         "vehicle_id": trip["vehicle_id"], "start_km": 1000, "end_km": 1040, "hire_amount": 12000,
+        "km_basis": "two_way",
     })
     today = date.today()
     window = {"start_date": today.replace(day=1).isoformat(),

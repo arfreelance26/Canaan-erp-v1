@@ -186,7 +186,7 @@ export const FORM_TOURS: Record<string, FormTour> = {
     steps: [
       { field: "Customer Name", title: "The customer", text: "Whose route this is.", expression: "happy", side: "right" },
       { field: "Origin State", title: "From and to", text: "Where the trip starts and ends. The Assign Trip form offers this route for this customer.", expression: "focused", side: "right" },
-      { field: "Approx Distance (In KM)", title: "Distance", text: "The usual distance. It fills in the approximate km when this route is picked for a trip.", expression: "determined", side: "right" },
+      { field: "Approx Distance (In KM, one way)", title: "Distance", text: "The one-way road km. It fills in the approximate km when this route is picked for a trip. Press Calculate road distance to work it out from the addresses, or Pick on map (top right of Route) to drop pins A and B on the exact spots: the most accurate.", expression: "determined", side: "right" },
       { field: "Cargo Classification", title: "Cargo", text: "The usual cargo, container type and weight on this route.", expression: "curious", side: "right" },
     ],
   },

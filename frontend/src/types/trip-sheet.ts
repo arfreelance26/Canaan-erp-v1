@@ -47,6 +47,11 @@ export type TripSheetData = {
   totalKm: string;
   cargoWeight: string;  // auto-fetched from trip.cargoWeight
   kmVarianceRemark: string;
+  /** Every category but Return Trip (required there): "one_way" — a Return Trip follows, End KM at the
+   *  drop point; "two_way" — the truck comes back empty, End KM back at base. */
+  kmBasis?: "one_way" | "two_way" | "";
+  /** Admin only: why this new sheet goes in while an earlier closed trip of the truck has none. Not stored. */
+  skipReason?: string;
 
   // Diesel Entries (after KM section) — multiple fills per trip
   dieselEntries: DieselEntry[];

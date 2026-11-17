@@ -109,6 +109,8 @@ def add_sheet(api, trip):
     return api.post(f"/trips/{trip['id']}/sheet", json={
         "trip_sheet_no": f"TS-{trip['trip_id']}", "trip_sheet_date": date.today().isoformat(),
         "start_km": 1000, "end_km": 1040, "hire_amount": 12000,
+        # Outstation sheets must say how the km are counted (other categories ignore it).
+        "km_basis": "two_way",
     })
 
 

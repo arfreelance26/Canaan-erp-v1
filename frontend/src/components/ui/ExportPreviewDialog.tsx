@@ -1,10 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { RiEyeLine as Eye, RiFileExcel2Line as FileSpreadsheet, RiFileTextLine as FileText, RiLoader4Line as Loader2, RiCloseLine as X } from "@remixicon/react";
 import { saveBlob } from "@/lib/api";
 import { showError } from "@/lib/feedback";
+import { SheetPreview, readSheet, hasWideTable, type SheetView } from "@/components/ui/SheetPreview";
+import { Segmented } from "@/components/ui/Segmented";
+
+// The preview's layout choice (Auto / Table / Cards), remembered on this browser.
+const VIEW_KEY = "report-preview-view";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 export type PreviewSheet = { name: string; rows: string[][] };
@@ -29,7 +34,21 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose, on
   const [pdfBusy, setPdfBusy] = useState(false);
   const sheet = sheets[active] ?? { name: "", rows: [] };
   const [header, ...body] = sheet.rows;
-  const shown = useMemo(() => body.slice(0, PREVIEW_ROW_LIMIT), [body]);
+  // The preview never scrolls sideways: SheetPreview fits each table to the
+  // window, or shows a very wide one as cards (every value labelled).
+  const shownRows = useMemo(() => sheet.rows.slice(0, PREVIEW_ROW_LIMIT + 1), [sheet.rows]);
+  const wide = useMemo(() => hasWideTable(readSheet(shownRows)), [shownRows]);
+  const [view, setView] = useState<SheetView>("auto");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY) as SheetView | null;
+      if (saved === "auto" || saved === "table" || saved === "cards") setView(saved);
+    } catch { /* storage blocked: Auto */ }
+  }, []);
+  function pickView(v: SheetView) {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* not remembered */ }
+  }
 
   async function handlePdf() {
     if (pdfBusy) return;
@@ -161,31 +180,24 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose, on
           {!header || body.length === 0 ? (
             <EmptyState size="compact" illustration="no-data" title="Nothing to export" description="No data matches the current selection" className="rounded-2xl border border-separator-border bg-background-primary-default" />
           ) : (
-            <div className="custom-scrollbar min-h-0 flex-1 overflow-auto rounded-xl border border-separator-border bg-background-primary-default">
-              <table className="w-full whitespace-nowrap text-left text-sm">
-                <thead className="sticky top-0 z-10 bg-fill-1">
-                  <tr className="border-b border-separator-border">
-                    {header.map((h, i) => (
-                      <th key={i} className="px-4 py-3 text-caption-2-semibold text-text-secondary">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-separator-border">
-                  {shown.map((row, r) => (
-                    <tr key={r} className="odd:bg-background-primary-default even:bg-fill-1 hover:bg-accent-surface-strong/40">
-                      {header.map((_, c) => {
-                        const v = row[c] ?? "";
-                        return (
-                          <td key={c} className={`px-4 py-2.5 ${v === "" ? "text-text-tertiary" : "text-text-primary"}`}>
-                            {v === "" ? (row.some(Boolean) ? "—" : "") : v}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {/* Layout: Auto fits tables to the window and turns very wide ones into cards. */}
+              <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-text-tertiary">
+                  {wide && view !== "table" ? "Wide tables are shown as cards, so nothing scrolls sideways." : "Tables fit the window: no sideways scrolling."}
+                </p>
+                <Segmented<SheetView>
+                  value={view}
+                  onChange={pickView}
+                  label="Preview layout"
+                  options={[{ value: "auto", label: "Auto" }, { value: "table", label: "Table" }, { value: "cards", label: "Cards" }]}
+                />
+              </div>
+              {/* Scrolls down only: overflow-x is clipped, every table fits the width. */}
+              <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-xl border border-separator-border bg-background-primary-default p-3">
+                <SheetPreview rows={shownRows} view={view} />
+              </div>
+            </>
           )}
         </div>
 

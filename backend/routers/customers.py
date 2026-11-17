@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from database import get_db
@@ -58,6 +59,87 @@ def list_customers(
     if limit is not None:
         q = q.offset(offset).limit(limit)
     return q.all()
+
+
+class RouteDistanceIn(BaseModel):
+    origin_address: Optional[str] = Field(None, max_length=500)
+    origin_state: Optional[str] = Field(None, max_length=100)
+    destination_address: Optional[str] = Field(None, max_length=500)
+    destination_state: Optional[str] = Field(None, max_length=100)
+    # Pick on map: an end pinned exactly (both lat and lon), used instead of its address.
+    origin_lat: Optional[float] = Field(None, ge=-90, le=90)
+    origin_lon: Optional[float] = Field(None, ge=-180, le=180)
+    destination_lat: Optional[float] = Field(None, ge=-90, le=90)
+    destination_lon: Optional[float] = Field(None, ge=-180, le=180)
+
+
+# Who can add or edit customer routes (Our Customers): the same roles.
+ROUTE_ROLES = [Depends(require_roles("Commercial Manager", "Assistant Commercial Manager", "Accounts"))]
+
+
+def _pin(lat, lon):
+    return (lat, lon) if lat is not None and lon is not None else None
+
+
+@router.post("/route-distance", dependencies=ROUTE_ROLES)
+def route_distance(payload: RouteDistanceIn, current_user: TokenUser = Depends(get_current_user)):
+    """Our Customers → Destinations → "Calculate road distance" / "Pick on map":
+    the truck road distance (one way) between the route's two ends — pins if
+    placed, else the addresses — with what was matched and the path for the map
+    (Geoapify, geo_distance.py)."""
+    import geo_distance, geo_usage
+    o_pin, d_pin = _pin(payload.origin_lat, payload.origin_lon), _pin(payload.destination_lat, payload.destination_lon)
+    if not (o_pin or (payload.origin_address or "").strip()) or not (d_pin or (payload.destination_address or "").strip()):
+        raise HTTPException(422, "Enter both the origin and destination address, or pin them on the map.")
+    try:
+        with geo_usage.as_user(current_user):       # credits charged to this person (budget + hourly limit)
+            return geo_distance.road_distance(payload.origin_address, payload.origin_state,
+                                              payload.destination_address, payload.destination_state, o_pin, d_pin)
+    except geo_distance.GeoError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/pin-check", dependencies=ROUTE_ROLES)
+def pin_check(
+    origin_lat: float = Query(..., ge=-90, le=90), origin_lon: float = Query(..., ge=-180, le=180),
+    destination_lat: float = Query(..., ge=-90, le=90), destination_lon: float = Query(..., ge=-180, le=180),
+    origin_address: Optional[str] = Query(None, max_length=500), origin_state: Optional[str] = Query(None, max_length=100),
+    destination_address: Optional[str] = Query(None, max_length=500), destination_state: Optional[str] = Query(None, max_length=100),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Pick on map → Use these pins: does each pin agree with its typed address
+    (warn when they're far apart), and for an empty address, the map's name for
+    the spot to offer (geo_distance.check_pin)."""
+    import geo_distance, geo_usage
+    try:
+        with geo_usage.as_user(current_user):
+            return {
+                "origin": geo_distance.check_pin(origin_address, origin_state, origin_lat, origin_lon),
+                "destination": geo_distance.check_pin(destination_address, destination_state, destination_lat, destination_lon),
+                "far_km": geo_distance.FAR_KM,
+            }
+    except geo_distance.GeoError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/place-search", dependencies=ROUTE_ROLES)
+def place_search(text: str = Query(..., max_length=200), state: Optional[str] = Query(None, max_length=100),
+                 current_user: TokenUser = Depends(get_current_user)):
+    """Pick on map's search box: up to five places to jump to (Geoapify, India only)."""
+    import geo_distance, geo_usage
+    try:
+        with geo_usage.as_user(current_user):
+            return geo_distance.search_places(text, state)
+    except geo_distance.GeoError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/geo-usage", dependencies=[Depends(require_roles())])
+def geo_usage_today():
+    """Admin: Geoapify credits used today (India time) against the daily budget,
+    who used most, and how many answers are cached (geo_usage.py)."""
+    import geo_usage
+    return geo_usage.usage_today()
 
 
 @router.post("", response_model=schemas.CustomerOut, status_code=201)

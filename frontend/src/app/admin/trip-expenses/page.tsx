@@ -121,7 +121,7 @@ function ExpenseRow({
       <button
         type="button"
         disabled={!hasValue}
-        onClick={() => { if (hasValue) { onAutoChange(!autoPopulate); onBlur(); } }}
+        onClick={() => { if (hasValue) onAutoChange(!autoPopulate); }}
         title={
           !hasValue
             ? "Set a value first to enable auto-populate"
@@ -153,7 +153,7 @@ function ExpenseRow({
           placeholder="0.00"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
+          onBlur={() => onBlur()}
           className="w-full rounded-xl border border-separator-border bg-fill-1 py-2.5 pl-8 pr-3 text-body-medium text-text-primary transition-colors focus:border-accent-solid focus:bg-transparent focus:outline-none focus:ring-2 focus:ring-accent-solid/20"
         />
       </div>
@@ -232,12 +232,15 @@ export default function TripExpensesPage() {
       .catch(() => {}).finally(() => setLoading(false));
   }, [ready, user, router]);
 
-  const persist = useCallback(async () => {
+  // Saves `values` when given (the Auto toggle passes exactly what it just set),
+  // else the latest form (formRef, kept in step by the effect above — it has run
+  // by the time a field loses focus).
+  const persist = useCallback(async (values?: FormData) => {
     setSaveState("saving");
     if (savedTimer.current) clearTimeout(savedTimer.current);
     try {
       const result = await tripExpenseRatesApi.saveConfig(
-        formToPayload(formRef.current),
+        formToPayload(values ?? formRef.current),
         configRef.current?.version,
       );
       setConfig(result);
@@ -249,8 +252,8 @@ export default function TripExpensesPage() {
     }
   }, []);
 
-  // Generic setter for a string value field.
-  // Also updates formRef synchronously so persist() always reads the latest state.
+  // Generic setter for a string value field (saved when the field loses focus).
+  // Clearing a value (or setting it to 0) switches its Auto off.
   const setVal = (key: keyof FormData) => (v: string) => {
     setForm((prev) => {
       const next = { ...prev, [key]: v };
@@ -258,18 +261,16 @@ export default function TripExpensesPage() {
       if ((v === "" || parseFloat(v) === 0) && autoKey in next) {
         (next as Record<string, unknown>)[autoKey] = false;
       }
-      formRef.current = next;
       return next;
     });
   };
 
-  // Setter for the auto boolean — updates formRef synchronously so persist() fired
-  // in the same click event sees the new value (React batches the state update and
-  // runs updater functions later, so we cannot rely on an updater to write the ref).
+  // The Auto toggle: sets it and saves straight away — the exact values just set,
+  // so the save can't miss the change (React applies state after this click).
   const setAuto = (key: keyof FormData) => (v: boolean) => {
-    const next = { ...formRef.current, [key]: v };
-    formRef.current = next;
+    const next = { ...form, [key]: v };
     setForm(next);
+    void persist(next);
   };
 
   if (!ready) return null;

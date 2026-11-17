@@ -1309,6 +1309,7 @@ def list_all_edit_events(db: Session = Depends(get_db)):
             "event": e.event,
             "actor_name": e.actor_name,
             "actor_role": e.actor_role,
+            "remark": e.remark,
             "created_at": e.created_at,
         })
     return result
@@ -1811,8 +1812,30 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     if not trip.closure:
         raise HTTPException(400, "Trip must be closed before adding a trip sheet")
 
-    data = derive_sheet_totals(payload.model_dump(exclude={"client_version"}))
+    data = derive_sheet_totals(payload.model_dump(exclude={"client_version", "skip_reason"}))
     is_new = not trip.sheet
+    # Every category but Return Trip: say how the km are counted — one way (a Return Trip follows) or
+    # both ways (the truck comes back empty). Other categories leave it empty.
+    if (trip.trip_category or "").upper() in trip_km.ASKED_CATEGORIES:
+        if not payload.km_basis:
+            raise HTTPException(422, "Answer \"Is there a Return Trip after this one?\" so the km are counted the right way "
+                                     "(one way if a Return Trip follows, both ways if the truck comes back empty).")
+    else:
+        data["km_basis"] = None
+    # A new sheet over a skipped trip: an earlier Closed trip of this truck has no
+    # sheet yet, so this one's km would swallow its distance. Blocked — Admin may
+    # save with a reason (kept in the trip's Edit History). Edits aren't checked.
+    skip_reason = (payload.skip_reason or "").strip()
+    if is_new:
+        missing = trip_km.missing_sheets(db, trip, payload.vehicle_id, payload.trip_scheduled_date)
+        if missing:
+            msg = trip_km.missing_message(missing)
+            if current_user.role != "Admin":
+                raise HTTPException(409, msg)
+            if not skip_reason:
+                raise HTTPException(409, msg + " As Admin you can save anyway with a reason.")
+    else:
+        skip_reason = ""
     # Before it's overwritten — a lowered End KM may need to bring the truck's odometer down.
     old_end_km = trip.sheet.end_km if trip.sheet else None
     old_vehicle = (trip.sheet.vehicle_id or trip.vehicle_id) if trip.sheet else None
@@ -1841,6 +1864,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     db.add(models.TripEditEvent(
         trip_id=trip_id, event="Trip Sheet Saved",
         actor_name=current_user.name, actor_role=current_user.role,
+        remark=f"Saved before the earlier trip's sheet: {skip_reason}" if skip_reason else None,
     ))
 
     db.commit()
@@ -2018,10 +2042,16 @@ def check_trip_sheet_km(trip_id: int, payload: schemas.TripSheetKmCheckIn, db: S
     trip = db.get(models.Trip, trip_id)
     if not trip:
         raise HTTPException(404, "Trip not found")
-    r = trip_km.check(db, trip, payload.vehicle_id, payload.trip_scheduled_date, payload.start_km, payload.end_km)
+    import geo_usage
+    # Geoapify (for the expected km) only for a sheet open for editing, charged to this person.
+    with geo_usage.as_user(current_user):
+        r = trip_km.check(db, trip, payload.vehicle_id, payload.trip_scheduled_date, payload.start_km, payload.end_km,
+                          allow_geo=payload.lookup_distance, km_basis=payload.km_basis)
     for k in ("previous", "next"):
         if r[k]:
             r[k] = {**r[k], "date": r[k]["date"].isoformat() if r[k]["date"] else None}
+    # Earlier Closed trips of this truck with no sheet (a new sheet can't be saved over them).
+    r["missing"] = [{**m, "date": m["date"].isoformat()} for m in r.get("missing") or []]
     return r
 
 

@@ -10,13 +10,14 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
-import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate, type SheetKmCheck } from "@/lib/api";
+import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate, type SheetKmCheck, type SheetKmNeighbour, type SheetKmMissing, type SheetKmExpected } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import type { FuelLog } from "@/types/fuel-log";
-import { showError, confirmAction, prompt } from "@/lib/feedback";
+import { showError, showInfo, confirmAction, prompt } from "@/lib/feedback";
 import { todayIst, formatDate } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { RiDeleteBinLine as Trash2, RiAddCircleLine as PlusCircle, RiErrorWarningLine as WarnIcon } from "@remixicon/react";
+import { RiDeleteBinLine as Trash2, RiAddCircleLine as PlusCircle, RiErrorWarningLine as WarnIcon, RiMagicLine as AutoIcon } from "@remixicon/react";
 import { haltPayFromClosure } from "@/lib/halt-pay";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 
@@ -160,6 +161,15 @@ function tripLengthWarning(startKm: string, endKm: string): string | undefined {
     : undefined;
 }
 
+/** "Enter the trip sheet for TRP-2 (03-10-2026) first…" — as the backend says it (trip_km.missing_message). */
+function missingMessage(missing: SheetKmMissing[]): string {
+  const names = missing.slice(0, 3).map((m) => `${m.tripCode} (${formatDate(m.date)})`).join(", ");
+  const more = missing.length > 3 ? ` and ${missing.length - 3} more` : "";
+  const one = missing.length === 1;
+  return `Enter the trip sheet for ${names}${more} first. ${one ? "It is" : "They are"} this truck's earlier closed trip${one ? "" : "s"} `
+    + `with no trip sheet, so this trip's km would include ${one ? "its" : "their"} distance.`;
+}
+
 export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, autoEditable, onRequestAutoEdit, drivers, trucks, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<TripSheetData>(emptySheet(""));
   const [repairTypes, setRepairTypes] = useState<RepairType[]>([]);
@@ -167,6 +177,18 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [costPerKm, setCostPerKm] = useState<string>("");
   const [lastFuelLog, setLastFuelLog] = useState<FuelLog | null>(null);
   const [kmCheck, setKmCheck] = useState<SheetKmCheck | null>(null);
+  // The truck's trip before this one (its End KM is where this Start KM should
+  // begin) — shown in Trip Distance & Cargo as soon as the sheet opens.
+  const [lastTrip, setLastTrip] = useState<SheetKmNeighbour | null | undefined>(undefined);
+  // Earlier Closed trips of this truck with no sheet yet: enter those first (Admin may save with a reason).
+  const [lastMissing, setLastMissing] = useState<SheetKmMissing[]>([]);
+  // What this trip should run (route history, else the route's road km): the End KM hint + the KM variance check.
+  const [expected, setExpected] = useState<SheetKmExpected | null>(null);
+  // The truck's next booked trip: a Return Trip there answers "Is there a Return Trip after this one?".
+  const [nextTrip, setNextTrip] = useState<SheetKmCheck["nextTrip"]>(null);
+  const [basisFromNext, setBasisFromNext] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [saving, setSaving] = useState(false);
   const [invoiceRequired, setInvoiceRequired] = useState(true);
   // driverAdvance and additionalDriverAdvance live in form (TripSheetData) — not local state
@@ -215,6 +237,36 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     }, 500);
     return () => { stale = true; clearTimeout(t); };
   }, [open, tripDbId, readOnly, form.vehicleId, form.tripScheduledDate, form.startKm, form.endKm]);
+
+  // The truck's last trip before this one, from the same km check with no km yet.
+  // Once Start/End KM are typed, the km check above gives the exact neighbour instead.
+  useEffect(() => {
+    if (!open || !tripDbId || !form.vehicleId) { setLastTrip(undefined); setLastMissing([]); return; }
+    let stale = false;
+    // The one check that may ask Geoapify for the expected km — only when the sheet can be edited.
+    // (Answers are cached on the server, so re-asking when the Return Trip answer changes costs nothing.)
+    tripsApi.checkSheetKm(tripDbId, {
+      vehicleId: form.vehicleId, scheduledDate: form.tripScheduledDate, startKm: "", endKm: "",
+      lookupDistance: !readOnly, kmBasis: form.kmBasis,
+    })
+      .then((r) => { if (!stale) { setLastTrip(r.previous); setLastMissing(r.missing ?? []); setExpected(r.expected ?? null); setNextTrip(r.nextTrip ?? null); } })
+      .catch(() => { if (!stale) { setLastTrip(undefined); setLastMissing([]); setExpected(null); setNextTrip(null); } });
+    return () => { stale = true; };
+  }, [open, tripDbId, form.vehicleId, form.tripScheduledDate, readOnly, form.kmBasis]);
+
+  // "Is there a Return Trip after this one?" — asked on every category but Return Trip
+  // (backend trip_km.ASKED_CATEGORIES). When the truck's next booked trip is a Return
+  // Trip, that answers it — pre-select "one way" (the user can still change it).
+  const asksReturnTrip = ["OUTSTATION", "LOCAL", "LOCAL CFS", "SHIFTING"].includes((trip?.tripCategory ?? "").toUpperCase());
+  const isReturnTrip = (trip?.tripCategory ?? "").toUpperCase() === "RETURN TRIP";
+  useEffect(() => {
+    if (!open || readOnly || !asksReturnTrip || form.kmBasis) return;
+    if (nextTrip?.category === "RETURN TRIP") {
+      setForm((prev) => (prev.kmBasis ? prev : { ...prev, kmBasis: "one_way" }));
+      setBasisFromNext(true);
+    }
+  }, [open, readOnly, asksReturnTrip, nextTrip, form.kmBasis]);
+  useEffect(() => { if (!open) setBasisFromNext(false); }, [open]);
 
   useEffect(() => {
     if (!open || !trip) {
@@ -372,6 +424,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    let skipReason = "";
+    // How the km are counted must be said (all but Return Trip; the server asks too).
+    if (!readOnly && asksReturnTrip && !form.kmBasis) {
+      showError("Answer \"Is there a Return Trip after this one?\" in Trip Distance & Cargo, so the km are counted the right way.");
+      return;
+    }
     // A wrong Start/End KM would skew Total KM (profit) and could push the
     // truck's odometer up by lakhs of km — make the user confirm. Fresh check
     // on submit; if it can't be reached, only the trip-length check applies.
@@ -379,6 +437,24 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       const fresh = trip ? await tripsApi.checkSheetKm(trip.id, {
         vehicleId: form.vehicleId, scheduledDate: form.tripScheduledDate, startKm: form.startKm, endKm: form.endKm,
       }).catch(() => null) : null;
+      // A new sheet over a skipped trip: blocked (the server checks too); Admin may go on with a reason.
+      if (!existingSheet && fresh?.missing?.length) {
+        const message = missingMessage(fresh.missing);
+        if (!isAdmin) {
+          showError(message);
+          return;
+        }
+        const reason = await prompt({
+          title: "An earlier trip has no trip sheet",
+          description: `${message} As Admin you can save this one anyway. Why?`,
+          inputLabel: "Reason",
+          placeholder: "e.g. that trip didn't run; its sheet was lost",
+          required: true,
+          confirmLabel: "Save anyway",
+        });
+        if (reason === null) return;
+        skipReason = reason.trim();
+      }
       const warnings = [
         ...(fresh?.warnings.map((w) => w.message) ?? []),
         ...[tripLengthWarning(form.startKm, form.endKm)].filter((w): w is string => !!w),
@@ -424,16 +500,18 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       // sheet itself is saved (backend odometer.advance) — nothing to send here.
       setSaving(false);
     }
-    // ±10% KM variance check (compare totalKm to trip.approxKm)
+    // KM variance check: the trip's km against what it should run, one way (its
+    // Approx KM, else its route's, else Geoapify). Beyond ±15%: a reason to go on.
+    // A rough Geoapify figure (a place not found exactly) is only a hint, not a check.
     let kmRemark = form.kmVarianceRemark;
-    const approxKm = n(trip?.approxKm ?? "0");
+    const expectedKm = expected?.sure && !expected.pending ? expected.km : 0;
     const actualKm = n(form.totalKm);
-    if (!ro && approxKm > 0 && actualKm > 0 && !kmRemark) {
-      const pct = Math.abs((actualKm - approxKm) / approxKm) * 100;
-      if (pct > 10) {
+    if (!ro && expectedKm > 0 && actualKm > 0 && !kmRemark) {
+      const pct = Math.abs((actualKm - expectedKm) / expectedKm) * 100;
+      if (pct > 15) {
         const remark = await prompt({
           title: "KM variance",
-          description: `Actual KM (${actualKm}) differs from approximate KM (${approxKm}) by ${pct.toFixed(1)}%, outside the ±10% limit. Enter a reason to proceed.`,
+          description: `This trip ran ${actualKm.toLocaleString("en-IN")} km, but about ${expectedKm.toLocaleString("en-IN")} km is expected (${expected!.detail}). That's ${pct.toFixed(0)}% ${actualKm > expectedKm ? "more" : "less"}, outside the ±15% limit. Check the End KM, or enter a reason to proceed.`,
           inputLabel: "Reason",
           placeholder: "Reason for KM variance",
           required: true,
@@ -451,6 +529,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       ...form,
       kmVarianceRemark: kmRemark,
       dieselRemarks: dieselRemark,
+      ...(skipReason ? { skipReason } : {}),
       tripClosedDate:  closure?.closedAt ?? "",
       totalHaltDays:   haltTotalDays > 0   ? String(haltTotalDays)               : "",
       haltPay:         companyHaltPay > 0  ? companyHaltPay.toFixed(2)           : "",
@@ -509,10 +588,49 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   // Only validate against the live odometer for a NEW sheet. When editing an existing
   // sheet, the truck's odometer was already advanced to this sheet's end km on save,
   // so comparing its start km against the odometer would always false-positive.
-  const startKmTooLow  = !ro && !existingSheet && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
+  // Only on the truck's latest trip: an earlier trip filled in late is below the odometer
+  // by right (later sheets moved it on) — the km check against its neighbours covers it.
+  const startKmTooLow  = !ro && !existingSheet && !!currentTruck && !!kmCheck && !kmCheck.next
+    && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
   const endKmWarning = ro ? undefined : tripLengthWarning(form.startKm, form.endKm);
   const startKmChecks = ro ? [] : (kmCheck?.warnings ?? []).filter((w) => w.field === "start");
   const endKmChecks = ro ? [] : (kmCheck?.warnings ?? []).filter((w) => w.field === "end");
+
+
+  /** Trip Distance & Cargo → Auto Calculate: Start KM = the End KM of the truck's
+   *  last trip (the card above). Not while that trip has no sheet yet — its km
+   *  would be swallowed — and asks before replacing a different Start KM. End KM
+   *  stays the user's real odometer reading; Total KM follows on its own. */
+  async function autoCalculate() {
+    const missing = existingSheet ? [] : (kmCheck?.missing ?? lastMissing ?? []);
+    if (missing.length) {
+      showError(missingMessage(missing), "Can't fill Start KM yet");
+      return;
+    }
+    const prev = kmCheck?.previous ?? lastTrip;
+    if (!form.vehicleId) {
+      showInfo("Pick the truck first.");
+      return;
+    }
+    if (prev === undefined) {
+      showInfo("Still looking up this truck's last trip. Try again in a moment.");
+      return;
+    }
+    if (!prev || !prev.endKm) {
+      showInfo("This truck has no earlier trip with an End KM. Enter Start KM from the odometer.");
+      return;
+    }
+    const next = String(prev.endKm);
+    if (form.startKm.trim() && n(form.startKm) !== prev.endKm) {
+      const res = await confirmAction(
+        "Replace Start KM?",
+        `Start KM is ${n(form.startKm).toLocaleString("en-IN")} km. Replace it with ${prev.endKm.toLocaleString("en-IN")} km, where ${prev.tripCode} ended?`,
+        "Replace",
+      );
+      if (!res.isConfirmed) return;
+    }
+    set("startKm", next);
+  }
 
   return (
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-4xl" tour={ro ? undefined : "trip-sheet"}>
@@ -664,8 +782,126 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </div>
         </div>
 
-        {/* ── 4. Trip Distance & Cargo ── */}
-        <p className={sh}>Trip Distance & Cargo</p>
+        {/* ── 4. Trip Distance & Cargo ── (Auto Calculate on the right; what it fills in comes next) */}
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-accent-surface px-3 py-1.5">
+          <p className="text-caption-1-semibold text-accent-text-strong">Trip Distance & Cargo</p>
+          {!ro && (
+            <button
+              type="button"
+              onClick={autoCalculate}
+              className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border border-accent-border bg-background-primary-default px-2.5 text-caption-1-semibold text-accent-text transition-colors hover:bg-accent-surface-strong"
+            >
+              <AutoIcon className="h-3.5 w-3.5" />
+              Auto Calculate
+            </button>
+          )}
+        </div>
+        {/* All but Return Trip: is there a Return Trip after this one? It decides what End KM is —
+            the drop point (one way) or back at base (both ways). Required. */}
+        {asksReturnTrip && (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${form.kmBasis ? "border-accent-border bg-accent-surface/40" : "border-warning-border-strong bg-warning-surface"}`}>
+            <p className="mb-2 font-semibold text-text-primary">Is there a Return Trip after this one? <span className="text-danger-text">*</span></p>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["one_way", "Yes, a Return Trip follows"],
+                ["two_way", "No, the truck comes back empty"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={ro}
+                  onClick={() => { set("kmBasis", value); setBasisFromNext(false); }}
+                  aria-pressed={form.kmBasis === value}
+                  className={`rounded-lg border px-3 py-1.5 text-caption-1-semibold transition-colors disabled:cursor-default ${
+                    form.kmBasis === value
+                      ? "border-accent-border-strong bg-accent-solid text-on-solid"
+                      : "border-separator-border bg-background-primary-default text-text-secondary hover:bg-fill-2"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-text-secondary">
+              {form.kmBasis === "one_way"
+                ? "Enter this trip ONE WAY: Start KM where the truck set off, End KM = the odometer at the drop point. The way back goes on the Return Trip's sheet."
+                : form.kmBasis === "two_way"
+                  ? "Enter BOTH WAYS: Start KM where the truck set off, End KM = the odometer back at base. The empty run home belongs to this trip."
+                  : "In case of a Return Trip for this trip, enter Start KM and End KM one way (to the drop point). With no Return Trip, enter both ways (back at base)."}
+            </p>
+            {basisFromNext && nextTrip && form.kmBasis === "one_way" && (
+              <p className="mt-1 text-xs text-accent-text">
+                {nextTrip.tripCode} (Return Trip{nextTrip.date ? `, ${formatDate(nextTrip.date)}` : ""}) is booked next for this truck, so &ldquo;Yes&rdquo; is picked. Change it if that&apos;s wrong.
+              </p>
+            )}
+          </div>
+        )}
+        {isReturnTrip && (
+          <p className="rounded-xl border border-accent-border bg-accent-surface/40 px-4 py-3 text-xs text-text-secondary">
+            This is the way back: Start KM = where the outward trip ended (the drop point), End KM = the odometer at this trip&apos;s end. Auto Calculate fills Start KM from the truck&apos;s last trip.
+          </p>
+        )}
+        {/* The truck's last trip and where it ended: this trip's Start KM should begin there. */}
+        {(() => {
+          // The truck's previous trip has no sheet yet: say so, and which to enter first.
+          // (`?? []`: a result from before this list existed — e.g. a page not fully reloaded.)
+          const missing = existingSheet ? [] : (kmCheck?.missing ?? lastMissing ?? []);
+          if (missing.length) {
+            const latest = missing[missing.length - 1];
+            const earlier = missing.slice(0, -1).map((m) => m.tripCode);
+            const known = kmCheck?.previous ?? lastTrip;
+            return (
+              <div className="rounded-xl border border-warning-border-strong bg-warning-surface px-4 py-3 text-sm">
+                <p className="mb-1 flex items-center gap-1.5 text-caption-2-semibold text-warning-text">
+                  <WarnIcon className="h-3.5 w-3.5" /> Last Trip by this Truck has no trip sheet
+                </p>
+                <p className="text-text-primary">
+                  <b>{latest.tripCode}</b> ({formatDate(latest.date)}) is this truck&apos;s previous trip, but its trip sheet isn&apos;t entered yet.
+                  {earlier.length > 0 && ` ${earlier.join(", ")} ${earlier.length > 1 ? "are" : "is"} missing too.`}
+                  {` Enter ${missing.length > 1 ? "those" : "it"} first, so this trip's km follow on`}
+                  {isAdmin ? " (as Admin you can save anyway with a reason)." : "."}
+                </p>
+                {known && (
+                  <p className="mt-1 text-xs text-text-secondary">
+                    Last known End KM: {known.tripCode}{known.date ? ` (${formatDate(known.date)})` : ""}, {known.endKm.toLocaleString("en-IN")} km
+                  </p>
+                )}
+              </div>
+            );
+          }
+          const prev = kmCheck?.previous ?? lastTrip;
+          if (!form.vehicleId || prev === undefined) return null;
+          if (prev === null) {
+            return (
+              <p className="rounded-xl border border-separator-border bg-fill-1 px-4 py-3 text-xs text-text-secondary">
+                No earlier trip sheet with km for this truck.
+              </p>
+            );
+          }
+          return (
+            <div className="rounded-xl border border-teal-border bg-teal-surface px-4 py-3 text-sm">
+              <p className="mb-2 text-caption-2-semibold text-teal-text">Last Trip by this Truck</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+                <div>
+                  <span className="text-[10px] text-text-tertiary">Trip</span>
+                  <p className="font-semibold text-text-primary">{prev.tripCode}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-text-tertiary">Date</span>
+                  <p className="font-semibold text-text-primary">{prev.date ? formatDate(prev.date) : "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-text-tertiary">Start KM</span>
+                  <p className="font-semibold text-text-primary">{prev.startKm ? `${prev.startKm.toLocaleString("en-IN")} km` : "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-text-tertiary">End KM</span>
+                  <p className="font-semibold text-teal-text-strong">{prev.endKm ? `${prev.endKm.toLocaleString("en-IN")} km` : "—"}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Start km *">
             <DecimalInput type="number" min="0" className={fc} value={form.startKm} readOnly={ro} disabled={ro} onChange={(e) => set("startKm", e.target.value)} placeholder="e.g. 84000" />
@@ -675,17 +911,28 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               </p>
             )}
             {startKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-warning-text">{w.message}</p>)}
-            {!ro && kmCheck?.previous && startKmChecks.length === 0 && (
-              <p className="mt-1 text-xs text-text-tertiary">
-                Previous trip {kmCheck.previous.tripCode}{kmCheck.previous.date ? ` (${formatDate(kmCheck.previous.date)})` : ""} ended at {kmCheck.previous.endKm.toLocaleString("en-IN")} km
-              </p>
-            )}
           </Field>
           <Field label="End km *">
             <DecimalInput type="number" min="0" className={fc} value={form.endKm} readOnly={ro} disabled={ro} onChange={(e) => set("endKm", e.target.value)} placeholder="e.g. 84500" />
             {n(form.endKm) > 0 && n(form.startKm) > 0 && n(form.endKm) <= n(form.startKm) && (
               <p className="mt-1 text-xs text-danger-text">End Km must be greater than Start Km.</p>
             )}
+            {/* Expected End KM: Start KM + what this trip should run. A guide to check against — never filled in. */}
+            {!ro && expected?.pending && n(form.startKm) > 0 && (
+              <p className="mt-1 text-xs text-text-tertiary">Answer &ldquo;Is there a Return Trip after this one?&rdquo; above to see the expected End KM.</p>
+            )}
+            {!ro && expected && !expected.pending && n(form.startKm) > 0 && (() => {
+              const start = n(form.startKm);
+              const ran = n(form.endKm) > start ? n(form.endKm) - start : 0;
+              const off = ran > 0 ? Math.abs(ran - expected.km) / expected.km : 0;
+              return (
+                <p className={`mt-1 text-xs ${off > 0.15 && expected.sure ? "text-warning-text" : "text-text-tertiary"}`}>
+                  Expected about <b>{(start + expected.km).toLocaleString("en-IN")} km</b>{" "}
+                  (Start + {expected.km.toLocaleString("en-IN")} km one way: {expected.detail})
+                  {ran > 0 && off > 0.15 && <>. This trip ran {ran.toLocaleString("en-IN")} km, {Math.round(off * 100)}% {ran > expected.km ? "more" : "less"}{expected.sure ? ": check the reading." : "."}</>}
+                </p>
+              );
+            })()}
             {endKmWarning && <p className="mt-1 text-xs text-warning-text">{endKmWarning}</p>}
             {endKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-warning-text">{w.message}</p>)}
             {!ro && kmCheck?.odometerNote && <p className="mt-1 text-xs text-accent-text">{kmCheck.odometerNote}</p>}

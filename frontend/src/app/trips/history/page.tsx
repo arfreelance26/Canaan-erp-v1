@@ -910,6 +910,8 @@ export default function TripHistoryPage() {
                             <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption-2-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}
                             </span>
+                            {/* Why, when the save needed a reason (Admin saving a sheet over a skipped trip). */}
+                            {ev.remark && <p className="mt-1 max-w-[260px] whitespace-normal text-[11px] text-warning-text">{ev.remark}</p>}
                           </td>
                           <td className="px-3 py-2 text-text-secondary">
                             {ev.actorName}

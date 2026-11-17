@@ -53,7 +53,7 @@ def test_only_real_successful_work_counts(api, api_as, world, staff):
     tsr = api_as(role)
     before = next((p["work_count"] for p in report(api)["staff"] if p["name"] == name), 0) if _has_report(api) else 0
 
-    body = {"trip_sheet_no": f"TS-{trip['trip_id']}", **SHEET}
+    body = {"trip_sheet_no": f"TS-{trip['trip_id']}", **SHEET, "km_basis": "two_way"}
     tsr.post("/trips/999999/sheet", json=body, expect=404)             # failed: not work
     tsr.post(f"/trips/{trip['id']}/sheet", json=body)                  # work
     tsr.post(f"/trips/{trip['id']}/sheet", json=body)                  # saved again: counts once

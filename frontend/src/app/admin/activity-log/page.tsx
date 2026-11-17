@@ -31,6 +31,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import dynamic from "next/dynamic";
 import { PagedTbody } from "@/components/ui/PagedTbody";
+import { GeoUsageLine } from "@/components/admin/GeoUsageLine";
 
 // Dialogs load on demand, after the page has drawn (next/dynamic).
 // The Staff Work Report is also on Reports Center; here it opens on the day being viewed.
@@ -523,6 +524,7 @@ export default function ActivityLogPage() {
               What everyone did in the app
               {updatedAt ? ` · updated ${clock(new Date(updatedAt).toISOString())}` : ""}
             </p>
+            <div className="mt-1"><GeoUsageLine /></div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -792,6 +792,11 @@ function toCustomerDestination(b: B): CustomerDestination {
     originState: b.origin_state ?? "",
     originAddress: b.origin_address ?? "",
     approxDistanceKm: b.approx_distance_km != null ? String(b.approx_distance_km) : "",
+    originLat: b.origin_lat != null ? Number(b.origin_lat) : null,
+    originLon: b.origin_lon != null ? Number(b.origin_lon) : null,
+    destinationLat: b.destination_lat != null ? Number(b.destination_lat) : null,
+    destinationLon: b.destination_lon != null ? Number(b.destination_lon) : null,
+    distanceSource: b.distance_source ?? null,
     status: b.status ?? undefined,
     cargoClassification: b.cargo_classification ?? "",
     containerType: b.container_type ?? "",
@@ -1176,6 +1181,7 @@ function toSheet(b: B): TripSheetData {
     dieselTotal: String(b.diesel_total ?? ""),
     dieselRemarks: b.diesel_remarks ?? "",
     kmVarianceRemark: b.km_variance_remark ?? "",
+    kmBasis: (b.km_basis as "one_way" | "two_way" | null) ?? "",
     tollCharges: String(b.toll_charges ?? ""),
     remarks: b.remarks ?? "",
     version: typeof b.version === "number" ? b.version : undefined,
@@ -1185,6 +1191,7 @@ function toSheet(b: B): TripSheetData {
 function fromSheet(f: TripSheetData) {
   const n = (v: string) => parseFloat(v) || 0;
   return {
+    ...(f.skipReason ? { skip_reason: f.skipReason } : {}),
     trip_sheet_no: f.tripSheetNo || null,
     booking_reference_no: f.bookingReferenceNo || null,
     container_number: f.containerNumber || null,
@@ -1245,6 +1252,7 @@ function fromSheet(f: TripSheetData) {
     diesel_total: f.dieselTotal ? n(f.dieselTotal) : null,
     diesel_remarks: f.dieselRemarks || null,
     km_variance_remark: f.kmVarianceRemark || null,
+    km_basis: f.kmBasis || null,
     toll_charges: n(f.tollCharges),
     remarks: f.remarks || null,
     client_version: f.version,  // echo version back for optimistic locking
@@ -2122,7 +2130,75 @@ export type CustomerEditEventRow = {
   createdAt: string;
 };
 
+/** One end of a route as the map service found it (backend geo_distance.py). */
+export type RoutePlace = {
+  query: string; address: string; matched: string; lat: number; lon: number; state: string; confidence: number; kind: string;
+  /** Geoapify's match: "full_match", or only part of it ("inner_part", "match_by_city_or_disrict", …). */
+  match_type: string;
+  /** Found the place itself (not just its town or street) and sure of it. */
+  exact: boolean;
+};
+/** Our Customers → Destinations → "Calculate road distance": the truck road km and what was matched. */
+export type RouteDistance = {
+  km: number;
+  minutes: number | null;
+  mode: string;
+  origin: RoutePlace;
+  destination: RoutePlace;
+  /** Things to double-check: an unsure match, a place found in another state. */
+  warnings: string[];
+  /** Both ends found exactly (or pinned): the form fills the km in. Otherwise it asks first. */
+  sure: boolean;
+  /** Both ends pinned on the map. */
+  pinned: boolean;
+  /** The route's path, [[lat, lon], …], for the map. */
+  line: [number, number][];
+};
+
+/** A place from Pick on map's search box. */
+export type PlaceHit = { lat: number; lon: number; label: string; kind: string };
+export type MapPin = { lat: number; lon: number };
+/** One end of a pinned route against its typed address (backend geo_distance.check_pin). */
+export type PinCheckEnd =
+  | { status: "ok" | "far"; km_apart: number; matched: string }
+  | { status: "unchecked" }
+  | { status: "empty"; suggestion: { name: string; state: string } };
+export type PinCheck = { origin: PinCheckEnd; destination: PinCheckEnd; far_km: number };
+
 export const customersApi = {
+  /** Truck road distance between a route's origin and destination (Geoapify, server-side). */
+  /** One way. Each end is its pin when given (exact), else its address. */
+  routeDistance: (r: {
+    originAddress: string; originState: string; destinationAddress: string; destinationState: string;
+    originPin?: MapPin | null; destinationPin?: MapPin | null;
+  }) =>
+    req<RouteDistance>("/customers/route-distance", {
+      method: "POST",
+      body: JSON.stringify({
+        origin_address: r.originAddress || null, origin_state: r.originState || null,
+        destination_address: r.destinationAddress || null, destination_state: r.destinationState || null,
+        ...(r.originPin ? { origin_lat: r.originPin.lat, origin_lon: r.originPin.lon } : {}),
+        ...(r.destinationPin ? { destination_lat: r.destinationPin.lat, destination_lon: r.destinationPin.lon } : {}),
+      }),
+    }),
+  /** Use these pins: does each pin agree with its address, and a name for an empty one. */
+  pinCheck: (r: { origin: MapPin; destination: MapPin; originAddress: string; originState: string; destinationAddress: string; destinationState: string }) =>
+    req<PinCheck>(`/customers/pin-check?${new URLSearchParams({
+      origin_lat: String(r.origin.lat), origin_lon: String(r.origin.lon),
+      destination_lat: String(r.destination.lat), destination_lon: String(r.destination.lon),
+      ...(r.originAddress.trim() ? { origin_address: r.originAddress.trim() } : {}),
+      ...(r.originState.trim() ? { origin_state: r.originState.trim() } : {}),
+      ...(r.destinationAddress.trim() ? { destination_address: r.destinationAddress.trim() } : {}),
+      ...(r.destinationState.trim() ? { destination_state: r.destinationState.trim() } : {}),
+    })}`),
+  /** Pick on map's search box: up to five places in India. */
+  placeSearch: (text: string, state?: string) =>
+    req<PlaceHit[]>(`/customers/place-search?${new URLSearchParams({ text, ...(state ? { state } : {}) })}`),
+  /** Admin: Geoapify credits used today against the daily budget, who used most, answers kept. */
+  geoUsage: () =>
+    req<{ used: number; budget: number; hourly_per_person: number; by_person: { name: string; credits: number }[]; cached_answers: number }>(
+      "/customers/geo-usage",
+    ),
   list: () => req<B[]>("/customers").then((d) => d.map(toCustomer)),
   listDestinationOriginStates: () => req<string[]>("/customers/destination-origin-states"),
   listDestinationStates: () => req<string[]>("/customers/destination-states"),
@@ -2178,6 +2254,11 @@ export const customersApi = {
         origin_state: dest.originState || null,
         origin_address: dest.originAddress || null,
         approx_distance_km: dest.approxDistanceKm || null,
+        origin_lat: dest.originLat ?? null,
+        origin_lon: dest.originLon ?? null,
+        destination_lat: dest.destinationLat ?? null,
+        destination_lon: dest.destinationLon ?? null,
+        distance_source: dest.distanceSource ?? null,
         cargo_classification: dest.cargoClassification || null,
         container_type: dest.containerType || null,
         weight_in_tons: dest.weightInTons || null,
@@ -2192,6 +2273,11 @@ export const customersApi = {
         origin_state: dest.originState || null,
         origin_address: dest.originAddress || null,
         approx_distance_km: dest.approxDistanceKm || null,
+        origin_lat: dest.originLat ?? null,
+        origin_lon: dest.originLon ?? null,
+        destination_lat: dest.destinationLat ?? null,
+        destination_lon: dest.destinationLon ?? null,
+        distance_source: dest.distanceSource ?? null,
         cargo_classification: dest.cargoClassification || null,
         container_type: dest.containerType || null,
         weight_in_tons: dest.weightInTons || null,
@@ -2387,6 +2473,8 @@ export type TripEditEventRow = {
   event: TripEditEventType;
   actorName: string;
   actorRole: string | null;
+  /** Why, when the save needed a reason (e.g. Admin saving a sheet over a skipped trip). */
+  remark: string | null;
   createdAt: string;
 };
 
@@ -2470,12 +2558,20 @@ export const tripsApi = {
     req<B | null>(`/trips/${dbId}/sheet`).then((b) => (b ? toSheet(b) : null)),
   /** Start/End KM against the truck's trips before/after this one (new sheets
    *  and edits) — warnings only. rawReq: a check, not a change, so no cache is dropped. */
-  checkSheetKm: (dbId: string, v: { vehicleId: string; scheduledDate: string; startKm: string; endKm: string }): Promise<SheetKmCheck> =>
+  /** lookupDistance: the sheet is open for editing, so Geoapify may work out the expected
+   *  km when the trip and its route have none (credits). Leave it off everywhere else. */
+  checkSheetKm: (dbId: string, v: {
+    vehicleId: string; scheduledDate: string; startKm: string; endKm: string; lookupDistance?: boolean;
+    /** The sheet's answer so far — the expected km is one way or both ways. */
+    kmBasis?: string;
+  }): Promise<SheetKmCheck> =>
     rawReq<B>(`/trips/${dbId}/sheet/km-check`, {
       method: "POST",
       body: JSON.stringify({
         vehicle_id: v.vehicleId || null, trip_scheduled_date: v.scheduledDate || null,
         start_km: v.startKm || null, end_km: v.endKm || null,
+        lookup_distance: Boolean(v.lookupDistance),
+        km_basis: v.kmBasis || null,
       }),
     }).then((b) => {
       const nb = (x: B | null): SheetKmNeighbour | null => x ? {
@@ -2488,6 +2584,19 @@ export const tripsApi = {
         next: nb(b.next as B | null),
         highestOtherReading: (b.highest_other_reading as number | null) ?? null,
         odometerNote: (b.odometer_note as string | null) ?? null,
+        missing: ((b.missing as B[]) ?? []).map((m) => ({ tripDbId: String(m.trip_db_id), tripCode: String(m.trip_code), date: String(m.date) })),
+        expected: b.expected ? {
+          km: Number((b.expected as B).km), source: (b.expected as B).source as SheetKmExpected["source"],
+          sure: (b.expected as B).sure !== false,
+          detail: String((b.expected as B).detail ?? ""),
+          oneWayKm: Number((b.expected as B).one_way_km ?? (b.expected as B).km),
+          legs: (b.expected as B).legs != null ? Number((b.expected as B).legs) : null,
+          pending: (b.expected as B).pending === true,
+        } : null,
+        nextTrip: b.next_trip ? {
+          tripCode: String((b.next_trip as B).trip_code), category: String((b.next_trip as B).category ?? ""),
+          date: String((b.next_trip as B).date ?? ""),
+        } : null,
       };
     }),
 
@@ -2620,6 +2729,7 @@ export const tripsApi = {
         event: String(r.event) as TripEditEventType,
         actorName: String(r.actor_name ?? ""),
         actorRole: (r.actor_role as string | null) ?? null,
+        remark: (r.remark as string | null) ?? null,
         createdAt: String(r.created_at ?? ""),
       }))
     ),
@@ -5936,6 +6046,22 @@ export const securityApi = {
 };
 
 export type SheetKmNeighbour = { tripCode: string; date: string | null; startKm: number; endKm: number };
+/** An earlier Closed trip of the truck with no trip sheet yet (enter it first). */
+export type SheetKmMissing = { tripDbId: string; tripCode: string; date: string };
+/** What the trip should run, one way (backend trip_km.expected_km): its Approx KM, else its route's, else Geoapify. */
+export type SheetKmExpected = {
+  km: number;
+  source: "trip" | "route" | "map";
+  /** False for a rough Geoapify match (a place not found exactly): shown, but no reason asked for. */
+  sure: boolean;
+  detail: string;
+  /** The route's one-way km; `km` = this × legs. */
+  oneWayKm: number;
+  /** 1 or 2 legs; null while the sheet hasn't said if a Return Trip follows. */
+  legs: number | null;
+  /** True until that's answered: no hint, no check. */
+  pending: boolean;
+};
 export type SheetKmCheck = {
   warnings: { field: "start" | "end"; message: string }[];
   previous: SheetKmNeighbour | null;
@@ -5943,6 +6069,12 @@ export type SheetKmCheck = {
   highestOtherReading: number | null;
   /** What saving does to the truck's odometer when End KM is lowered on an edit. */
   odometerNote: string | null;
+  /** Earlier Closed trips of this truck with no sheet: a new sheet can't be saved over them (Admin: with a reason). */
+  missing: SheetKmMissing[];
+  /** What this trip should run — the End KM hint and the KM variance check. */
+  expected: SheetKmExpected | null;
+  /** The truck's next booked trip — a Return Trip there answers "Is there a Return Trip after this one?". */
+  nextTrip: { tripCode: string; category: string; date: string } | null;
 };
 
 // ---------------------------------------------------------------------------
