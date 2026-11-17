@@ -469,7 +469,8 @@ export default function ReportsCenterPage() {
       {open?.startsWith("res-") && <ResourceReportDialog kind={open.slice(4) as ResourceKind} onClose={() => setOpen(null)} />}
       {open?.startsWith("appr-") && <ApprovalReportDialog kind={open.slice(5) as ApprovalKind} onClose={() => setOpen(null)} />}
       {open?.startsWith("fin-") && <FinanceReportDialog kind={open.slice(4) as FinanceKind} onClose={() => setOpen(null)} />}
-      {open?.startsWith("trip-") && <TripPageReportDialog kind={open.slice(5) as TripPageKind} onClose={() => setOpen(null)} />}
+      {/* "trip-history" also starts with "trip-": it has its own window above. */}
+      {open?.startsWith("trip-") && open !== "trip-history" && <TripPageReportDialog kind={open.slice(5) as TripPageKind} onClose={() => setOpen(null)} />}
       {open?.startsWith("tyre-") && <TyreReportDialog kind={open.slice(5) as TyreKind} onClose={() => setOpen(null)} />}
       {open?.startsWith("rec-") && <RecordReportDialog kind={open.slice(4) as RecordKind} onClose={() => setOpen(null)} />}
       {open === "proofs" && <ProofPackDialog onClose={() => setOpen(null)} />}

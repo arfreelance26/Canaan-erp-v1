@@ -59,3 +59,44 @@ export async function downloadAvailableVehiclesPdf({ rows, total, search }: {
     M, y, W - M * 2, 7.5, GREY);
   k.finish(`Available_Vehicles_${stamp.slice(0, 10)}.pdf`);
 }
+
+/** The same list as an Excel file (SheetJS, in the browser): a title, the
+ *  summary, then one row per truck — filter-ready, with expired documents named. */
+export async function downloadAvailableVehiclesExcel({ rows, total, search }: {
+  rows: AvailableVehicleRow[];
+  total: number;
+  search: string;
+}): Promise<void> {
+  const { utils, writeFile } = await import("xlsx");
+  const stamp = new Date().toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
+    .replace(/\//g, "-");
+  const withExpired = rows.filter((r) => r.expired.length).length;
+  const head = ["#", "Registration", "Truck ID", "Type", "Branch", "Odometer (km)", "Expired documents"];
+  const aoa: (string | number)[][] = [
+    ["Available Vehicles"],
+    [`Trucks free for a new trip (not sold, not on an assigned or running trip) · as of ${stamp}`
+      + (search.trim() ? ` · search: "${search.trim()}" (${rows.length} of ${total})` : "")],
+    [],
+    ["Available", rows.length],
+    ["Ready to go (no expired documents)", rows.length - withExpired],
+    ["With expired documents", withExpired],
+    [],
+    head,
+    ...rows.map((r, i) => [i + 1, r.registration || "-", r.truckId || "-", r.type || "-", r.branch || "-",
+      r.odometer ?? "-", r.expired.length ? r.expired.join(", ") : "None"]),
+    [],
+    ["Expired = past the expiry date on Compliance & Renewals. A document with no date entered isn't counted here."],
+  ];
+  const ws = utils.aoa_to_sheet(aoa);
+  const headerRow = 8;   // 1-based row of the table header
+  ws["!cols"] = [{ wch: 5 }, { wch: 16 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 15 }, { wch: 34 }];
+  ws["!autofilter"] = { ref: utils.encode_range({ s: { r: headerRow - 1, c: 0 }, e: { r: headerRow - 1 + rows.length, c: head.length - 1 } }) };
+  // Odometer as a number with Indian grouping.
+  for (let i = 0; i < rows.length; i++) {
+    const cell = ws[utils.encode_cell({ r: headerRow + i, c: 5 })];
+    if (cell && typeof cell.v === "number") cell.z = "#,##,##0";
+  }
+  const wb = utils.book_new();
+  utils.book_append_sheet(wb, ws, "Available Vehicles");
+  writeFile(wb, `Available_Vehicles_${stamp.slice(0, 10)}.xlsx`);
+}

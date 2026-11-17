@@ -513,6 +513,8 @@ export function JoshinePet() {
 
   // Peeking right now: in peek mode and not risen to greet, offer or give a tour.
   const peeking = settings.tucked && !tour.active && !greeting && !offer && !open;
+  // A form is open (and no tour or panel of hers): she stays in view above it.
+  const formOnTop = formOpen && !tour.active && !open;
 
   // The gum bubble waits while Joshine is busy with anything else.
   const { run: gumRun, phase: gum } = useGumBubble(Boolean(user) && settings.lively && rules.gum && !settings.tucked && !ducked && !open && !greeting && !offer && !tour.active
@@ -605,10 +607,14 @@ export function JoshinePet() {
         data-joshine
         data-joshine-ui
         className={cx(
-          "group fixed bottom-4 right-5 z-pet transition-transform ease-out",
+          "group fixed bottom-4 right-5 transition-transform ease-out",
+          // A form's backdrop (z-[100] … z-overlay) would cover her — glasses and
+          // all — so while one is open she sits above it, low in the corner
+          // (head and glasses showing, clear of its Save / Cancel), and rises on hover.
+          formOnTop ? "z-popover" : "z-pet",
           // Ducking is quick; coming back up (and tucking) is gentler.
           ducked ? "duration-200" : "duration-500",
-          (peeking || ducked) && (hovered ? "translate-y-[36%]" : "translate-y-[58%]"),
+          (peeking || ducked || formOnTop) && (hovered ? "translate-y-[36%]" : "translate-y-[58%]"),
         )}
       >
         {/* Peek handle on hover: ↓ to peek, ↑ to come back (or J, or drag). */}

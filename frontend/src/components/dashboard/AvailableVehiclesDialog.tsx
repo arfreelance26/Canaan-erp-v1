@@ -6,7 +6,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getComplianceStatus } from "@/lib/compliance";
 import { showError } from "@/lib/feedback";
-import { RiFileTextLine as FileText, RiLoader4Line as Loader2 } from "@remixicon/react";
+import { RiFileExcel2Line as FileSpreadsheet, RiFileTextLine as FileText, RiLoader4Line as Loader2 } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
 
 /** Documents checked for the "expired" badge. A blank date is not counted:
@@ -34,6 +34,7 @@ type Props = { open: boolean; onClose: () => void; trucks: Truck[] };
 export function AvailableVehiclesDialog({ open, onClose, trucks }: Props) {
   const [search, setSearch] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [excelBusy, setExcelBusy] = useState(false);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -44,12 +45,13 @@ export function AvailableVehiclesDialog({ open, onClose, trucks }: Props) {
       .map((t) => ({ truck: t, expired: expiredDocs(t) }));
   }, [trucks, search]);
 
-  // The list as shown (search and order) as a PDF, expired documents named.
-  async function downloadPdf() {
-    setPdfBusy(true);
+  // The list as shown (search and order), expired documents named — as a PDF or an Excel file.
+  async function download(kind: "pdf" | "excel") {
+    const setBusy = kind === "pdf" ? setPdfBusy : setExcelBusy;
+    setBusy(true);
     try {
-      const { downloadAvailableVehiclesPdf } = await import("@/lib/available-vehicles-pdf");
-      await downloadAvailableVehiclesPdf({
+      const m = await import("@/lib/available-vehicles-pdf");
+      const args = {
         total: trucks.length,
         search,
         rows: rows.map(({ truck, expired }) => ({
@@ -60,11 +62,12 @@ export function AvailableVehiclesDialog({ open, onClose, trucks }: Props) {
           odometer: truck.odometer ? Number(truck.odometer) : null,
           expired,
         })),
-      });
+      };
+      await (kind === "pdf" ? m.downloadAvailableVehiclesPdf(args) : m.downloadAvailableVehiclesExcel(args));
     } catch {
-      showError("Couldn't make the PDF. Please try again.");
+      showError(`Couldn't make the ${kind === "pdf" ? "PDF" : "Excel file"}. Please try again.`);
     } finally {
-      setPdfBusy(false);
+      setBusy(false);
     }
   }
 
@@ -78,15 +81,26 @@ export function AvailableVehiclesDialog({ open, onClose, trucks }: Props) {
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <PillSearch value={search} onChange={setSearch} placeholder="Search registration, ID, type or branch…" size="sm" />
-          <button
-            type="button"
-            onClick={downloadPdf}
-            disabled={pdfBusy || rows.length === 0}
-            className="flex shrink-0 items-center gap-2 rounded-full border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50"
-          >
-            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            Download PDF
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => download("excel")}
+              disabled={excelBusy || rows.length === 0}
+              className="flex items-center gap-2 rounded-full border border-success-border bg-success-surface px-4 py-2 text-body-medium text-success-text hover:bg-success-surface-strong disabled:opacity-50"
+            >
+              {excelBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              Download Excel
+            </button>
+            <button
+              type="button"
+              onClick={() => download("pdf")}
+              disabled={pdfBusy || rows.length === 0}
+              className="flex items-center gap-2 rounded-full border border-danger-border bg-danger-surface px-4 py-2 text-body-medium text-danger-text hover:bg-danger-surface-strong disabled:opacity-50"
+            >
+              {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              Download PDF
+            </button>
+          </div>
         </div>
 
         {rows.length === 0 ? (
